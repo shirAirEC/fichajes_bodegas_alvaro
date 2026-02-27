@@ -9,13 +9,17 @@ function esAppNativa() {
   return typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.() === true;
 }
 
-// PWA instalada en Windows/escritorio (modo standalone)
+// PWA instalada en Windows/escritorio
 function esPWA() {
-  return typeof window !== 'undefined' && (
+  if (typeof window === 'undefined') return false;
+  // Método 1: parámetro en la URL del manifest (más fiable en Chrome)
+  const pwaParam = new URLSearchParams(window.location.search).get('pwa') === 'true';
+  // Método 2: display-mode standalone (Edge, Safari, algunos Chrome)
+  const standalone =
     window.matchMedia('(display-mode: standalone)').matches ||
     window.matchMedia('(display-mode: window-controls-overlay)').matches ||
-    window.navigator.standalone === true
-  );
+    window.navigator.standalone === true;
+  return pwaParam || standalone;
 }
 
 // Los empleados solo pueden acceder desde la app Android o desde la PWA instalada

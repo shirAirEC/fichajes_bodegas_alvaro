@@ -19,7 +19,7 @@ export default defineConfig({
         theme_color: '#8B2635',
         background_color: '#1a1a2e',
         display: 'standalone',
-        start_url: '/',
+        start_url: '/?pwa=true',
         icons: [
           { src: '/logo.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }
         ]
