@@ -67,6 +67,7 @@ export default function FicharPage() {
     const geoActivo = config?.geo_activo === '1';
 
     if (geoActivo) {
+      // Solo bloqueamos el fichaje por GPS si el admin lo ha activado
       try {
         posicion = await obtenerPosicion();
       } catch (err) {
@@ -74,16 +75,8 @@ export default function FicharPage() {
         setFichando(false);
         return;
       }
-    } else {
-      // Geo desactivada: intentamos obtenerla sin bloquear, con timeout corto
-      try {
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
-        posicion = await Promise.race([obtenerPosicion(), timeout]);
-      } catch {
-        // Si falla o tarda, fichamos sin coordenadas
-        posicion = null;
-      }
     }
+    // Si geo está desactivada, fichamos directamente sin intentar GPS
 
     try {
       const body = posicion ? {
