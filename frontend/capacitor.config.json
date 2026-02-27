@@ -1,0 +1,23 @@
+{
+  "appId": "com.bodegasalvaro.fichajes",
+  "appName": "Fichajes Bodegas Álvaro",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "Geolocation": {
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#8B2635"
+    }
+  },
+  "android": {
+    "buildOptions": {
+      "keystorePath": "keystore/bodegas-alvaro.jks",
+      "keystoreAlias": "fichajes"
+    }
+  }
+}

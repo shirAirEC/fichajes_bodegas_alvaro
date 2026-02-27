@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: fichajes_backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      JWT_SECRET: ${JWT_SECRET:-cambia_este_secreto_en_produccion_generalo_con_openssl}
+      DB_PATH: /app/data/fichajes.db
+    volumes:
+      - fichajes_data:/app/data
+    networks:
+      - fichajes_net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build: ./frontend
+    container_name: fichajes_frontend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-80}:80"
+    depends_on:
+      - backend
+    networks:
+      - fichajes_net
+
+volumes:
+  fichajes_data:
+    name: fichajes_bodegas_alvaro_data
+
+networks:
+  fichajes_net:
+    name: fichajes_bodegas_alvaro_net

@@ -1,0 +1,38 @@
+# Dependencias
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Build del frontend
+frontend/dist/
+
+# Base de datos local
+*.db
+data/
+backend/data/
+
+# Variables de entorno (NUNCA subir al repo)
+.env
+backend/.env
+
+# Android / Capacitor (generado, no incluir en repo)
+frontend/android/
+frontend/ios/
+
+# Keystore (secreto, NUNCA subir)
+frontend/keystore/
+*.jks
+*.keystore
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

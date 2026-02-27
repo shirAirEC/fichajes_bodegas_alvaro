@@ -1,0 +1,254 @@
+.page { max-width: 860px; margin: 0 auto; }
+
+.loading { text-align: center; padding: 4rem; color: var(--color-text-light); }
+
+.title {
+  font-family: var(--font-heading);
+  font-size: 1.75rem;
+  color: var(--color-primary);
+  margin-bottom: 1.75rem;
+}
+
+.errorBox {
+  background: var(--color-error-light);
+  color: var(--color-error);
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid rgba(192,57,43,0.3);
+}
+
+.successBox {
+  background: var(--color-success-light);
+  color: var(--color-success);
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid rgba(45,122,58,0.3);
+}
+
+.seccion {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 1.5rem;
+}
+
+.seccionHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--color-border);
+  color: var(--color-primary);
+}
+
+.seccionHeader h2 {
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+  color: var(--color-primary);
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.field label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.field input, .field select {
+  padding: 0.75rem 0.875rem;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  color: var(--color-text);
+  background: white;
+  outline: none;
+  transition: var(--transition);
+}
+.field input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(139,38,53,0.08); }
+
+/* Toggle switch */
+.toggleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--color-light);
+  border-radius: var(--radius-md);
+}
+
+.toggleLabel {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.toggleDesc {
+  font-size: 0.8rem;
+  color: var(--color-text-light);
+  margin: 0;
+  max-width: 500px;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.switchSlider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #ccc;
+  border-radius: 26px;
+  transition: 0.3s;
+}
+.switchSlider::before {
+  position: absolute;
+  content: '';
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.3s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.switch input:checked + .switchSlider { background: var(--color-primary); }
+.switch input:checked + .switchSlider::before { transform: translateX(24px); }
+
+/* Herramienta geo */
+.geoTool {
+  margin-top: 1.5rem;
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+}
+
+.geoToolHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.geoToolHeader span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.btnProbar {
+  padding: 0.6rem 1.25rem;
+  background: var(--color-info-light);
+  color: var(--color-info);
+  border: 1px solid rgba(41,128,185,0.3);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: var(--transition);
+}
+.btnProbar:hover:not(:disabled) { background: var(--color-info); color: white; }
+.btnProbar:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.geoResultado {
+  margin-top: 1rem;
+  background: var(--color-success-light);
+  border: 1px solid rgba(45,122,58,0.2);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+}
+
+.geoResultadoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.geoLbl {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--color-text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.15rem;
+}
+
+.geoVal {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.btnUsarCoords {
+  padding: 0.5rem 1rem;
+  background: var(--color-success);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: var(--transition);
+}
+.btnUsarCoords:hover { background: #256b30; }
+
+.geoError {
+  margin-top: 0.75rem;
+  background: var(--color-error-light);
+  color: var(--color-error);
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+.btnGuardar {
+  padding: 0.875rem 2.5rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: var(--transition);
+}
+.btnGuardar:hover:not(:disabled) { background: var(--color-primary-dark); transform: translateY(-1px); }
+.btnGuardar:disabled { opacity: 0.7; cursor: not-allowed; }
+
+@media (max-width: 600px) {
+  .formGrid { grid-template-columns: 1fr; }
+}

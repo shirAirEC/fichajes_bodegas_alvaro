@@ -1,0 +1,218 @@
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.topBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.75rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-size: 1.75rem;
+  color: var(--color-primary);
+}
+
+.fechaSelector {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.fechaLabel {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.fechaInput {
+  padding: 0.5rem 0.875rem;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  outline: none;
+  transition: var(--transition);
+}
+
+.fechaInput:focus {
+  border-color: var(--color-primary);
+}
+
+.loading {
+  text-align: center;
+  padding: 4rem;
+  color: var(--color-text-light);
+}
+
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+
+.statCard {
+  background: var(--color-white);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+  border-top: 3px solid;
+}
+
+.statTotal { border-color: var(--color-secondary); }
+.statDentro { border-color: var(--color-success); }
+.statFuera { border-color: var(--color-primary); }
+.statSinFichar { border-color: var(--color-warning); }
+
+.statNum {
+  display: block;
+  font-size: 2.25rem;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  color: var(--color-dark);
+  line-height: 1;
+  margin-bottom: 0.4rem;
+}
+
+.statLbl {
+  font-size: 0.75rem;
+  color: var(--color-text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+.tabla {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.tablaHeader {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 0.8fr 1.4fr 0.8fr 0.6fr;
+  padding: 0.75rem 1.25rem;
+  background: var(--color-light);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-light);
+}
+
+.tablaRow {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 0.8fr 1.4fr 0.8fr 0.6fr;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  align-items: center;
+  transition: var(--transition);
+}
+
+.tablaRow:last-child {
+  border-bottom: none;
+}
+
+.tablaRow:hover {
+  background: var(--color-light);
+}
+
+.empNombre {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.empAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.empDept {
+  font-size: 0.85rem;
+  color: var(--color-text-light);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.badgeDentro {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.badgeFuera {
+  background: var(--color-error-light);
+  color: var(--color-error);
+}
+
+.empHora {
+  font-size: 0.8rem;
+  color: var(--color-text-light);
+  text-transform: capitalize;
+}
+
+.empHoras {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.empFichajes {
+  font-size: 0.875rem;
+  color: var(--color-text-light);
+  text-align: center;
+}
+
+.empty {
+  padding: 3rem;
+  text-align: center;
+  color: var(--color-text-light);
+}
+
+@media (max-width: 900px) {
+  .statsRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .tablaHeader {
+    display: none;
+  }
+
+  .tablaRow {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    padding: 1rem;
+  }
+
+  .empNombre {
+    grid-column: 1 / -1;
+  }
+}

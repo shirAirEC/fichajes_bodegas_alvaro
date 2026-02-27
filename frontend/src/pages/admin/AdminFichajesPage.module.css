@@ -1,0 +1,258 @@
+.page { max-width: 1100px; margin: 0 auto; }
+
+.topBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-size: 1.75rem;
+  color: var(--color-primary);
+}
+
+.btnExportar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background: var(--color-secondary);
+  color: var(--color-dark);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: var(--transition);
+}
+
+.btnExportar:hover {
+  background: var(--color-secondary-dark);
+}
+
+.filtros {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
+.filtroSelect, .filtroInput {
+  padding: 0.6rem 0.875rem;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  color: var(--color-text);
+  background: var(--color-white);
+  outline: none;
+  transition: var(--transition);
+}
+
+.filtroSelect:focus, .filtroInput:focus {
+  border-color: var(--color-primary);
+}
+
+.filtroSelect { min-width: 200px; }
+
+.btnFiltrar {
+  padding: 0.625rem 1.25rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: var(--transition);
+}
+.btnFiltrar:hover { background: var(--color-primary-dark); }
+
+.btnLimpiar {
+  padding: 0.625rem 1rem;
+  background: transparent;
+  color: var(--color-text-light);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  transition: var(--transition);
+}
+.btnLimpiar:hover { border-color: var(--color-text-light); }
+
+.info {
+  font-size: 0.85rem;
+  color: var(--color-text-light);
+  margin-bottom: 1rem;
+}
+
+.loading, .empty {
+  text-align: center;
+  padding: 4rem;
+  color: var(--color-text-light);
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+}
+
+.tabla {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.tablaHeader {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 0.8fr 1.4fr 0.4fr;
+  padding: 0.75rem 1.25rem;
+  background: var(--color-light);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-light);
+}
+
+.tablaRow {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 0.8fr 1.4fr 0.4fr;
+  padding: 0.875rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  align-items: center;
+  transition: var(--transition);
+}
+.tablaRow:last-child { border-bottom: none; }
+.tablaRow:hover { background: var(--color-light); }
+
+.empNombre {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.empAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.dept { font-size: 0.8rem; color: var(--color-text-light); }
+
+.badge {
+  display: inline-flex;
+  padding: 0.2rem 0.625rem;
+  border-radius: 20px;
+  font-size: 0.73rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.badgeEntrada { background: var(--color-success-light); color: var(--color-success); }
+.badgeSalida { background: var(--color-error-light); color: var(--color-error); }
+
+.fechaHora { font-size: 0.8rem; color: var(--color-text); }
+
+.btnEliminar {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-light);
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  transition: var(--transition);
+}
+.btnEliminar:hover {
+  border-color: var(--color-error);
+  color: var(--color-error);
+  background: var(--color-error-light);
+}
+
+.confirmOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.confirmBox {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  max-width: 380px;
+  width: 90%;
+  box-shadow: var(--shadow-lg);
+}
+
+.confirmBox p {
+  font-size: 0.95rem;
+  color: var(--color-text);
+  margin-bottom: 1.5rem;
+}
+
+.confirmBtns {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.btnEliminarConfirm {
+  padding: 0.625rem 1.25rem;
+  background: var(--color-error);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: var(--transition);
+}
+.btnEliminarConfirm:hover { background: #a93226; }
+
+.btnCancelar {
+  padding: 0.625rem 1.25rem;
+  background: transparent;
+  color: var(--color-text);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  transition: var(--transition);
+}
+.btnCancelar:hover { background: var(--color-light); }
+
+.paginacion {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.btnPag {
+  padding: 0.6rem 1.25rem;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-white);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text);
+  transition: var(--transition);
+}
+.btnPag:hover:not(:disabled) { border-color: var(--color-primary); color: var(--color-primary); }
+.btnPag:disabled { opacity: 0.4; cursor: not-allowed; }
