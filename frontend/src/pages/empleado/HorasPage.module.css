@@ -1,0 +1,83 @@
+.page { max-width: 700px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+.titulo { font-size: 1.6rem; font-weight: 700; color: #1a1a2e; margin-bottom: 1.5rem; }
+.loading { text-align: center; padding: 3rem; color: #666; }
+
+.balanceAcum {
+  border-radius: 16px;
+  padding: 1.5rem;
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+.balancePos { background: linear-gradient(135deg, #1a6b3a, #27ae60); color: #fff; }
+.balanceNeg { background: linear-gradient(135deg, #7b1a2a, #c0392b); color: #fff; }
+.balanceLabel { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85; margin-bottom: 0.4rem; }
+.balanceValor { font-size: 2.5rem; font-weight: 800; margin-bottom: 0.3rem; }
+.balanceDesc { font-size: 0.9rem; opacity: 0.85; }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+@media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
+
+.tarjeta {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+}
+.tarjetaTitulo { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin: 0 0 0.75rem; }
+.tarjetaHoras { display: flex; align-items: baseline; gap: 0.4rem; margin-bottom: 0.75rem; }
+.horasTrabajadas { font-size: 1.8rem; font-weight: 700; color: #1a1a2e; }
+.horasSeparador { color: #bbb; font-size: 1.2rem; }
+.horasObjetivo { font-size: 1rem; color: #888; }
+
+.barra {
+  height: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.6rem;
+}
+.barraRelleno {
+  height: 100%;
+  background: #8B2635;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+.barraExceso { background: #27ae60; }
+
+.diferencia { font-size: 0.9rem; font-weight: 600; }
+.positivo { color: #27ae60; }
+.negativo { color: #c0392b; }
+.ajusteNote { font-weight: 400; font-size: 0.8rem; opacity: 0.8; }
+
+.objetivoInfo {
+  text-align: center;
+  color: #888;
+  font-size: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+.objetivoInfo strong { color: #444; }
+
+.btnHistorial {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #555;
+  margin-bottom: 1rem;
+  transition: background 0.2s;
+}
+.btnHistorial:hover { background: #ebebeb; }
+
+.historialCard { background: #fff; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+.subtitulo { font-size: 1.1rem; font-weight: 600; color: #1a1a2e; margin: 0 0 1rem; }
+.tablaWrap { overflow-x: auto; }
+.tabla { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.tabla th { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 2px solid #f0f0f0; color: #888; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+.tabla td { padding: 0.7rem 0.75rem; border-bottom: 1px solid #f8f8f8; color: #333; }
+.tabla tr:last-child td { border-bottom: none; }
+.ajusteTag { color: #e67e22; font-weight: 700; }
+.nota { font-size: 0.8rem; color: #aaa; margin: 0.75rem 0 0; }

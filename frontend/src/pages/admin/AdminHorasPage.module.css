@@ -1,0 +1,80 @@
+.page { max-width: 1000px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+.loading { text-align: center; padding: 3rem; color: #666; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem; }
+.titulo { font-size: 1.6rem; font-weight: 700; color: #1a1a2e; margin: 0; }
+
+.btnConfig {
+  padding: 0.5rem 1rem; background: #f5f5f5; border: 1px solid #ddd;
+  border-radius: 8px; cursor: pointer; font-size: 0.9rem; color: #555;
+  transition: background 0.2s;
+}
+.btnConfig:hover { background: #ebebeb; }
+
+.configPanel {
+  background: #fff; border-radius: 12px; padding: 1.25rem;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.07); margin-bottom: 1.5rem;
+}
+.configRow { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+@media (max-width: 500px) { .configRow { grid-template-columns: 1fr; } }
+.configPanel label { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.9rem; color: #555; font-weight: 500; }
+.configPanel input { padding: 0.5rem 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; }
+
+.tabla2Wrap { overflow-x: auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+.tabla2 { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.tabla2 th { text-align: left; padding: 0.75rem 1rem; border-bottom: 2px solid #f0f0f0; color: #888; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; white-space: nowrap; }
+.tabla2 td { padding: 0.85rem 1rem; border-bottom: 1px solid #f8f8f8; vertical-align: middle; }
+.tabla2 tr:last-child td { border-bottom: none; }
+.empNombre { font-weight: 600; color: #1a1a2e; }
+.empDept { font-size: 0.8rem; color: #aaa; margin-top: 2px; }
+.positivo { color: #27ae60; font-weight: 600; }
+.negativo { color: #c0392b; font-weight: 600; }
+.acciones { display: flex; gap: 0.5rem; }
+.btnAcc { background: none; border: 1px solid #eee; border-radius: 6px; padding: 0.35rem 0.6rem; cursor: pointer; font-size: 1rem; transition: background 0.2s; }
+.btnAcc:hover { background: #f5f5f5; }
+
+/* Modal */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1rem; }
+.modal { background: #fff; border-radius: 16px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.modalGrande { max-width: 680px; }
+.modalHeader { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.5rem; border-bottom: 1px solid #f0f0f0; }
+.modalHeader h3 { margin: 0; font-size: 1rem; color: #1a1a2e; }
+.btnCerrar { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #aaa; padding: 0.25rem 0.5rem; border-radius: 6px; }
+.btnCerrar:hover { background: #f5f5f5; color: #333; }
+
+.tabs { display: flex; border-bottom: 1px solid #f0f0f0; }
+.tab { flex: 1; padding: 0.75rem; background: none; border: none; cursor: pointer; font-size: 0.9rem; color: #888; }
+.tabActive { flex: 1; padding: 0.75rem; background: none; border: none; border-bottom: 2px solid #8B2635; cursor: pointer; font-size: 0.9rem; color: #8B2635; font-weight: 600; margin-bottom: -1px; }
+
+.form { padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 0.9rem; }
+.formHelp { font-size: 0.85rem; color: #888; margin: 0; }
+.form label { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.9rem; color: #555; font-weight: 500; }
+.form input { padding: 0.6rem 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; }
+.formRow { display: flex; gap: 0.75rem; }
+.formRow button { flex: 1; }
+
+.balanceBadge { margin: 1rem 1.5rem 0; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.9rem; }
+.balancePos { background: #e8f8f0; color: #1a6b3a; }
+.balanceNeg { background: #fdeaea; color: #7b1a2a; }
+
+.seccion { margin: 1.25rem 1.5rem 0.5rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: #888; font-weight: 600; }
+.tablaWrap { padding: 0 1.5rem 1rem; overflow-x: auto; }
+.tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.tabla th { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 2px solid #f0f0f0; color: #aaa; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; }
+.tabla td { padding: 0.6rem; border-bottom: 1px solid #f8f8f8; color: #333; }
+.tabla tr:last-child td { border-bottom: none; }
+
+.listaAjustes { padding: 0 1.5rem 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.ajuste { display: flex; align-items: center; gap: 0.75rem; padding: 0.7rem; background: #f9f9f9; border-radius: 8px; }
+.ajusteCant { font-size: 1rem; font-weight: 700; min-width: 60px; text-align: center; }
+.ajusteInfo { flex: 1; min-width: 0; }
+.ajusteConcepto { display: block; font-size: 0.9rem; font-weight: 500; color: #333; }
+.ajusteMeta { font-size: 0.78rem; color: #aaa; }
+.btnEliminar { background: none; border: 1px solid #fcc; color: #c0392b; border-radius: 6px; padding: 0.3rem 0.6rem; cursor: pointer; font-size: 0.85rem; }
+.btnEliminar:hover { background: #fdeaea; }
+
+.btnPrimary { padding: 0.7rem 1.5rem; background: #8B2635; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 0.95rem; font-weight: 600; transition: background 0.2s; }
+.btnPrimary:hover:not(:disabled) { background: #a02d3e; }
+.btnPrimary:disabled { opacity: 0.6; cursor: not-allowed; }
+.btnSecondary { padding: 0.7rem 1.5rem; background: #f5f5f5; color: #555; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 0.95rem; }
+.btnSecondary:hover { background: #ebebeb; }
+.error { background: #fdeaea; color: #c0392b; padding: 0.6rem 0.75rem; border-radius: 8px; font-size: 0.85rem; }

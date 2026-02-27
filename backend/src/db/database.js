@@ -60,9 +60,34 @@ async function initializeDatabase() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS horas_objetivo (
+      id SERIAL PRIMARY KEY,
+      empleado_id INTEGER NOT NULL UNIQUE REFERENCES empleados(id),
+      horas_semana DOUBLE PRECISION,
+      horas_mes DOUBLE PRECISION,
+      admin_id INTEGER REFERENCES empleados(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ajustes_horas (
+      id SERIAL PRIMARY KEY,
+      empleado_id INTEGER NOT NULL REFERENCES empleados(id),
+      cantidad_horas DOUBLE PRECISION NOT NULL,
+      concepto TEXT NOT NULL,
+      admin_id INTEGER NOT NULL REFERENCES empleados(id),
+      fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_fichajes_empleado ON fichajes(empleado_id);
     CREATE INDEX IF NOT EXISTS idx_fichajes_timestamp ON fichajes(timestamp);
     CREATE INDEX IF NOT EXISTS idx_saldos_empleado ON saldos(empleado_id);
+    CREATE INDEX IF NOT EXISTS idx_ajustes_empleado ON ajustes_horas(empleado_id);
   `);
 
   // Admin por defecto
@@ -87,6 +112,8 @@ async function initializeDatabase() {
     ['geo_radio_metros',   '150',            'Radio permitido en metros desde la bodega'],
     ['empresa_nombre',     'Bodegas Álvaro', 'Nombre de la empresa'],
     ['empresa_direccion',  'Tacoronte, Tenerife', 'Dirección de la empresa'],
+    ['horas_objetivo_semana', '40',          'Horas de trabajo objetivo por semana (defecto para todos los empleados)'],
+    ['horas_objetivo_mes',    '160',         'Horas de trabajo objetivo por mes (defecto para todos los empleados)'],
   ];
   for (const [clave, valor, descripcion] of defaults) {
     await pool.query(

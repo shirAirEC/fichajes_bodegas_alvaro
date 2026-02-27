@@ -3,6 +3,7 @@ import Navbar from '../components/Navbar';
 import FicharPage from './empleado/FicharPage';
 import HistorialPage from './empleado/HistorialPage';
 import SaldosPage from './empleado/SaldosPage';
+import HorasPage from './empleado/HorasPage';
 import styles from './Dashboard.module.css';
 
 export default function DashboardEmpleado() {
@@ -14,6 +15,7 @@ export default function DashboardEmpleado() {
           <Route path="/" element={<FicharPage />} />
           <Route path="/historial" element={<HistorialPage />} />
           <Route path="/saldos" element={<SaldosPage />} />
+          <Route path="/horas" element={<HorasPage />} />
         </Routes>
       </main>
     </div>
