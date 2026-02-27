@@ -153,7 +153,7 @@ router.get('/admin/resumen', authMiddleware, adminMiddleware, async (req, res) =
     const fecha = req.query.fecha || new Date().toISOString().split('T')[0];
 
     const { rows: empleados } = await pool.query(
-      'SELECT id, nombre, apellidos, departamento FROM empleados WHERE activo = 1'
+      "SELECT id, nombre, apellidos, departamento FROM empleados WHERE activo = 1 AND rol = 'empleado'"
     );
 
     const resumen = await Promise.all(empleados.map(async emp => {

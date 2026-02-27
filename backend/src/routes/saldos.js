@@ -41,7 +41,7 @@ router.get('/empleado/:id', authMiddleware, adminMiddleware, async (req, res) =>
 router.get('/resumen-todos', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { rows: empleados } = await pool.query(
-      'SELECT id, nombre, apellidos, departamento FROM empleados WHERE activo = 1 ORDER BY apellidos'
+      "SELECT id, nombre, apellidos, departamento FROM empleados WHERE activo = 1 AND rol = 'empleado' ORDER BY apellidos"
     );
     const resultado = await Promise.all(empleados.map(async emp => {
       const { rows } = await pool.query('SELECT tipo, cantidad FROM saldos WHERE empleado_id = $1', [emp.id]);

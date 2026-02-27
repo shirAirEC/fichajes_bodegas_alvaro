@@ -177,7 +177,7 @@ router.get('/admin/todos', authMiddleware, adminMiddleware, async (req, res) => 
     const mesFin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().split('T')[0];
 
     const { rows: empleados } = await pool.query(
-      'SELECT id, nombre, apellidos, departamento, fecha_alta FROM empleados WHERE activo = 1 ORDER BY apellidos'
+      "SELECT id, nombre, apellidos, departamento, fecha_alta FROM empleados WHERE activo = 1 AND rol = 'empleado' ORDER BY apellidos"
     );
 
     const resumen = await Promise.all(empleados.map(async emp => {
