@@ -91,10 +91,11 @@ export function AuthProvider({ children }) {
       }
     });
 
-    if (res.status === 403 || res.status === 401) {
+    if (res.status === 401) {
       logout();
       throw new Error('Sesión expirada');
     }
+    // 403 por restricción de red o permisos — NO desloguear, dejar que el componente lo gestione
 
     return res;
   }, [token, logout]);
