@@ -19,6 +19,10 @@ const origenesPermitidos = [
   'http://localhost:5173',
   'http://localhost:4173',
   'http://localhost:3000',
+  // Capacitor Android WebView
+  'https://localhost',
+  'capacitor://localhost',
+  'http://localhost',
 ];
 if (process.env.FRONTEND_URL) {
   process.env.FRONTEND_URL.split(',').forEach(u => origenesPermitidos.push(u.trim()));
