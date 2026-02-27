@@ -261,8 +261,13 @@
 }
 .ipDot { width: 8px; height: 8px; border-radius: 50%; background: #27ae60; flex-shrink: 0; }
 .ipValor { font-weight: 600; color: #1a5276; font-family: monospace; font-size: 0.9rem; }
-.ipBorrar { background: none; border: none; color: #aaa; cursor: pointer; padding: 0 0.1rem; font-size: 0.85rem; line-height: 1; }
-.ipBorrar:hover { color: var(--color-error); }
+.ipBorrar {
+  background: #fdecea; border: 1px solid #f5c6c2; color: #c0392b;
+  cursor: pointer; padding: 0.15rem 0.45rem; font-size: 0.8rem;
+  line-height: 1; border-radius: 10px; font-weight: 700;
+  transition: var(--transition);
+}
+.ipBorrar:hover { background: #c0392b; color: white; }
 
 .ipVacia { font-size: 0.85rem; color: #aaa; font-style: italic; margin-bottom: 1rem; }
 
