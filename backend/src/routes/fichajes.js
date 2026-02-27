@@ -174,6 +174,71 @@ router.get('/admin/resumen', authMiddleware, adminMiddleware, async (req, res) =
   }
 });
 
+// GET /api/fichajes/admin/jornadas — fichajes agrupados por empleado+día con horas calculadas
+router.get('/admin/jornadas', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { empleado_id, desde, hasta } = req.query;
+
+    const hoy = new Date().toISOString().split('T')[0];
+    const fechaDesde = desde || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+    const fechaHasta = hasta || hoy;
+
+    const condiciones = ['f.timestamp::date >= $1::date', 'f.timestamp::date <= $2::date'];
+    const params = [fechaDesde, fechaHasta];
+    let idx = 3;
+
+    if (empleado_id) { condiciones.push(`f.empleado_id = $${idx}`); params.push(empleado_id); idx++; }
+
+    const where = 'WHERE ' + condiciones.join(' AND ');
+    const { rows: fichajes } = await pool.query(
+      `SELECT f.*, e.nombre, e.apellidos, e.departamento
+       FROM fichajes f JOIN empleados e ON f.empleado_id = e.id
+       ${where} ORDER BY f.empleado_id, f.timestamp ASC`,
+      params
+    );
+
+    // Agrupar por empleado + fecha
+    const grupos = {};
+    for (const f of fichajes) {
+      const fecha = new Date(f.timestamp).toISOString().split('T')[0];
+      const key = `${f.empleado_id}_${fecha}`;
+      if (!grupos[key]) {
+        grupos[key] = {
+          empleado_id: f.empleado_id, nombre: f.nombre,
+          apellidos: f.apellidos, departamento: f.departamento,
+          fecha, fichajes: []
+        };
+      }
+      grupos[key].fichajes.push(f);
+    }
+
+    const jornadas = Object.values(grupos).map(g => {
+      const minutos = calcularMinutosTrabajados(g.fichajes);
+      const entradas = g.fichajes.filter(f => f.tipo === 'entrada');
+      const salidas = g.fichajes.filter(f => f.tipo === 'salida');
+      const enProgreso = g.fichajes[g.fichajes.length - 1]?.tipo === 'entrada';
+      return {
+        empleado_id: g.empleado_id, nombre: g.nombre,
+        apellidos: g.apellidos, departamento: g.departamento,
+        fecha: g.fecha,
+        minutosTrabajados: minutos,
+        horasTrabajadas: Math.round(minutos / 60 * 100) / 100,
+        primeraEntrada: entradas[0]?.timestamp || null,
+        ultimaSalida: salidas[salidas.length - 1]?.timestamp || null,
+        enProgreso,
+        numEntradas: entradas.length,
+        numSalidas: salidas.length,
+        fichajes: g.fichajes
+      };
+    }).sort((a, b) => b.fecha.localeCompare(a.fecha) || a.apellidos.localeCompare(b.apellidos));
+
+    res.json({ jornadas, desde: fechaDesde, hasta: fechaHasta });
+  } catch (err) {
+    console.error('jornadas error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // GET /api/fichajes/admin/exportar
 router.get('/admin/exportar', authMiddleware, adminMiddleware, async (req, res) => {
   try {
