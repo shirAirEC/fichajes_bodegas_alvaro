@@ -66,17 +66,22 @@ export default function FicharPage() {
     let posicion = null;
     const geoActivo = config?.geo_activo === '1';
 
-    if (geoActivo || true) {
-      // Siempre intentamos obtener posición si está disponible
+    if (geoActivo) {
       try {
         posicion = await obtenerPosicion();
       } catch (err) {
-        if (geoActivo) {
-          setGeoError(err.message);
-          setFichando(false);
-          return;
-        }
-        // Si geo no está activada en servidor, continuamos sin coords
+        setGeoError(err.message);
+        setFichando(false);
+        return;
+      }
+    } else {
+      // Geo desactivada: intentamos obtenerla sin bloquear, con timeout corto
+      try {
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
+        posicion = await Promise.race([obtenerPosicion(), timeout]);
+      } catch {
+        // Si falla o tarda, fichamos sin coordenadas
+        posicion = null;
       }
     }
 
