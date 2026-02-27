@@ -9,6 +9,8 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
 
+  const soloApp = error === 'SOLO_APP';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -37,6 +39,21 @@ export default function LoginPage() {
           <p className={styles.subtitle}>80 años de tradición en Tacoronte</p>
         </div>
 
+        {soloApp ? (
+          <div className={styles.soloAppBox}>
+            <div className={styles.soloAppIcono}>📱</div>
+            <h2 className={styles.soloAppTitulo}>Acceso solo desde la app</h2>
+            <p className={styles.soloAppTexto}>
+              Los empleados deben fichar desde la <strong>aplicación móvil</strong> de Bodegas Álvaro instalada en su dispositivo.
+            </p>
+            <p className={styles.soloAppTexto}>
+              Si eres administrador, inicia sesión con tu cuenta de administrador.
+            </p>
+            <button className={styles.soloAppBtn} onClick={() => setError('')}>
+              Volver al inicio de sesión
+            </button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className={styles.form}>
           {error && (
             <div className={styles.error} role="alert">
@@ -90,6 +107,8 @@ export default function LoginPage() {
         <footer className={styles.footer}>
           <p>¿Problemas para acceder? Contacta con administración.</p>
         </footer>
+        </form>
+        )}
       </div>
     </div>
   );

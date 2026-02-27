@@ -4,6 +4,18 @@ const AuthContext = createContext(null);
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+// Detecta si se ejecuta dentro de la app nativa de Capacitor (Android)
+function esAppNativa() {
+  return typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.() === true;
+}
+
+// Los empleados SOLO pueden acceder desde la app nativa, nunca desde el navegador web
+function verificarAccesoWeb(rol) {
+  if (rol === 'empleado' && !esAppNativa()) {
+    throw new Error('SOLO_APP');
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => localStorage.getItem('fichajes_token'));
@@ -28,7 +40,11 @@ export function AuthProvider({ children }) {
         if (!res.ok) throw new Error('Token inválido');
         return res.json();
       })
-      .then(data => setUser(data))
+      .then(data => {
+        // Si es empleado accediendo por web, expulsar inmediatamente
+        try { verificarAccesoWeb(data.rol); } catch { logout(); return; }
+        setUser(data);
+      })
       .catch(() => logout())
       .finally(() => setLoading(false));
   }, [token, logout]);
@@ -42,6 +58,9 @@ export function AuthProvider({ children }) {
 
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al iniciar sesión');
+
+    // Bloquear acceso web a empleados
+    verificarAccesoWeb(data.empleado.rol);
 
     localStorage.setItem('fichajes_token', data.token);
     setToken(data.token);
