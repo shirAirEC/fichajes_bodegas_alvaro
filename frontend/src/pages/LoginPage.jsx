@@ -54,60 +54,61 @@ export default function LoginPage() {
             </button>
           </div>
         ) : (
-        <form onSubmit={handleSubmit} className={styles.form}>
-          {error && (
-            <div className={styles.error} role="alert">
-              <span className={styles.errorIcon}>!</span>
-              {error}
-            </div>
-          )}
+          <>
+            <form onSubmit={handleSubmit} className={styles.form}>
+              {error && (
+                <div className={styles.error} role="alert">
+                  <span className={styles.errorIcon}>!</span>
+                  {error}
+                </div>
+              )}
 
-          <div className={styles.field}>
-            <label htmlFor="email" className={styles.label}>Correo electrónico</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="tu@bodegas-alvaro.com"
-              className={styles.input}
-              required
-              autoFocus
-              autoComplete="email"
-            />
-          </div>
+              <div className={styles.field}>
+                <label htmlFor="email" className={styles.label}>Correo electrónico</label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="tu@bodegas-alvaro.com"
+                  className={styles.input}
+                  required
+                  autoFocus
+                  autoComplete="email"
+                />
+              </div>
 
-          <div className={styles.field}>
-            <label htmlFor="password" className={styles.label}>Contraseña</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className={styles.input}
-              required
-              autoComplete="current-password"
-            />
-          </div>
+              <div className={styles.field}>
+                <label htmlFor="password" className={styles.label}>Contraseña</label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className={styles.input}
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
 
-          <button
-            type="submit"
-            className={styles.btn}
-            disabled={cargando}
-          >
-            {cargando ? (
-              <span className={styles.btnSpinner}></span>
-            ) : (
-              'Iniciar sesión'
-            )}
-          </button>
-        </form>
+              <button
+                type="submit"
+                className={styles.btn}
+                disabled={cargando}
+              >
+                {cargando ? (
+                  <span className={styles.btnSpinner}></span>
+                ) : (
+                  'Iniciar sesión'
+                )}
+              </button>
+            </form>
 
-        <footer className={styles.footer}>
-          <p>¿Problemas para acceder? Contacta con administración.</p>
-        </footer>
-        </form>
+            <footer className={styles.footer}>
+              <p>¿Problemas para acceder? Contacta con administración.</p>
+            </footer>
+          </>
         )}
       </div>
     </div>
