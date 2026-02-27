@@ -4,15 +4,14 @@
   "description": "Sistema de fichajes para Bodegas Álvaro",
   "private": true,
   "engines": {
-    "node": ">=20.0.0",
-    "npm": ">=9.0.0"
+    "node": ">=20.0.0"
   },
   "scripts": {
+    "start": "node backend/src/index.js",
     "install:backend": "npm install --prefix backend",
     "install:frontend": "npm install --prefix frontend",
-    "build": "npm run install:frontend && npm run build --prefix frontend",
-    "start": "node backend/src/index.js",
     "dev:backend": "npm run dev --prefix backend",
-    "dev:frontend": "npm run dev --prefix frontend"
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build:frontend": "npm run install:frontend && npm run build --prefix frontend"
   }
 }
