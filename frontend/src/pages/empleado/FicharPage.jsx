@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { obtenerPosicion } from '../../utils/geolocalizacion';
 import styles from './FicharPage.module.css';
 
 function formatTime(date) {
@@ -31,7 +30,7 @@ export default function FicharPage() {
   const [cargando, setCargando] = useState(true);
   const [fichando, setFichando] = useState(false);
   const [mensaje, setMensaje] = useState(null);
-  const [geoError, setGeoError] = useState(null);
+  const [errorRed, setErrorRed] = useState(null);
 
   // Reloj en tiempo real
   useEffect(() => {
@@ -61,39 +60,17 @@ export default function FicharPage() {
   const handleFichar = async () => {
     setFichando(true);
     setMensaje(null);
-    setGeoError(null);
-
-    let posicion = null;
-    const geoActivo = config?.geo_activo === '1';
-
-    if (geoActivo) {
-      // Solo bloqueamos el fichaje por GPS si el admin lo ha activado
-      try {
-        posicion = await obtenerPosicion();
-      } catch (err) {
-        setGeoError(err.message);
-        setFichando(false);
-        return;
-      }
-    }
-    // Si geo está desactivada, fichamos directamente sin intentar GPS
+    setErrorRed(null);
 
     try {
-      const body = posicion ? {
-        latitud: posicion.coords.latitude,
-        longitud: posicion.coords.longitude,
-        precision_metros: posicion.coords.accuracy,
-        notas: ''
-      } : {};
-
       const res = await authFetch('/api/fichajes/fichar', {
         method: 'POST',
-        body: JSON.stringify(body)
+        body: JSON.stringify({ notas: '' })
       });
       const data = await res.json();
       if (!res.ok) {
-        if (data.requiereGeo) {
-          setGeoError('Activa el GPS para poder fichar desde esta ubicación.');
+        if (data.requiereRed) {
+          setErrorRed(data.error);
         } else {
           throw new Error(data.error);
         }
@@ -115,7 +92,7 @@ export default function FicharPage() {
 
   const esDentro = estado?.dentro;
   const proximoTipo = estado?.proximoTipo;
-  const geoActivada = config?.geo_activo === '1';
+  const redActiva = config?.ip_activo === '1';
 
   return (
     <div className={styles.page}>
@@ -128,20 +105,20 @@ export default function FicharPage() {
           {esDentro ? 'En el trabajo' : 'Fuera del trabajo'}
         </div>
 
-        {geoActivada && (
+        {redActiva && !errorRed && (
           <div className={styles.geoInfo}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+              <path d="M1.42 9a16 16 0 0121.16 0"/><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M10.54 16.1a6 6 0 012.92 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>
             </svg>
-            Fichaje con verificación de ubicación activa
+            Verificación por red WiFi activa
           </div>
         )}
 
-        {geoError && (
+        {errorRed && (
           <div className={styles.geoErrorBox}>
-            <strong>Error de ubicación:</strong> {geoError}
+            <strong>⚠️ Red no autorizada</strong>
             <br />
-            <small>Asegúrate de tener el GPS activado y haber dado permisos de ubicación.</small>
+            {errorRed}
           </div>
         )}
 
@@ -159,7 +136,7 @@ export default function FicharPage() {
           {fichando ? (
             <>
               <span className={styles.spinner}></span>
-              {geoActivada ? 'Obteniendo ubicación...' : 'Registrando...'}
+              Registrando...
             </>
           ) : (
             <>
@@ -205,11 +182,6 @@ export default function FicharPage() {
                   <div className={styles.tiContent}>
                     <span className={styles.tiTipo}>{f.tipo === 'entrada' ? 'Entrada' : 'Salida'}</span>
                     <div className={styles.tiRight}>
-                      {f.latitud && (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" title="Ubicación verificada" style={{ color: 'var(--color-success)' }}>
-                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
-                        </svg>
-                      )}
                       <span className={styles.tiHora}>{formatTimestamp(f.timestamp)}</span>
                     </div>
                   </div>

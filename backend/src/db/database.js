@@ -114,6 +114,8 @@ async function initializeDatabase() {
     ['empresa_direccion',  'Tacoronte, Tenerife', 'Dirección de la empresa'],
     ['horas_objetivo_semana', '40',          'Horas de trabajo objetivo por semana (defecto para todos los empleados)'],
     ['horas_objetivo_mes',    '160',         'Horas de trabajo objetivo por mes (defecto para todos los empleados)'],
+    ['ip_activo',             '0',           'Activar restricción de fichaje por red WiFi (1=sí, 0=no)'],
+    ['ip_permitidas',         '',            'IPs públicas permitidas para fichar (separadas por comas)'],
   ];
   for (const [clave, valor, descripcion] of defaults) {
     await pool.query(

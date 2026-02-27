@@ -249,6 +249,49 @@
 .btnGuardar:hover:not(:disabled) { background: var(--color-primary-dark); transform: translateY(-1px); }
 .btnGuardar:disabled { opacity: 0.7; cursor: not-allowed; }
 
+/* IP Section */
+.ipSection { margin-top: 1.25rem; }
+.ipLabel { font-size: 0.85rem; font-weight: 600; color: #555; margin-bottom: 0.6rem; text-transform: uppercase; letter-spacing: 0.4px; }
+
+.ipLista { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+.ipTag {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.4rem 0.75rem; background: #e8f4fd; border: 1px solid #b8d9f0;
+  border-radius: 20px; font-size: 0.875rem;
+}
+.ipDot { width: 8px; height: 8px; border-radius: 50%; background: #27ae60; flex-shrink: 0; }
+.ipValor { font-weight: 600; color: #1a5276; font-family: monospace; font-size: 0.9rem; }
+.ipBorrar { background: none; border: none; color: #aaa; cursor: pointer; padding: 0 0.1rem; font-size: 0.85rem; line-height: 1; }
+.ipBorrar:hover { color: var(--color-error); }
+
+.ipVacia { font-size: 0.85rem; color: #aaa; font-style: italic; margin-bottom: 1rem; }
+
+.ipTool { background: #f8f9fa; border-radius: var(--radius-sm); padding: 1rem; border: 1px dashed var(--color-border); }
+.btnDetectarIp {
+  padding: 0.6rem 1.25rem; background: var(--color-white); border: 1.5px solid var(--color-primary);
+  color: var(--color-primary); border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 600;
+  cursor: pointer; transition: var(--transition);
+}
+.btnDetectarIp:hover:not(:disabled) { background: var(--color-primary); color: white; }
+.btnDetectarIp:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.ipDetectada {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  margin-top: 0.75rem; padding: 0.6rem 0.75rem;
+  background: white; border-radius: var(--radius-sm); border: 1px solid var(--color-border);
+  font-size: 0.875rem;
+}
+.ipDetectada strong { font-family: monospace; color: var(--color-primary); }
+.btnAñadirIp {
+  padding: 0.35rem 0.9rem; background: #27ae60; color: white; border: none;
+  border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 600; cursor: pointer;
+  white-space: nowrap; transition: var(--transition);
+}
+.btnAñadirIp:hover:not(:disabled) { background: #1e8449; }
+.btnAñadirIp:disabled { background: #aaa; cursor: default; }
+
+.ipHelp { font-size: 0.78rem; color: #888; margin: 0.75rem 0 0; line-height: 1.5; }
+
 @media (max-width: 600px) {
   .formGrid { grid-template-columns: 1fr; }
 }

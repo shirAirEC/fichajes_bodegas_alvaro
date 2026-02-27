@@ -4,32 +4,37 @@ const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
+function getClientIP(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.socket?.remoteAddress || req.ip || '';
+}
+
 // POST /api/fichajes/fichar
 router.post('/fichar', authMiddleware, async (req, res) => {
   try {
-    const { latitud, longitud, precision_metros, notas = '' } = req.body;
+    const { notas = '' } = req.body;
     const empleadoId = req.user.id;
 
-    // Validar geolocalización si está activa
+    // Validar red WiFi si está activa
     const { rows: cfgRows } = await pool.query(
-      "SELECT valor FROM configuracion WHERE clave = 'geo_activo'"
+      "SELECT clave, valor FROM configuracion WHERE clave IN ('ip_activo','ip_permitidas')"
     );
-    if (cfgRows[0]?.valor === '1') {
-      if (latitud == null || longitud == null) {
-        return res.status(400).json({
-          error: 'Se requiere geolocalización para fichar. Activa el GPS e inténtalo de nuevo.',
-          requiereGeo: true
+    const cfg = Object.fromEntries(cfgRows.map(r => [r.clave, r.valor]));
+
+    if (cfg.ip_activo === '1') {
+      const ipCliente = getClientIP(req);
+      const ipsPermitidas = (cfg.ip_permitidas || '').split(',').map(ip => ip.trim()).filter(Boolean);
+      if (ipsPermitidas.length === 0) {
+        return res.status(403).json({
+          error: 'La restricción por red está activa pero no hay ninguna IP configurada. Contacta con el administrador.',
+          requiereRed: true
         });
       }
-      const { rows: coords } = await pool.query(
-        "SELECT clave, valor FROM configuracion WHERE clave IN ('geo_lat','geo_lng','geo_radio_metros')"
-      );
-      const cfg = Object.fromEntries(coords.map(r => [r.clave, parseFloat(r.valor)]));
-      const dist = calcularDistanciaMetros(latitud, longitud, cfg.geo_lat, cfg.geo_lng);
-      if (dist > cfg.geo_radio_metros) {
+      if (!ipsPermitidas.includes(ipCliente)) {
         return res.status(403).json({
-          error: `Solo puedes fichar desde la bodega. Estás a ${Math.round(dist)}m (máximo: ${cfg.geo_radio_metros}m).`,
-          distancia: Math.round(dist), radioPermitido: cfg.geo_radio_metros
+          error: 'No puedes fichar desde esta red. Conéctate al WiFi de la bodega. Si el problema persiste, avisa al administrador para que actualice la configuración.',
+          requiereRed: true
         });
       }
     }
@@ -42,9 +47,8 @@ router.post('/fichar', authMiddleware, async (req, res) => {
     const tipo = (!lastRows[0] || lastRows[0].tipo === 'salida') ? 'entrada' : 'salida';
 
     const { rows } = await pool.query(
-      `INSERT INTO fichajes (empleado_id, tipo, latitud, longitud, precision_metros, notas)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [empleadoId, tipo, latitud ?? null, longitud ?? null, precision_metros ?? null, notas]
+      `INSERT INTO fichajes (empleado_id, tipo, notas) VALUES ($1, $2, $3) RETURNING *`,
+      [empleadoId, tipo, notas]
     );
 
     res.status(201).json({ fichaje: rows[0], tipo });

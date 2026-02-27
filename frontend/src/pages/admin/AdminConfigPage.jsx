@@ -9,8 +9,8 @@ export default function AdminConfigPage() {
   const [guardando, setGuardando] = useState(false);
   const [exito, setExito] = useState(false);
   const [error, setError] = useState('');
-  const [probandoGeo, setProbandoGeo] = useState(false);
-  const [geoResultado, setGeoResultado] = useState(null);
+  const [miIp, setMiIp] = useState(null);
+  const [cargandoIp, setCargandoIp] = useState(false);
 
   useEffect(() => {
     authFetch('/api/config').then(r => r.json()).then(data => {
@@ -39,47 +39,33 @@ export default function AdminConfigPage() {
     }
   };
 
-  const probarGeolocalizacion = () => {
-    setProbandoGeo(true);
-    setGeoResultado(null);
-    if (!navigator.geolocation) {
-      setGeoResultado({ error: 'Tu navegador no soporta geolocalización.' });
-      setProbandoGeo(false);
-      return;
+  const detectarMiIp = async () => {
+    setCargandoIp(true);
+    try {
+      const res = await authFetch('/api/config/mi-ip');
+      const data = await res.json();
+      setMiIp(data.ip);
+    } finally {
+      setCargandoIp(false);
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const precision = pos.coords.accuracy;
-
-        // Calcular distancia a la bodega configurada
-        const bLat = parseFloat(form.geo_lat || 0);
-        const bLng = parseFloat(form.geo_lng || 0);
-        const dist = calcularDistanciaMetros(lat, lng, bLat, bLng);
-
-        setGeoResultado({ lat, lng, precision: Math.round(precision), distancia: Math.round(dist) });
-        setProbandoGeo(false);
-      },
-      (err) => {
-        setGeoResultado({ error: 'No se pudo obtener la ubicación: ' + err.message });
-        setProbandoGeo(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
   };
 
-  const usarMiUbicacionComoBodega = () => {
-    if (geoResultado && !geoResultado.error) {
-      setForm(f => ({
-        ...f,
-        geo_lat: geoResultado.lat.toFixed(6),
-        geo_lng: geoResultado.lng.toFixed(6)
-      }));
+  const añadirIpActual = () => {
+    if (!miIp) return;
+    const ipsActuales = (form.ip_permitidas || '').split(',').map(ip => ip.trim()).filter(Boolean);
+    if (!ipsActuales.includes(miIp)) {
+      setForm(f => ({ ...f, ip_permitidas: [...ipsActuales, miIp].join(',') }));
     }
+  };
+
+  const eliminarIp = (ipAEliminar) => {
+    const nuevas = (form.ip_permitidas || '').split(',').map(ip => ip.trim()).filter(ip => ip && ip !== ipAEliminar);
+    setForm(f => ({ ...f, ip_permitidas: nuevas.join(',') }));
   };
 
   if (!config) return <div className={styles.loading}>Cargando configuración...</div>;
+
+  const ipsActuales = (form.ip_permitidas || '').split(',').map(ip => ip.trim()).filter(Boolean);
 
   return (
     <div className={styles.page}>
@@ -89,7 +75,7 @@ export default function AdminConfigPage() {
         {error && <div className={styles.errorBox}>{error}</div>}
         {exito && <div className={styles.successBox}>Configuración guardada correctamente.</div>}
 
-        {/* Sección empresa */}
+        {/* Empresa */}
         <div className={styles.seccion}>
           <div className={styles.seccionHeader}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -100,118 +86,83 @@ export default function AdminConfigPage() {
           <div className={styles.formGrid}>
             <div className={styles.field}>
               <label>Nombre de la empresa</label>
-              <input
-                value={form.empresa_nombre || ''}
-                onChange={e => setForm(f => ({ ...f, empresa_nombre: e.target.value }))}
-              />
+              <input value={form.empresa_nombre || ''} onChange={e => setForm(f => ({ ...f, empresa_nombre: e.target.value }))} />
             </div>
             <div className={styles.field}>
               <label>Dirección</label>
-              <input
-                value={form.empresa_direccion || ''}
-                onChange={e => setForm(f => ({ ...f, empresa_direccion: e.target.value }))}
-              />
+              <input value={form.empresa_direccion || ''} onChange={e => setForm(f => ({ ...f, empresa_direccion: e.target.value }))} />
             </div>
           </div>
         </div>
 
-        {/* Sección geolocalización */}
+        {/* Restricción por red WiFi */}
         <div className={styles.seccion}>
           <div className={styles.seccionHeader}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+              <path d="M1.42 9a16 16 0 0121.16 0"/><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M10.54 16.1a6 6 0 012.92 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>
             </svg>
-            <h2>Control de geolocalización</h2>
+            <h2>Restricción por red WiFi</h2>
           </div>
 
           <div className={styles.toggleRow}>
             <div>
-              <span className={styles.toggleLabel}>Verificación de ubicación al fichar</span>
+              <span className={styles.toggleLabel}>Solo permitir fichaje desde la red de la bodega</span>
               <p className={styles.toggleDesc}>
-                Si está activa, los empleados solo podrán fichar cuando estén físicamente dentro del radio definido.
+                Si está activo, los empleados solo podrán fichar cuando estén conectados al WiFi de la bodega. Más seguro y fiable que la geolocalización.
               </p>
             </div>
             <label className={styles.switch}>
               <input
                 type="checkbox"
-                checked={form.geo_activo === '1'}
-                onChange={e => setForm(f => ({ ...f, geo_activo: e.target.checked ? '1' : '0' }))}
+                checked={form.ip_activo === '1'}
+                onChange={e => setForm(f => ({ ...f, ip_activo: e.target.checked ? '1' : '0' }))}
               />
               <span className={styles.switchSlider}></span>
             </label>
           </div>
 
-          <div className={styles.formGrid}>
-            <div className={styles.field}>
-              <label>Latitud de la bodega</label>
-              <input
-                type="number"
-                step="0.000001"
-                value={form.geo_lat || ''}
-                onChange={e => setForm(f => ({ ...f, geo_lat: e.target.value }))}
-                placeholder="Ej: 28.476200"
-              />
-            </div>
-            <div className={styles.field}>
-              <label>Longitud de la bodega</label>
-              <input
-                type="number"
-                step="0.000001"
-                value={form.geo_lng || ''}
-                onChange={e => setForm(f => ({ ...f, geo_lng: e.target.value }))}
-                placeholder="Ej: -16.325300"
-              />
-            </div>
-            <div className={styles.field}>
-              <label>Radio permitido (metros)</label>
-              <input
-                type="number"
-                min="10"
-                max="5000"
-                value={form.geo_radio_metros || '150'}
-                onChange={e => setForm(f => ({ ...f, geo_radio_metros: e.target.value }))}
-              />
-            </div>
-          </div>
+          {/* IPs configuradas */}
+          <div className={styles.ipSection}>
+            <div className={styles.ipLabel}>IPs públicas permitidas</div>
 
-          {/* Herramienta para obtener coordenadas */}
-          <div className={styles.geoTool}>
-            <div className={styles.geoToolHeader}>
-              <span>Herramienta: obtener coordenadas de tu ubicación actual</span>
-              <button type="button" className={styles.btnProbar} onClick={probarGeolocalizacion} disabled={probandoGeo}>
-                {probandoGeo ? 'Obteniendo...' : '📍 Usar mi ubicación actual'}
-              </button>
-            </div>
-
-            {geoResultado && !geoResultado.error && (
-              <div className={styles.geoResultado}>
-                <div className={styles.geoResultadoGrid}>
-                  <div>
-                    <span className={styles.geoLbl}>Latitud</span>
-                    <span className={styles.geoVal}>{geoResultado.lat.toFixed(6)}</span>
+            {ipsActuales.length > 0 ? (
+              <div className={styles.ipLista}>
+                {ipsActuales.map(ip => (
+                  <div key={ip} className={styles.ipTag}>
+                    <span className={styles.ipDot} />
+                    <span className={styles.ipValor}>{ip}</span>
+                    <button type="button" className={styles.ipBorrar} onClick={() => eliminarIp(ip)} title="Eliminar esta IP">✕</button>
                   </div>
-                  <div>
-                    <span className={styles.geoLbl}>Longitud</span>
-                    <span className={styles.geoVal}>{geoResultado.lng.toFixed(6)}</span>
-                  </div>
-                  <div>
-                    <span className={styles.geoLbl}>Precisión</span>
-                    <span className={styles.geoVal}>±{geoResultado.precision}m</span>
-                  </div>
-                  <div>
-                    <span className={styles.geoLbl}>Distancia a bodega</span>
-                    <span className={styles.geoVal}>{geoResultado.distancia}m</span>
-                  </div>
-                </div>
-                <button type="button" className={styles.btnUsarCoords} onClick={usarMiUbicacionComoBodega}>
-                  Establecer como ubicación de la bodega
-                </button>
+                ))}
               </div>
+            ) : (
+              <p className={styles.ipVacia}>No hay IPs configuradas. Detecta tu IP actual desde la bodega para añadirla.</p>
             )}
 
-            {geoResultado?.error && (
-              <div className={styles.geoError}>{geoResultado.error}</div>
-            )}
+            {/* Herramienta para detectar IP */}
+            <div className={styles.ipTool}>
+              <button type="button" className={styles.btnDetectarIp} onClick={detectarMiIp} disabled={cargandoIp}>
+                {cargandoIp ? 'Detectando...' : '🔍 Detectar mi IP actual'}
+              </button>
+
+              {miIp && (
+                <div className={styles.ipDetectada}>
+                  <span>Tu IP actual: <strong>{miIp}</strong></span>
+                  <button
+                    type="button"
+                    className={styles.btnAñadirIp}
+                    onClick={añadirIpActual}
+                    disabled={ipsActuales.includes(miIp)}
+                  >
+                    {ipsActuales.includes(miIp) ? '✓ Ya añadida' : '+ Añadir a la lista'}
+                  </button>
+                </div>
+              )}
+              <p className={styles.ipHelp}>
+                Conéctate al WiFi de la bodega y pulsa "Detectar mi IP actual" para añadir la IP de esa red.
+                Si la IP cambia (IPs dinámicas), repite este proceso.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -223,12 +174,4 @@ export default function AdminConfigPage() {
       </form>
     </div>
   );
-}
-
-function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
-  const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }

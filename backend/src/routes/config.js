@@ -3,7 +3,18 @@ const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
-const CLAVES_PERMITIDAS = ['geo_activo','geo_lat','geo_lng','geo_radio_metros','empresa_nombre','empresa_direccion'];
+const CLAVES_PERMITIDAS = ['geo_activo','geo_lat','geo_lng','geo_radio_metros','empresa_nombre','empresa_direccion','ip_activo','ip_permitidas'];
+
+function getClientIP(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.socket?.remoteAddress || req.ip || '';
+}
+
+// GET /api/config/mi-ip — devuelve la IP pública del cliente (sin auth, para diagnóstico)
+router.get('/mi-ip', (req, res) => {
+  res.json({ ip: getClientIP(req) });
+});
 
 router.get('/', authMiddleware, async (req, res) => {
   try {
