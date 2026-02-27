@@ -4,14 +4,23 @@ const AuthContext = createContext(null);
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-// Detecta si se ejecuta dentro de la app nativa de Capacitor (Android)
+// App nativa Android (Capacitor)
 function esAppNativa() {
   return typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.() === true;
 }
 
-// Los empleados SOLO pueden acceder desde la app nativa, nunca desde el navegador web
+// PWA instalada en Windows/escritorio (modo standalone)
+function esPWA() {
+  return typeof window !== 'undefined' && (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+    window.navigator.standalone === true
+  );
+}
+
+// Los empleados solo pueden acceder desde la app Android o desde la PWA instalada
 function verificarAccesoWeb(rol) {
-  if (rol === 'empleado' && !esAppNativa()) {
+  if (rol === 'empleado' && !esAppNativa() && !esPWA()) {
     throw new Error('SOLO_APP');
   }
 }

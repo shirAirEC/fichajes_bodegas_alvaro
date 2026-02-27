@@ -1,0 +1,20 @@
+{
+  "name": "Fichajes Bodegas Álvaro",
+  "short_name": "Fichajes",
+  "description": "Sistema de fichajes para Bodegas Álvaro",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#8B2635",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "business"],
+  "lang": "es"
+}
