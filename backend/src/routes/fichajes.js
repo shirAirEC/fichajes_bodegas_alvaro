@@ -1,237 +1,244 @@
 const express = require('express');
-const db = require('../db/database');
+const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
 // POST /api/fichajes/fichar
-// El empleado ficha entrada o salida
-router.post('/fichar', authMiddleware, (req, res) => {
-  const { latitud, longitud, precision_metros, notas = '' } = req.body;
-  const empleadoId = req.user.id;
+router.post('/fichar', authMiddleware, async (req, res) => {
+  try {
+    const { latitud, longitud, precision_metros, notas = '' } = req.body;
+    const empleadoId = req.user.id;
 
-  // Validar geolocalización si está activada
-  const geoActivo = db.prepare("SELECT valor FROM configuracion WHERE clave = 'geo_activo'").get();
-  if (geoActivo?.valor === '1') {
-    if (latitud == null || longitud == null) {
-      return res.status(400).json({
-        error: 'Se requiere geolocalización para fichar. Activa el GPS y vuelve a intentarlo.',
-        requiereGeo: true
-      });
+    // Validar geolocalización si está activa
+    const { rows: cfgRows } = await pool.query(
+      "SELECT valor FROM configuracion WHERE clave = 'geo_activo'"
+    );
+    if (cfgRows[0]?.valor === '1') {
+      if (latitud == null || longitud == null) {
+        return res.status(400).json({
+          error: 'Se requiere geolocalización para fichar. Activa el GPS e inténtalo de nuevo.',
+          requiereGeo: true
+        });
+      }
+      const { rows: coords } = await pool.query(
+        "SELECT clave, valor FROM configuracion WHERE clave IN ('geo_lat','geo_lng','geo_radio_metros')"
+      );
+      const cfg = Object.fromEntries(coords.map(r => [r.clave, parseFloat(r.valor)]));
+      const dist = calcularDistanciaMetros(latitud, longitud, cfg.geo_lat, cfg.geo_lng);
+      if (dist > cfg.geo_radio_metros) {
+        return res.status(403).json({
+          error: `Solo puedes fichar desde la bodega. Estás a ${Math.round(dist)}m (máximo: ${cfg.geo_radio_metros}m).`,
+          distancia: Math.round(dist), radioPermitido: cfg.geo_radio_metros
+        });
+      }
     }
 
-    const geoLat = parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave = 'geo_lat'").get()?.valor || '0');
-    const geoLng = parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave = 'geo_lng'").get()?.valor || '0');
-    const radioMetros = parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave = 'geo_radio_metros'").get()?.valor || '150');
+    // Determinar tipo por último fichaje
+    const { rows: lastRows } = await pool.query(
+      'SELECT tipo FROM fichajes WHERE empleado_id = $1 ORDER BY timestamp DESC LIMIT 1',
+      [empleadoId]
+    );
+    const tipo = (!lastRows[0] || lastRows[0].tipo === 'salida') ? 'entrada' : 'salida';
 
-    const distancia = calcularDistanciaMetros(latitud, longitud, geoLat, geoLng);
+    const { rows } = await pool.query(
+      `INSERT INTO fichajes (empleado_id, tipo, latitud, longitud, precision_metros, notas)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [empleadoId, tipo, latitud ?? null, longitud ?? null, precision_metros ?? null, notas]
+    );
 
-    if (distancia > radioMetros) {
-      return res.status(403).json({
-        error: `Solo puedes fichar desde la bodega. Estás a ${Math.round(distancia)}m (máximo permitido: ${radioMetros}m).`,
-        distancia: Math.round(distancia),
-        radioPermitido: radioMetros
-      });
-    }
+    res.status(201).json({ fichaje: rows[0], tipo });
+  } catch (err) {
+    console.error('Fichar error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
-
-  // Determinar tipo: si el último fichaje es entrada, el siguiente es salida, y viceversa
-  const ultimo = db.prepare(`
-    SELECT tipo FROM fichajes 
-    WHERE empleado_id = ? 
-    ORDER BY timestamp DESC 
-    LIMIT 1
-  `).get(empleadoId);
-
-  const tipo = (!ultimo || ultimo.tipo === 'salida') ? 'entrada' : 'salida';
-
-  const result = db.prepare(`
-    INSERT INTO fichajes (empleado_id, tipo, latitud, longitud, precision_metros, notas)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(empleadoId, tipo, latitud ?? null, longitud ?? null, precision_metros ?? null, notas);
-
-  const fichaje = db.prepare('SELECT * FROM fichajes WHERE id = ?').get(result.lastInsertRowid);
-
-  res.status(201).json({ fichaje, tipo });
 });
 
 // GET /api/fichajes/estado
-// Estado actual del empleado (dentro o fuera)
-router.get('/estado', authMiddleware, (req, res) => {
-  const ultimo = db.prepare(`
-    SELECT * FROM fichajes 
-    WHERE empleado_id = ? 
-    ORDER BY timestamp DESC 
-    LIMIT 1
-  `).get(req.user.id);
-
-  const dentroDelTrabajo = ultimo?.tipo === 'entrada';
-  res.json({ 
-    dentro: dentroDelTrabajo,
-    ultimoFichaje: ultimo || null,
-    proximoTipo: dentroDelTrabajo ? 'salida' : 'entrada'
-  });
+router.get('/estado', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM fichajes WHERE empleado_id = $1 ORDER BY timestamp DESC LIMIT 1',
+      [req.user.id]
+    );
+    const ultimo = rows[0] || null;
+    const dentro = ultimo?.tipo === 'entrada';
+    res.json({ dentro, ultimoFichaje: ultimo, proximoTipo: dentro ? 'salida' : 'entrada' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 // GET /api/fichajes/mis-fichajes
-// Historial del empleado autenticado con paginación
-router.get('/mis-fichajes', authMiddleware, (req, res) => {
-  const { desde, hasta, pagina = 1, limite = 30 } = req.query;
-  const offset = (parseInt(pagina) - 1) * parseInt(limite);
-  let condiciones = ['empleado_id = ?'];
-  let params = [req.user.id];
+router.get('/mis-fichajes', authMiddleware, async (req, res) => {
+  try {
+    const { desde, hasta, pagina = 1, limite = 30 } = req.query;
+    const offset = (parseInt(pagina) - 1) * parseInt(limite);
+    const condiciones = ['empleado_id = $1'];
+    const params = [req.user.id];
+    let idx = 2;
 
-  if (desde) { condiciones.push("date(timestamp) >= date(?)"); params.push(desde); }
-  if (hasta) { condiciones.push("date(timestamp) <= date(?)"); params.push(hasta); }
+    if (desde) { condiciones.push(`timestamp::date >= $${idx}::date`); params.push(desde); idx++; }
+    if (hasta) { condiciones.push(`timestamp::date <= $${idx}::date`); params.push(hasta); idx++; }
 
-  const where = condiciones.join(' AND ');
+    const where = condiciones.join(' AND ');
+    const { rows: countRows } = await pool.query(`SELECT COUNT(*) AS n FROM fichajes WHERE ${where}`, params);
+    const total = parseInt(countRows[0].n);
 
-  const total = db.prepare(`SELECT COUNT(*) as n FROM fichajes WHERE ${where}`).get(...params).n;
-  const fichajes = db.prepare(`
-    SELECT * FROM fichajes WHERE ${where}
-    ORDER BY timestamp DESC
-    LIMIT ? OFFSET ?
-  `).all(...params, parseInt(limite), offset);
+    const { rows: fichajes } = await pool.query(
+      `SELECT * FROM fichajes WHERE ${where} ORDER BY timestamp DESC LIMIT $${idx} OFFSET $${idx + 1}`,
+      [...params, parseInt(limite), offset]
+    );
 
-  res.json({ fichajes, total, pagina: parseInt(pagina), limite: parseInt(limite) });
+    res.json({ fichajes, total, pagina: parseInt(pagina), limite: parseInt(limite) });
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 // GET /api/fichajes/resumen-hoy
-// Resumen de horas trabajadas hoy para el empleado autenticado
-router.get('/resumen-hoy', authMiddleware, (req, res) => {
-  const fichajesHoy = db.prepare(`
-    SELECT * FROM fichajes 
-    WHERE empleado_id = ? AND date(timestamp) = date('now', 'localtime')
-    ORDER BY timestamp ASC
-  `).all(req.user.id);
-
-  let minutosHoy = calcularMinutosTrabajados(fichajesHoy);
-  res.json({ fichajesHoy, minutosHoy, horasHoy: minutosHoy / 60 });
+router.get('/resumen-hoy', authMiddleware, async (req, res) => {
+  try {
+    const { rows: fichajesHoy } = await pool.query(
+      `SELECT * FROM fichajes
+       WHERE empleado_id = $1 AND timestamp::date = CURRENT_DATE
+       ORDER BY timestamp ASC`,
+      [req.user.id]
+    );
+    const minutosHoy = calcularMinutosTrabajados(fichajesHoy);
+    res.json({ fichajesHoy, minutosHoy, horasHoy: minutosHoy / 60 });
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
-// ─── RUTAS DE ADMIN ────────────────────────────────────────────────
+// ─── ADMIN ────────────────────────────────────────────────────────────────────
 
 // GET /api/fichajes/admin/todos
-router.get('/admin/todos', authMiddleware, adminMiddleware, (req, res) => {
-  const { empleado_id, desde, hasta, pagina = 1, limite = 50 } = req.query;
-  const offset = (parseInt(pagina) - 1) * parseInt(limite);
-  let condiciones = [];
-  let params = [];
+router.get('/admin/todos', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { empleado_id, desde, hasta, pagina = 1, limite = 50 } = req.query;
+    const offset = (parseInt(pagina) - 1) * parseInt(limite);
+    const condiciones = [];
+    const params = [];
+    let idx = 1;
 
-  if (empleado_id) { condiciones.push('f.empleado_id = ?'); params.push(empleado_id); }
-  if (desde) { condiciones.push("date(f.timestamp) >= date(?)"); params.push(desde); }
-  if (hasta) { condiciones.push("date(f.timestamp) <= date(?)"); params.push(hasta); }
+    if (empleado_id) { condiciones.push(`f.empleado_id = $${idx}`); params.push(empleado_id); idx++; }
+    if (desde) { condiciones.push(`f.timestamp::date >= $${idx}::date`); params.push(desde); idx++; }
+    if (hasta) { condiciones.push(`f.timestamp::date <= $${idx}::date`); params.push(hasta); idx++; }
 
-  const where = condiciones.length > 0 ? 'WHERE ' + condiciones.join(' AND ') : '';
+    const where = condiciones.length > 0 ? 'WHERE ' + condiciones.join(' AND ') : '';
 
-  const total = db.prepare(`SELECT COUNT(*) as n FROM fichajes f ${where}`).get(...params).n;
-  const fichajes = db.prepare(`
-    SELECT f.*, e.nombre, e.apellidos, e.departamento
-    FROM fichajes f
-    JOIN empleados e ON f.empleado_id = e.id
-    ${where}
-    ORDER BY f.timestamp DESC
-    LIMIT ? OFFSET ?
-  `).all(...params, parseInt(limite), offset);
+    const { rows: countRows } = await pool.query(
+      `SELECT COUNT(*) AS n FROM fichajes f ${where}`, params
+    );
+    const total = parseInt(countRows[0].n);
 
-  res.json({ fichajes, total, pagina: parseInt(pagina), limite: parseInt(limite) });
+    const { rows: fichajes } = await pool.query(
+      `SELECT f.*, e.nombre, e.apellidos, e.departamento
+       FROM fichajes f JOIN empleados e ON f.empleado_id = e.id
+       ${where} ORDER BY f.timestamp DESC LIMIT $${idx} OFFSET $${idx + 1}`,
+      [...params, parseInt(limite), offset]
+    );
+
+    res.json({ fichajes, total, pagina: parseInt(pagina), limite: parseInt(limite) });
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 // GET /api/fichajes/admin/resumen
-// Resumen de todos los empleados hoy
-router.get('/admin/resumen', authMiddleware, adminMiddleware, (req, res) => {
-  const fecha = req.query.fecha || new Date().toISOString().split('T')[0];
+router.get('/admin/resumen', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const fecha = req.query.fecha || new Date().toISOString().split('T')[0];
 
-  const empleados = db.prepare('SELECT id, nombre, apellidos, departamento FROM empleados WHERE activo = 1').all();
+    const { rows: empleados } = await pool.query(
+      'SELECT id, nombre, apellidos, departamento FROM empleados WHERE activo = 1'
+    );
 
-  const resumen = empleados.map(emp => {
-    const fichajes = db.prepare(`
-      SELECT * FROM fichajes 
-      WHERE empleado_id = ? AND date(timestamp) = ?
-      ORDER BY timestamp ASC
-    `).all(emp.id, fecha);
+    const resumen = await Promise.all(empleados.map(async emp => {
+      const { rows: fichajes } = await pool.query(
+        `SELECT * FROM fichajes WHERE empleado_id = $1 AND timestamp::date = $2::date ORDER BY timestamp ASC`,
+        [emp.id, fecha]
+      );
+      const ultimo = fichajes[fichajes.length - 1] || null;
+      const dentro = ultimo?.tipo === 'entrada';
+      const minutos = calcularMinutosTrabajados(fichajes);
+      return { ...emp, dentro, minutosTrabajados: minutos,
+        horasTrabajadas: (minutos / 60).toFixed(2), ultimoFichaje: ultimo, fichajesToday: fichajes.length };
+    }));
 
-    const ultimoFichaje = fichajes[fichajes.length - 1] || null;
-    const dentro = ultimoFichaje?.tipo === 'entrada';
-    const minutos = calcularMinutosTrabajados(fichajes);
-
-    return {
-      ...emp,
-      dentro,
-      minutosTrabajados: minutos,
-      horasTrabajadas: (minutos / 60).toFixed(2),
-      ultimoFichaje,
-      fichajesToday: fichajes.length
-    };
-  });
-
-  res.json({ fecha, resumen });
+    res.json({ fecha, resumen });
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 // GET /api/fichajes/admin/exportar
-// Exportar CSV de fichajes
-router.get('/admin/exportar', authMiddleware, adminMiddleware, (req, res) => {
-  const { desde, hasta, empleado_id } = req.query;
-  let condiciones = [];
-  let params = [];
+router.get('/admin/exportar', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { desde, hasta, empleado_id } = req.query;
+    const condiciones = [];
+    const params = [];
+    let idx = 1;
 
-  if (empleado_id) { condiciones.push('f.empleado_id = ?'); params.push(empleado_id); }
-  if (desde) { condiciones.push("date(f.timestamp) >= date(?)"); params.push(desde); }
-  if (hasta) { condiciones.push("date(f.timestamp) <= date(?)"); params.push(hasta); }
+    if (empleado_id) { condiciones.push(`f.empleado_id = $${idx}`); params.push(empleado_id); idx++; }
+    if (desde) { condiciones.push(`f.timestamp::date >= $${idx}::date`); params.push(desde); idx++; }
+    if (hasta) { condiciones.push(`f.timestamp::date <= $${idx}::date`); params.push(hasta); idx++; }
 
-  const where = condiciones.length > 0 ? 'WHERE ' + condiciones.join(' AND ') : '';
+    const where = condiciones.length > 0 ? 'WHERE ' + condiciones.join(' AND ') : '';
+    const { rows } = await pool.query(
+      `SELECT f.timestamp, e.nombre, e.apellidos, e.departamento, f.tipo, f.notas
+       FROM fichajes f JOIN empleados e ON f.empleado_id = e.id
+       ${where} ORDER BY e.apellidos, f.timestamp ASC`,
+      params
+    );
 
-  const fichajes = db.prepare(`
-    SELECT f.timestamp, e.nombre, e.apellidos, e.departamento, f.tipo, f.ubicacion, f.notas
-    FROM fichajes f
-    JOIN empleados e ON f.empleado_id = e.id
-    ${where}
-    ORDER BY e.apellidos, f.timestamp ASC
-  `).all(...params);
+    const cabecera = 'Fecha y Hora,Nombre,Apellidos,Departamento,Tipo,Notas\n';
+    const filas = rows.map(f => {
+      const ts = new Date(f.timestamp).toLocaleString('es-ES');
+      return `"${ts}","${f.nombre}","${f.apellidos}","${f.departamento}","${f.tipo}","${f.notas}"`;
+    }).join('\n');
 
-  const cabecera = 'Fecha y Hora,Nombre,Apellidos,Departamento,Tipo,Ubicacion,Notas\n';
-  const filas = fichajes.map(f =>
-    `"${f.timestamp}","${f.nombre}","${f.apellidos}","${f.departamento}","${f.tipo}","${f.ubicacion}","${f.notas}"`
-  ).join('\n');
-
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="fichajes_${desde || 'todo'}_${hasta || 'todo'}.csv"`);
-  res.send('\uFEFF' + cabecera + filas);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="fichajes.csv"`);
+    res.send('\uFEFF' + cabecera + filas);
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 // DELETE /api/fichajes/admin/:id
-router.delete('/admin/:id', authMiddleware, adminMiddleware, (req, res) => {
-  const { id } = req.params;
-  const fichaje = db.prepare('SELECT * FROM fichajes WHERE id = ?').get(id);
-  if (!fichaje) return res.status(404).json({ error: 'Fichaje no encontrado' });
-  db.prepare('DELETE FROM fichajes WHERE id = ?').run(id);
-  res.json({ message: 'Fichaje eliminado' });
+router.delete('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id FROM fichajes WHERE id = $1', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Fichaje no encontrado' });
+    await pool.query('DELETE FROM fichajes WHERE id = $1', [req.params.id]);
+    res.json({ message: 'Fichaje eliminado' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
-// Fórmula Haversine para distancia entre dos coordenadas GPS en metros
 function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
-  const R = 6371000; // Radio de la Tierra en metros
+  const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) ** 2;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Función auxiliar para calcular minutos trabajados
 function calcularMinutosTrabajados(fichajes) {
   let minutos = 0;
-  let entradaTimestamp = null;
-
+  let entrada = null;
   for (const f of fichajes) {
     if (f.tipo === 'entrada') {
-      entradaTimestamp = new Date(f.timestamp);
-    } else if (f.tipo === 'salida' && entradaTimestamp) {
-      const salida = new Date(f.timestamp);
-      minutos += (salida - entradaTimestamp) / 60000;
-      entradaTimestamp = null;
+      entrada = new Date(f.timestamp);
+    } else if (f.tipo === 'salida' && entrada) {
+      minutos += (new Date(f.timestamp) - entrada) / 60000;
+      entrada = null;
     }
   }
-
   return Math.round(minutos);
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "fichajes-bodegas-alvaro-backend",
   "version": "1.0.0",
-  "description": "Sistema de fichajes para Bodegas Álvaro",
+  "description": "Sistema de fichajes para Bodegas Álvaro - Backend API",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -9,11 +9,11 @@
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^9.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.18.3",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

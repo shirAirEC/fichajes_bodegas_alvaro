@@ -1,94 +1,102 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const db = require('../db/database');
+const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
-// GET /api/empleados — lista todos los empleados (solo admin)
-router.get('/', authMiddleware, adminMiddleware, (req, res) => {
-  const empleados = db.prepare(`
-    SELECT id, nombre, apellidos, email, rol, departamento, activo, fecha_alta
-    FROM empleados ORDER BY apellidos, nombre
-  `).all();
-  res.json(empleados);
+router.get('/', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, nombre, apellidos, email, rol, departamento, activo, fecha_alta FROM empleados ORDER BY apellidos, nombre'
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
-// POST /api/empleados — crear empleado (solo admin)
-router.post('/', authMiddleware, adminMiddleware, (req, res) => {
-  const { nombre, apellidos, email, password, rol = 'empleado', departamento = '' } = req.body;
+router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { nombre, apellidos, email, password, rol = 'empleado', departamento = '' } = req.body;
+    if (!nombre || !apellidos || !email || !password) {
+      return res.status(400).json({ error: 'Nombre, apellidos, email y contraseña son obligatorios' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+    }
 
-  if (!nombre || !apellidos || !email || !password) {
-    return res.status(400).json({ error: 'Nombre, apellidos, email y contraseña son obligatorios' });
+    const { rows: existe } = await pool.query(
+      'SELECT id FROM empleados WHERE email = $1', [email.toLowerCase().trim()]
+    );
+    if (existe[0]) return res.status(409).json({ error: 'Ya existe un empleado con ese email' });
+
+    const { rows } = await pool.query(
+      `INSERT INTO empleados (nombre, apellidos, email, password, rol, departamento)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, nombre, apellidos, email, rol, departamento, activo`,
+      [nombre.trim(), apellidos.trim(), email.toLowerCase().trim(), bcrypt.hashSync(password, 10), rol, departamento.trim()]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
-
-  if (password.length < 6) {
-    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
-  }
-
-  const existe = db.prepare('SELECT id FROM empleados WHERE email = ?').get(email.toLowerCase().trim());
-  if (existe) {
-    return res.status(409).json({ error: 'Ya existe un empleado con ese email' });
-  }
-
-  const hash = bcrypt.hashSync(password, 10);
-  const result = db.prepare(`
-    INSERT INTO empleados (nombre, apellidos, email, password, rol, departamento)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(nombre.trim(), apellidos.trim(), email.toLowerCase().trim(), hash, rol, departamento.trim());
-
-  const empleado = db.prepare('SELECT id, nombre, apellidos, email, rol, departamento, activo FROM empleados WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json(empleado);
 });
 
-// PUT /api/empleados/:id — actualizar empleado (solo admin)
-router.put('/:id', authMiddleware, adminMiddleware, (req, res) => {
-  const { id } = req.params;
-  const { nombre, apellidos, email, rol, departamento, activo, password } = req.body;
+router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombre, apellidos, email, rol, departamento, activo, password } = req.body;
 
-  const empleado = db.prepare('SELECT * FROM empleados WHERE id = ?').get(id);
-  if (!empleado) return res.status(404).json({ error: 'Empleado no encontrado' });
+    const { rows: emp } = await pool.query('SELECT * FROM empleados WHERE id = $1', [id]);
+    if (!emp[0]) return res.status(404).json({ error: 'Empleado no encontrado' });
+    if (parseInt(id) === req.user.id && activo === 0) {
+      return res.status(400).json({ error: 'No puedes desactivar tu propia cuenta' });
+    }
 
-  // Evitar que el admin se elimine a sí mismo
-  if (parseInt(id) === req.user.id && activo === 0) {
-    return res.status(400).json({ error: 'No puedes desactivar tu propia cuenta' });
+    const campos = [];
+    const valores = [];
+    let idx = 1;
+
+    if (nombre !== undefined)      { campos.push(`nombre = $${idx++}`);      valores.push(nombre.trim()); }
+    if (apellidos !== undefined)   { campos.push(`apellidos = $${idx++}`);   valores.push(apellidos.trim()); }
+    if (email !== undefined)       { campos.push(`email = $${idx++}`);       valores.push(email.toLowerCase().trim()); }
+    if (rol !== undefined)         { campos.push(`rol = $${idx++}`);         valores.push(rol); }
+    if (departamento !== undefined){ campos.push(`departamento = $${idx++}`);valores.push(departamento.trim()); }
+    if (activo !== undefined)      { campos.push(`activo = $${idx++}`);      valores.push(activo ? 1 : 0); }
+    if (password) {
+      if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+      campos.push(`password = $${idx++}`);
+      valores.push(bcrypt.hashSync(password, 10));
+    }
+
+    if (campos.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+
+    valores.push(id);
+    const { rows } = await pool.query(
+      `UPDATE empleados SET ${campos.join(', ')} WHERE id = $${idx}
+       RETURNING id, nombre, apellidos, email, rol, departamento, activo`,
+      valores
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
-
-  let campos = [];
-  let valores = [];
-
-  if (nombre !== undefined) { campos.push('nombre = ?'); valores.push(nombre.trim()); }
-  if (apellidos !== undefined) { campos.push('apellidos = ?'); valores.push(apellidos.trim()); }
-  if (email !== undefined) { campos.push('email = ?'); valores.push(email.toLowerCase().trim()); }
-  if (rol !== undefined) { campos.push('rol = ?'); valores.push(rol); }
-  if (departamento !== undefined) { campos.push('departamento = ?'); valores.push(departamento.trim()); }
-  if (activo !== undefined) { campos.push('activo = ?'); valores.push(activo ? 1 : 0); }
-  if (password) {
-    if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
-    campos.push('password = ?');
-    valores.push(bcrypt.hashSync(password, 10));
-  }
-
-  if (campos.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
-
-  valores.push(id);
-  db.prepare(`UPDATE empleados SET ${campos.join(', ')} WHERE id = ?`).run(...valores);
-
-  const actualizado = db.prepare('SELECT id, nombre, apellidos, email, rol, departamento, activo FROM empleados WHERE id = ?').get(id);
-  res.json(actualizado);
 });
 
-// DELETE /api/empleados/:id — desactivar empleado (soft delete, solo admin)
-router.delete('/:id', authMiddleware, adminMiddleware, (req, res) => {
-  const { id } = req.params;
-  if (parseInt(id) === req.user.id) {
-    return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta' });
+router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (parseInt(id) === req.user.id) {
+      return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta' });
+    }
+    const { rows } = await pool.query('SELECT id FROM empleados WHERE id = $1', [id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Empleado no encontrado' });
+    await pool.query('UPDATE empleados SET activo = 0 WHERE id = $1', [id]);
+    res.json({ message: 'Empleado desactivado correctamente' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
-  const empleado = db.prepare('SELECT * FROM empleados WHERE id = ?').get(id);
-  if (!empleado) return res.status(404).json({ error: 'Empleado no encontrado' });
-
-  db.prepare('UPDATE empleados SET activo = 0 WHERE id = ?').run(id);
-  res.json({ message: 'Empleado desactivado correctamente' });
 });
 
 module.exports = router;

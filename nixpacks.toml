@@ -1,6 +1,5 @@
 [phases.setup]
-# Python, gcc y make son necesarios para compilar better-sqlite3 (addon nativo de Node)
-nixPkgs = ["nodejs_20", "python3", "gcc", "gnumake"]
+nixPkgs = ["nodejs_20"]
 
 [phases.install]
 cmds = ["npm install --prefix backend"]

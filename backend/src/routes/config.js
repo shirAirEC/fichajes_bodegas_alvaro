@@ -1,47 +1,42 @@
 const express = require('express');
-const db = require('../db/database');
+const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
+const CLAVES_PERMITIDAS = ['geo_activo','geo_lat','geo_lng','geo_radio_metros','empresa_nombre','empresa_direccion'];
 
-// GET /api/config — obtener configuración pública (para app)
-router.get('/', authMiddleware, (req, res) => {
-  const filas = db.prepare('SELECT clave, valor FROM configuracion').all();
-  const config = {};
-  for (const f of filas) config[f.clave] = f.valor;
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT clave, valor FROM configuracion');
+    const config = Object.fromEntries(rows.map(r => [r.clave, r.valor]));
 
-  // Solo devolver campos no sensibles al empleado normal
-  if (req.user.rol !== 'admin') {
-    return res.json({
-      geo_activo: config.geo_activo,
-      geo_radio_metros: config.geo_radio_metros,
-      empresa_nombre: config.empresa_nombre
-    });
+    if (req.user.rol !== 'admin') {
+      return res.json({
+        geo_activo: config.geo_activo,
+        geo_radio_metros: config.geo_radio_metros,
+        empresa_nombre: config.empresa_nombre
+      });
+    }
+    res.json(config);
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
-
-  res.json(config);
 });
 
-// PUT /api/config — actualizar configuración (solo admin)
-router.put('/', authMiddleware, adminMiddleware, (req, res) => {
-  const campos = req.body;
-  const claves_permitidas = [
-    'geo_activo', 'geo_lat', 'geo_lng', 'geo_radio_metros',
-    'empresa_nombre', 'empresa_direccion'
-  ];
-
-  const actualizar = db.prepare('UPDATE configuracion SET valor = ? WHERE clave = ?');
-
-  for (const [clave, valor] of Object.entries(campos)) {
-    if (!claves_permitidas.includes(clave)) continue;
-    actualizar.run(String(valor), clave);
+router.put('/', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    for (const [clave, valor] of Object.entries(req.body)) {
+      if (!CLAVES_PERMITIDAS.includes(clave)) continue;
+      await pool.query(
+        'UPDATE configuracion SET valor = $1 WHERE clave = $2',
+        [String(valor), clave]
+      );
+    }
+    const { rows } = await pool.query('SELECT clave, valor FROM configuracion');
+    res.json(Object.fromEntries(rows.map(r => [r.clave, r.valor])));
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
-
-  const todas = db.prepare('SELECT clave, valor FROM configuracion').all();
-  const config = {};
-  for (const f of todas) config[f.clave] = f.valor;
-
-  res.json(config);
 });
 
 module.exports = router;
