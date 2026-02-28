@@ -95,6 +95,35 @@ export default function AdminConfigPage() {
           </div>
         </div>
 
+        {/* Tiempo de gracia */}
+        <div className={styles.seccion}>
+          <div className={styles.seccionHeader}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>
+            </svg>
+            <h2>Tiempo de gracia al fichar</h2>
+          </div>
+          <div className={styles.toggleRow}>
+            <div>
+              <span className={styles.toggleLabel}>Redondear a la hora exacta</span>
+              <p className={styles.toggleDesc}>
+                Si un empleado ficha dentro del margen de minutos configurado al inicio o al final de una hora,
+                se registrará la hora exacta (ej: 08:03 → 08:00). Ponlo en 0 para desactivarlo.
+              </p>
+            </div>
+          </div>
+          <div className={styles.formGrid}>
+            <div className={styles.field}>
+              <label>Minutos de gracia (0 = desactivado)</label>
+              <input
+                type="number" min="0" max="30"
+                value={form.gracia_minutos ?? '5'}
+                onChange={e => setForm(f => ({ ...f, gracia_minutos: e.target.value }))}
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Restricción por red WiFi */}
         <div className={styles.seccion}>
           <div className={styles.seccionHeader}>

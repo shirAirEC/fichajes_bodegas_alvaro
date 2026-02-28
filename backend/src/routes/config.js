@@ -3,7 +3,7 @@ const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
-const CLAVES_PERMITIDAS = ['geo_activo','geo_lat','geo_lng','geo_radio_metros','empresa_nombre','empresa_direccion','ip_activo','ip_permitidas'];
+const CLAVES_PERMITIDAS = ['geo_activo','geo_lat','geo_lng','geo_radio_metros','empresa_nombre','empresa_direccion','ip_activo','ip_permitidas','gracia_minutos'];
 
 function getClientIP(req) {
   const forwarded = req.headers['x-forwarded-for'];

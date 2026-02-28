@@ -167,6 +167,82 @@ router.get('/historial', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/horas/filtro?modo=semana|mes|anio|rango&desde=&hasta=
+// Devuelve horas trabajadas en el periodo indicado con desglose semanal/mensual
+router.get('/filtro', authMiddleware, async (req, res) => {
+  try {
+    const empleadoId = req.user.id;
+    const { modo = 'mes', desde, hasta } = req.query;
+    const objetivo = await getObjetivoEmpleado(empleadoId);
+    const hoy = new Date();
+
+    let fechaInicio, fechaFin;
+
+    if (modo === 'semana') {
+      const diaSemana = hoy.getDay() === 0 ? 6 : hoy.getDay() - 1;
+      const lunes = new Date(hoy); lunes.setDate(hoy.getDate() - diaSemana);
+      const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6);
+      fechaInicio = lunes.toISOString().split('T')[0];
+      fechaFin = domingo.toISOString().split('T')[0];
+    } else if (modo === 'mes') {
+      fechaInicio = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
+      fechaFin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().split('T')[0];
+    } else if (modo === 'anio') {
+      fechaInicio = `${hoy.getFullYear()}-01-01`;
+      fechaFin = `${hoy.getFullYear()}-12-31`;
+    } else if (modo === 'rango' && desde && hasta) {
+      fechaInicio = desde;
+      fechaFin = hasta;
+    } else {
+      return res.status(400).json({ error: 'Parámetros de filtro inválidos' });
+    }
+
+    // Desglose por semanas dentro del periodo
+    const { rows: fichajes } = await pool.query(
+      `SELECT tipo, timestamp FROM fichajes
+       WHERE empleado_id = $1 AND timestamp::date >= $2::date AND timestamp::date <= $3::date
+       ORDER BY timestamp ASC`,
+      [empleadoId, fechaInicio, fechaFin]
+    );
+    const { rows: ajRow } = await pool.query(
+      `SELECT COALESCE(SUM(cantidad_horas), 0) AS total FROM ajustes_horas
+       WHERE empleado_id = $1 AND fecha >= $2::date AND fecha <= $3::date`,
+      [empleadoId, fechaInicio, fechaFin]
+    );
+
+    const horasTrabajadas = calcularHorasDeFichajes(fichajes);
+    const horasAjuste = parseFloat(ajRow[0].total);
+    const objetivoPeriodo = modo === 'semana' ? objetivo.horas_semana
+      : modo === 'anio' ? objetivo.horas_semana * 52
+      : objetivo.horas_semana * Math.ceil((new Date(fechaFin) - new Date(fechaInicio)) / (7 * 86400000));
+
+    // Desglose diario
+    const desglose = {};
+    for (const f of fichajes) {
+      const dia = new Date(f.timestamp).toISOString().split('T')[0];
+      if (!desglose[dia]) desglose[dia] = [];
+      desglose[dia].push(f);
+    }
+    const dias = Object.entries(desglose).map(([fecha, fs]) => ({
+      fecha,
+      horas: Math.round(calcularHorasDeFichajes(fs) * 100) / 100
+    }));
+
+    res.json({
+      modo, fechaInicio, fechaFin,
+      trabajadas: Math.round(horasTrabajadas * 100) / 100,
+      ajuste: horasAjuste,
+      objetivoPeriodo: Math.round(objetivoPeriodo * 100) / 100,
+      diferencia: Math.round((horasTrabajadas + horasAjuste - objetivoPeriodo) * 100) / 100,
+      desgloseDiario: dias,
+      objetivo
+    });
+  } catch (err) {
+    console.error('horas/filtro error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ─── RUTAS ADMIN ──────────────────────────────────────────────────────────────
 
 // GET /api/horas/admin/todos  — resumen del mes actual para todos los empleados

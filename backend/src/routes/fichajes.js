@@ -18,24 +18,32 @@ router.post('/fichar', authMiddleware, async (req, res) => {
 
     // Validar red WiFi si está activa
     const { rows: cfgRows } = await pool.query(
-      "SELECT clave, valor FROM configuracion WHERE clave IN ('ip_activo','ip_permitidas')"
+      "SELECT clave, valor FROM configuracion WHERE clave IN ('ip_activo','ip_permitidas','gracia_minutos')"
     );
     const cfg = Object.fromEntries(cfgRows.map(r => [r.clave, r.valor]));
 
     if (cfg.ip_activo === '1') {
-      const ipCliente = getClientIP(req);
-      const ipsPermitidas = (cfg.ip_permitidas || '').split(',').map(ip => ip.trim()).filter(Boolean);
-      if (ipsPermitidas.length === 0) {
-        return res.status(403).json({
-          error: 'La restricción por red está activa pero no hay ninguna IP configurada. Contacta con el administrador.',
-          requiereRed: true
-        });
-      }
-      if (!ipsPermitidas.includes(ipCliente)) {
-        return res.status(403).json({
-          error: 'No puedes fichar desde esta red. Conéctate al WiFi de la bodega. Si el problema persiste, avisa al administrador para que actualice la configuración.',
-          requiereRed: true
-        });
+      // Verificar si este empleado tiene exención de IP (teletrabajo)
+      const { rows: empRows } = await pool.query(
+        'SELECT sin_restriccion_ip FROM empleados WHERE id = $1', [empleadoId]
+      );
+      const tieneExencion = empRows[0]?.sin_restriccion_ip === 1;
+
+      if (!tieneExencion) {
+        const ipCliente = getClientIP(req);
+        const ipsPermitidas = (cfg.ip_permitidas || '').split(',').map(ip => ip.trim()).filter(Boolean);
+        if (ipsPermitidas.length === 0) {
+          return res.status(403).json({
+            error: 'La restricción por red está activa pero no hay ninguna IP configurada. Contacta con el administrador.',
+            requiereRed: true
+          });
+        }
+        if (!ipsPermitidas.includes(ipCliente)) {
+          return res.status(403).json({
+            error: 'No puedes fichar desde esta red. Conéctate al WiFi de la bodega. Si el problema persiste, avisa al administrador para que actualice la configuración.',
+            requiereRed: true
+          });
+        }
       }
     }
 
@@ -46,9 +54,27 @@ router.post('/fichar', authMiddleware, async (req, res) => {
     );
     const tipo = (!lastRows[0] || lastRows[0].tipo === 'salida') ? 'entrada' : 'salida';
 
+    // Aplicar tiempo de gracia: redondear a la hora exacta si se está dentro del margen
+    const graciaMinutos = parseInt(cfg.gracia_minutos || '0');
+    let timestampFichaje = new Date();
+    if (graciaMinutos > 0) {
+      const minutos = timestampFichaje.getMinutes();
+      const segundos = timestampFichaje.getSeconds();
+      const totalSegundos = minutos * 60 + segundos;
+      const margenSegundos = graciaMinutos * 60;
+      // Si estamos dentro del margen de gracia al inicio de una hora
+      if (totalSegundos <= margenSegundos) {
+        timestampFichaje.setMinutes(0, 0, 0);
+      }
+      // Si estamos dentro del margen de gracia al final de una hora
+      else if (totalSegundos >= 3600 - margenSegundos) {
+        timestampFichaje.setHours(timestampFichaje.getHours() + 1, 0, 0, 0);
+      }
+    }
+
     const { rows } = await pool.query(
-      `INSERT INTO fichajes (empleado_id, tipo, notas) VALUES ($1, $2, $3) RETURNING *`,
-      [empleadoId, tipo, notas]
+      `INSERT INTO fichajes (empleado_id, tipo, notas, timestamp) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [empleadoId, tipo, notas, timestampFichaje]
     );
 
     res.status(201).json({ fichaje: rows[0], tipo });

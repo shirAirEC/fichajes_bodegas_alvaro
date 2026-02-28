@@ -283,6 +283,33 @@
 .btnGuardar:hover:not(:disabled) { background: var(--color-primary-dark); }
 .btnGuardar:disabled { opacity: 0.7; cursor: not-allowed; }
 
+.exencionBadge {
+  font-size: 0.7rem; padding: 0.2rem 0.5rem;
+  background: #e8f5e9; color: #2e7d32;
+  border-radius: 10px; border: 1px solid #a5d6a7;
+}
+
+.exencionRow {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+  margin: 0.75rem 0; padding: 0.875rem 1rem;
+  background: #f0f7ff; border: 1px solid #b3d4f5; border-radius: var(--radius-sm);
+}
+.exencionLabel { font-size: 0.875rem; font-weight: 600; color: #1a5276; }
+.exencionDesc { font-size: 0.78rem; color: #666; margin: 0.2rem 0 0; }
+
+.switchSmall { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+.switchSmall input { opacity: 0; width: 0; height: 0; }
+.switchSliderSmall {
+  position: absolute; inset: 0; background: #ccc; border-radius: 22px;
+  cursor: pointer; transition: .3s;
+}
+.switchSliderSmall::before {
+  content: ''; position: absolute; width: 16px; height: 16px;
+  left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .3s;
+}
+.switchSmall input:checked + .switchSliderSmall { background: var(--color-primary); }
+.switchSmall input:checked + .switchSliderSmall::before { transform: translateX(18px); }
+
 @media (max-width: 480px) {
   .formGrid { grid-template-columns: 1fr; }
 }

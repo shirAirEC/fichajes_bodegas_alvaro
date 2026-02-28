@@ -4,6 +4,7 @@ import FicharPage from './empleado/FicharPage';
 import HistorialPage from './empleado/HistorialPage';
 import SaldosPage from './empleado/SaldosPage';
 import HorasPage from './empleado/HorasPage';
+import SolicitudesPage from './empleado/SolicitudesPage';
 import styles from './Dashboard.module.css';
 
 export default function DashboardEmpleado() {
@@ -16,6 +17,7 @@ export default function DashboardEmpleado() {
           <Route path="/historial" element={<HistorialPage />} />
           <Route path="/saldos" element={<SaldosPage />} />
           <Route path="/horas" element={<HorasPage />} />
+          <Route path="/solicitudes" element={<SolicitudesPage />} />
         </Routes>
       </main>
     </div>

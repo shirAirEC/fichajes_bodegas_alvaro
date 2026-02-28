@@ -4,6 +4,7 @@ import styles from './LoginPage.module.css';
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const [modoAdmin, setModoAdmin] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -16,7 +17,7 @@ export default function LoginPage() {
     setError('');
     setCargando(true);
     try {
-      await login(email, password);
+      await login(modoAdmin ? email : null, password);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -63,23 +64,27 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <div className={styles.field}>
-                <label htmlFor="email" className={styles.label}>Correo electrónico</label>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="tu@bodegas-alvaro.com"
-                  className={styles.input}
-                  required
-                  autoFocus
-                  autoComplete="email"
-                />
-              </div>
+              {modoAdmin && (
+                <div className={styles.field}>
+                  <label htmlFor="email" className={styles.label}>Correo electrónico</label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="admin@bodegas-alvaro.com"
+                    className={styles.input}
+                    required={modoAdmin}
+                    autoFocus
+                    autoComplete="email"
+                  />
+                </div>
+              )}
 
               <div className={styles.field}>
-                <label htmlFor="password" className={styles.label}>Contraseña</label>
+                <label htmlFor="password" className={styles.label}>
+                  {modoAdmin ? 'Contraseña' : 'Introduce tu contraseña'}
+                </label>
                 <input
                   id="password"
                   type="password"
@@ -88,25 +93,24 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   className={styles.input}
                   required
+                  autoFocus={!modoAdmin}
                   autoComplete="current-password"
                 />
               </div>
 
-              <button
-                type="submit"
-                className={styles.btn}
-                disabled={cargando}
-              >
-                {cargando ? (
-                  <span className={styles.btnSpinner}></span>
-                ) : (
-                  'Iniciar sesión'
-                )}
+              <button type="submit" className={styles.btn} disabled={cargando}>
+                {cargando ? <span className={styles.btnSpinner}></span> : 'Entrar'}
               </button>
             </form>
 
             <footer className={styles.footer}>
-              <p>¿Problemas para acceder? Contacta con administración.</p>
+              <button
+                type="button"
+                className={styles.btnModoAdmin}
+                onClick={() => { setModoAdmin(m => !m); setError(''); setEmail(''); setPassword(''); }}
+              >
+                {modoAdmin ? '← Acceso empleado' : 'Acceso administrador'}
+              </button>
             </footer>
           </>
         )}

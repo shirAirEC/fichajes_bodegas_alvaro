@@ -44,6 +44,12 @@ const IconHours = () => (
     <path d="M16.5 18.5l1.5 1.5" strokeLinecap="round"/>
   </svg>
 );
+const IconCorrections = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+  </svg>
+);
 const IconLogout = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
@@ -65,12 +71,14 @@ export default function Navbar({ isAdmin = false }) {
     { to: '/admin/empleados', label: 'Empleados', icon: <IconUsers /> },
     { to: '/admin/saldos', label: 'Saldos', icon: <IconWallet /> },
     { to: '/admin/horas', label: 'Horas', icon: <IconHours /> },
+    { to: '/admin/solicitudes', label: 'Correcciones', icon: <IconCorrections /> },
     { to: '/admin/configuracion', label: 'Configuración', icon: <IconSettings /> },
   ] : [
     { to: '/', label: 'Fichar', icon: <IconClock />, end: true },
     { to: '/historial', label: 'Mi historial', icon: <IconList /> },
     { to: '/saldos', label: 'Mis saldos', icon: <IconWallet /> },
     { to: '/horas', label: 'Mis horas', icon: <IconHours /> },
+    { to: '/solicitudes', label: 'Correcciones', icon: <IconCorrections /> },
   ];
 
   return (

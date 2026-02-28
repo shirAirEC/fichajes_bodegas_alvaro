@@ -1,0 +1,52 @@
+.page { max-width: 800px; margin: 0 auto; }
+.topBar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+.title { font-family: var(--font-heading); font-size: 1.5rem; color: var(--color-primary); margin: 0; }
+.loading { text-align: center; padding: 4rem; color: var(--color-text-light); }
+.vacio { text-align: center; padding: 3rem; color: var(--color-text-light); }
+.vacio p { margin: 0.3rem 0; }
+.seccion { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin: 1.5rem 0 0.75rem; }
+
+.successBox { background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32; padding: 0.875rem 1rem; border-radius: var(--radius-sm); margin-bottom: 1rem; font-size: 0.9rem; }
+
+.btnNueva {
+  padding: 0.6rem 1.25rem; background: var(--color-primary); color: white;
+  border: none; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 600;
+  cursor: pointer; transition: var(--transition);
+}
+.btnNueva:hover { background: var(--color-primary-dark); }
+
+/* Tarjeta */
+.tarjeta { background: white; border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 0.75rem; border-left: 4px solid #ddd; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+.estado_pendiente { border-left-color: #f39c12; }
+.estado_aprobada { border-left-color: #27ae60; }
+.estado_rechazada { border-left-color: #e74c3c; }
+.tarjetaTop { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
+.tarjetaTipo { font-weight: 700; font-size: 0.9rem; }
+.tarjetaEstado { font-size: 0.8rem; font-weight: 600; }
+.tarjetaInfo { font-size: 0.8rem; color: #888; display: flex; gap: 0.3rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.sep { color: #ccc; }
+.tarjetaMotivo { font-size: 0.875rem; color: #555; margin: 0 0 0.4rem; }
+.tarjetaAdminNota { font-size: 0.85rem; color: #1a5276; background: #ebf5fb; padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); margin: 0.5rem 0 0; }
+
+/* Modal */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1rem; }
+.modal { background: white; border-radius: var(--radius); width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto; }
+.modalHeader { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--color-border); }
+.modalHeader h2 { margin: 0; font-size: 1.1rem; }
+.modalClose { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #999; line-height: 1; }
+.modalForm { padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 0.875rem; }
+.formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem; }
+.field { display: flex; flex-direction: column; gap: 0.35rem; }
+.field label { font-size: 0.8rem; font-weight: 600; color: #555; }
+.field input, .field select, .field textarea {
+  padding: 0.6rem 0.75rem; border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm); font-size: 0.875rem; font-family: inherit; resize: vertical;
+}
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--color-primary); }
+.error { background: #fdecea; border: 1px solid #f5c6c2; color: #c0392b; padding: 0.6rem 0.875rem; border-radius: var(--radius-sm); font-size: 0.85rem; }
+.modalFooter { display: flex; gap: 0.75rem; justify-content: flex-end; padding-top: 0.5rem; }
+.btnCancelar { padding: 0.6rem 1.25rem; background: var(--color-light); border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.875rem; cursor: pointer; }
+.btnEnviar { padding: 0.6rem 1.5rem; background: var(--color-primary); color: white; border: none; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+.btnEnviar:disabled { opacity: 0.7; cursor: not-allowed; }
+
+@media (max-width: 480px) { .formGrid { grid-template-columns: 1fr; } }

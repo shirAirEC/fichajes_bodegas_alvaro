@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, nombre, apellidos, email, rol, departamento, activo, fecha_alta FROM empleados ORDER BY apellidos, nombre'
+      'SELECT id, nombre, apellidos, email, rol, departamento, activo, sin_restriccion_ip, fecha_alta FROM empleados ORDER BY apellidos, nombre'
     );
     res.json(rows);
   } catch (err) {
@@ -34,7 +34,7 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO empleados (nombre, apellidos, email, password, rol, departamento)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, nombre, apellidos, email, rol, departamento, activo`,
+       RETURNING id, nombre, apellidos, email, rol, departamento, activo, sin_restriccion_ip`,
       [nombre.trim(), apellidos.trim(), email.toLowerCase().trim(), bcrypt.hashSync(password, 10), rol, departamento.trim()]
     );
     res.status(201).json(rows[0]);
@@ -46,7 +46,7 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
 router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const { nombre, apellidos, email, rol, departamento, activo, password } = req.body;
+    const { nombre, apellidos, email, rol, departamento, activo, password, sin_restriccion_ip } = req.body;
 
     const { rows: emp } = await pool.query('SELECT * FROM empleados WHERE id = $1', [id]);
     if (!emp[0]) return res.status(404).json({ error: 'Empleado no encontrado' });
@@ -63,7 +63,8 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
     if (email !== undefined)       { campos.push(`email = $${idx++}`);       valores.push(email.toLowerCase().trim()); }
     if (rol !== undefined)         { campos.push(`rol = $${idx++}`);         valores.push(rol); }
     if (departamento !== undefined){ campos.push(`departamento = $${idx++}`);valores.push(departamento.trim()); }
-    if (activo !== undefined)      { campos.push(`activo = $${idx++}`);      valores.push(activo ? 1 : 0); }
+    if (activo !== undefined)           { campos.push(`activo = $${idx++}`);              valores.push(activo ? 1 : 0); }
+    if (sin_restriccion_ip !== undefined){ campos.push(`sin_restriccion_ip = $${idx++}`); valores.push(sin_restriccion_ip ? 1 : 0); }
     if (password) {
       if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
       campos.push(`password = $${idx++}`);
@@ -75,7 +76,7 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
     valores.push(id);
     const { rows } = await pool.query(
       `UPDATE empleados SET ${campos.join(', ')} WHERE id = $${idx}
-       RETURNING id, nombre, apellidos, email, rol, departamento, activo`,
+       RETURNING id, nombre, apellidos, email, rol, departamento, activo, sin_restriccion_ip`,
       valores
     );
     res.json(rows[0]);

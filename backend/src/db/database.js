@@ -20,9 +20,15 @@ async function initializeDatabase() {
       rol TEXT NOT NULL DEFAULT 'empleado' CHECK(rol IN ('empleado', 'admin')),
       departamento TEXT DEFAULT '',
       activo INTEGER NOT NULL DEFAULT 1,
+      sin_restriccion_ip INTEGER NOT NULL DEFAULT 0,
       fecha_alta TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `);
+
+  // Migración: añadir columna sin_restriccion_ip si no existe
+  await pool.query(`
+    ALTER TABLE empleados ADD COLUMN IF NOT EXISTS sin_restriccion_ip INTEGER NOT NULL DEFAULT 0
   `);
 
   await pool.query(`
@@ -84,6 +90,24 @@ async function initializeDatabase() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS solicitudes_correccion (
+      id SERIAL PRIMARY KEY,
+      empleado_id INTEGER NOT NULL REFERENCES empleados(id),
+      fichaje_id INTEGER REFERENCES fichajes(id) ON DELETE SET NULL,
+      tipo TEXT NOT NULL CHECK(tipo IN ('correccion', 'nuevo', 'eliminar')),
+      fecha_solicitada DATE NOT NULL,
+      hora_solicitada TIME NOT NULL,
+      tipo_fichaje TEXT NOT NULL CHECK(tipo_fichaje IN ('entrada', 'salida')),
+      motivo TEXT NOT NULL,
+      estado TEXT NOT NULL DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'aprobada', 'rechazada')),
+      admin_id INTEGER REFERENCES empleados(id),
+      admin_nota TEXT DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_fichajes_empleado ON fichajes(empleado_id);
     CREATE INDEX IF NOT EXISTS idx_fichajes_timestamp ON fichajes(timestamp);
     CREATE INDEX IF NOT EXISTS idx_saldos_empleado ON saldos(empleado_id);
@@ -116,6 +140,7 @@ async function initializeDatabase() {
     ['horas_objetivo_mes',    '160',         'Horas de trabajo objetivo por mes (defecto para todos los empleados)'],
     ['ip_activo',             '0',           'Activar restricción de fichaje por red WiFi (1=sí, 0=no)'],
     ['ip_permitidas',         '',            'IPs públicas permitidas para fichar (separadas por comas)'],
+    ['gracia_minutos',        '5',           'Minutos de gracia al fichar para redondear a la hora exacta'],
   ];
   for (const [clave, valor, descripcion] of defaults) {
     await pool.query(

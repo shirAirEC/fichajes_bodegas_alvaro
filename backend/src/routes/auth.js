@@ -9,18 +9,36 @@ const router = express.Router();
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email y contraseña son requeridos' });
+    if (!password) {
+      return res.status(400).json({ error: 'Contraseña requerida' });
     }
 
-    const { rows } = await pool.query(
-      'SELECT * FROM empleados WHERE email = $1 AND activo = 1',
-      [email.toLowerCase().trim()]
-    );
-    const empleado = rows[0];
+    let empleado = null;
 
-    if (!empleado || !bcrypt.compareSync(password, empleado.password)) {
-      return res.status(401).json({ error: 'Credenciales incorrectas' });
+    if (email) {
+      // Login de admin con email + contraseña
+      const { rows } = await pool.query(
+        'SELECT * FROM empleados WHERE email = $1 AND activo = 1',
+        [email.toLowerCase().trim()]
+      );
+      if (rows[0] && bcrypt.compareSync(password, rows[0].password)) {
+        empleado = rows[0];
+      }
+    } else {
+      // Login de empleado solo con contraseña (busca en todos los activos)
+      const { rows } = await pool.query(
+        "SELECT * FROM empleados WHERE activo = 1 AND rol = 'empleado'"
+      );
+      for (const row of rows) {
+        if (bcrypt.compareSync(password, row.password)) {
+          empleado = row;
+          break;
+        }
+      }
+    }
+
+    if (!empleado) {
+      return res.status(401).json({ error: 'Contraseña incorrecta' });
     }
 
     const token = jwt.sign(

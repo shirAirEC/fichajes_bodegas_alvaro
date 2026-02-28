@@ -163,6 +163,22 @@ export default function AdminEmpleadosPage() {
                   </select>
                 </div>
               </div>
+              {form.rol === 'empleado' && (
+                <div className={styles.exencionRow}>
+                  <div>
+                    <span className={styles.exencionLabel}>Exención de restricción por red WiFi</span>
+                    <p className={styles.exencionDesc}>Permite a este empleado fichar desde cualquier red (teletrabajo, trabajo en exterior).</p>
+                  </div>
+                  <label className={styles.switchSmall}>
+                    <input
+                      type="checkbox"
+                      checked={!!form.sin_restriccion_ip}
+                      onChange={e => setForm(f => ({ ...f, sin_restriccion_ip: e.target.checked ? 1 : 0 }))}
+                    />
+                    <span className={styles.switchSliderSmall}></span>
+                  </label>
+                </div>
+              )}
               <div className={styles.modalFooter}>
                 <button type="button" className={styles.btnCancelar} onClick={() => setModalOpen(false)}>Cancelar</button>
                 <button type="submit" className={styles.btnGuardar} disabled={guardando}>
@@ -192,6 +208,9 @@ function EmpleadoCard({ emp, esMismo, inactivo, onEditar, onToggle }) {
         <span className={`${styles.rolBadge} ${emp.rol === 'admin' ? styles.rolAdmin : styles.rolEmp}`}>
           {emp.rol === 'admin' ? 'Admin' : 'Empleado'}
         </span>
+        {emp.sin_restriccion_ip === 1 && (
+          <span className={styles.exencionBadge} title="Exento de restricción WiFi">🌐 Teletrabajo</span>
+        )}
       </div>
       <div className={styles.cardActions}>
         <button className={styles.btnEditar} onClick={onEditar} title="Editar">

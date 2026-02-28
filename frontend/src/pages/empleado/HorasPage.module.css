@@ -72,6 +72,22 @@
 }
 .btnHistorial:hover { background: #ebebeb; }
 
+/* Filtro avanzado */
+.filtroCard { background: #fff; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 12px rgba(0,0,0,0.07); margin-bottom: 1rem; }
+.filtroRow { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+.filtroModos { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.modoBtn { padding: 0.4rem 0.875rem; border: 1.5px solid var(--color-border); background: white; border-radius: 20px; font-size: 0.8rem; font-weight: 600; cursor: pointer; color: #666; transition: var(--transition); }
+.modoBtnActivo { background: var(--color-primary); border-color: var(--color-primary); color: white; }
+.rangoInputs { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.dateInput { padding: 0.4rem 0.6rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.85rem; }
+.btnConsultar { padding: 0.45rem 1.25rem; background: var(--color-primary); color: white; border: none; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+.btnConsultar:disabled { opacity: 0.6; cursor: not-allowed; }
+.filtroResultado { margin-top: 1rem; border-top: 1px solid #f0f0f0; padding-top: 1rem; }
+.filtroStats { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.fStat { display: flex; flex-direction: column; gap: 0.15rem; }
+.fStatVal { font-size: 1.5rem; font-weight: 700; color: #1a1a2e; }
+.fStatLbl { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.3px; }
+
 .historialCard { background: #fff; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
 .subtitulo { font-size: 1.1rem; font-weight: 600; color: #1a1a2e; margin: 0 0 1rem; }
 .tablaWrap { overflow-x: auto; }

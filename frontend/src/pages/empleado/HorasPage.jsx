@@ -48,12 +48,22 @@ function TarjetaPeriodo({ titulo, datos }) {
   );
 }
 
+const hoy = new Date();
+const ISO = d => d.toISOString().split('T')[0];
+
 export default function HorasPage() {
   const { authFetch } = useAuth();
   const [resumen, setResumen] = useState(null);
   const [historial, setHistorial] = useState(null);
+  const [filtro, setFiltro] = useState(null);
   const [cargando, setCargando] = useState(true);
+  const [cargandoFiltro, setCargandoFiltro] = useState(false);
   const [verHistorial, setVerHistorial] = useState(false);
+
+  // Filtro avanzado
+  const [modo, setModo] = useState('semana');
+  const [desde, setDesde] = useState(ISO(new Date(hoy.getFullYear(), hoy.getMonth(), 1)));
+  const [hasta, setHasta] = useState(ISO(hoy));
 
   useEffect(() => {
     authFetch('/api/horas/resumen')
@@ -63,10 +73,19 @@ export default function HorasPage() {
   }, [authFetch]);
 
   const cargarHistorial = () => {
-    if (historial) { setVerHistorial(true); return; }
+    if (historial) { setVerHistorial(v => !v); return; }
     authFetch('/api/horas/historial')
       .then(r => r.json())
       .then(d => { setHistorial(d); setVerHistorial(true); });
+  };
+
+  const aplicarFiltro = async () => {
+    setCargandoFiltro(true);
+    const params = new URLSearchParams({ modo });
+    if (modo === 'rango') { params.set('desde', desde); params.set('hasta', hasta); }
+    const res = await authFetch(`/api/horas/filtro?${params}`);
+    setFiltro(await res.json());
+    setCargandoFiltro(false);
   };
 
   if (cargando) return <div className={styles.loading}>Cargando horas...</div>;
@@ -83,9 +102,7 @@ export default function HorasPage() {
           {balancePos ? '+' : ''}{fmtH(resumen?.balanceAcumulado ?? 0)}
         </div>
         <div className={styles.balanceDesc}>
-          {balancePos
-            ? 'Llevas más horas de las necesarias'
-            : 'Te faltan horas por cumplir'}
+          {balancePos ? 'Llevas más horas de las necesarias' : 'Te faltan horas por cumplir'}
         </div>
       </div>
 
@@ -98,8 +115,64 @@ export default function HorasPage() {
         Objetivo: <strong>{resumen?.objetivo?.horas_semana}h/semana</strong> · <strong>{resumen?.objetivo?.horas_mes}h/mes</strong>
       </div>
 
+      {/* Filtro avanzado */}
+      <div className={styles.filtroCard}>
+        <h2 className={styles.subtitulo}>Consulta personalizada</h2>
+        <div className={styles.filtroRow}>
+          <div className={styles.filtroModos}>
+            {[['semana','Esta semana'],['mes','Este mes'],['anio','Este año'],['rango','Rango']].map(([v,l]) => (
+              <button key={v} className={`${styles.modoBtn} ${modo === v ? styles.modoBtnActivo : ''}`} onClick={() => setModo(v)}>{l}</button>
+            ))}
+          </div>
+          {modo === 'rango' && (
+            <div className={styles.rangoInputs}>
+              <input type="date" value={desde} onChange={e => setDesde(e.target.value)} className={styles.dateInput} />
+              <span>—</span>
+              <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className={styles.dateInput} />
+            </div>
+          )}
+          <button className={styles.btnConsultar} onClick={aplicarFiltro} disabled={cargandoFiltro}>
+            {cargandoFiltro ? 'Cargando...' : 'Consultar'}
+          </button>
+        </div>
+
+        {filtro && (
+          <div className={styles.filtroResultado}>
+            <div className={styles.filtroStats}>
+              <div className={styles.fStat}>
+                <span className={styles.fStatVal}>{fmtH(filtro.trabajadas)}</span>
+                <span className={styles.fStatLbl}>Trabajadas</span>
+              </div>
+              <div className={styles.fStat}>
+                <span className={styles.fStatVal}>{fmtH(filtro.objetivoPeriodo)}</span>
+                <span className={styles.fStatLbl}>Objetivo periodo</span>
+              </div>
+              <div className={`${styles.fStat} ${filtro.diferencia >= 0 ? styles.positivo : styles.negativo}`}>
+                <span className={styles.fStatVal}>{filtro.diferencia >= 0 ? '+' : ''}{fmtH(filtro.diferencia)}</span>
+                <span className={styles.fStatLbl}>Balance</span>
+              </div>
+            </div>
+            {filtro.desgloseDiario?.length > 0 && (
+              <div className={styles.tablaWrap} style={{ marginTop: '0.75rem' }}>
+                <table className={styles.tabla}>
+                  <thead><tr><th>Día</th><th>Horas trabajadas</th></tr></thead>
+                  <tbody>
+                    {filtro.desgloseDiario.map(d => (
+                      <tr key={d.fecha}>
+                        <td>{new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
+                        <td>{fmtH(d.horas)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <button className={styles.btnHistorial} onClick={cargarHistorial}>
-        {verHistorial ? 'Ocultar historial' : 'Ver historial mensual'}
+        {verHistorial ? 'Ocultar historial mensual' : 'Ver historial mensual'}
       </button>
 
       {verHistorial && historial && (
@@ -108,13 +181,7 @@ export default function HorasPage() {
           <div className={styles.tablaWrap}>
             <table className={styles.tabla}>
               <thead>
-                <tr>
-                  <th>Mes</th>
-                  <th>Trabajadas</th>
-                  <th>Objetivo</th>
-                  <th>Diferencia</th>
-                  <th>Balance acum.</th>
-                </tr>
+                <tr><th>Mes</th><th>Trabajadas</th><th>Objetivo</th><th>Diferencia</th><th>Balance acum.</th></tr>
               </thead>
               <tbody>
                 {historial.historial?.map(m => {
