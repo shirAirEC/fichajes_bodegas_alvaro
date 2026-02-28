@@ -12,6 +12,7 @@ const saldosRoutes = require('./routes/saldos');
 const configRoutes = require('./routes/config');
 const horasRoutes = require('./routes/horas');
 const solicitudesRoutes = require('./routes/solicitudes');
+const notificacionesRoutes = require('./routes/notificaciones');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -53,6 +54,7 @@ app.use('/api/saldos', saldosRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/horas', horasRoutes);
 app.use('/api/solicitudes', solicitudesRoutes);
+app.use('/api/notificaciones', notificacionesRoutes);
 
 app.use('/api/*', (req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
 

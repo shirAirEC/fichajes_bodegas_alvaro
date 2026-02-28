@@ -1,3 +1,15 @@
+/* Notificaciones */
+.notifBox {
+  grid-column: 1 / -1;
+  background: #fff8e1; border: 1.5px solid #ffe082;
+  border-radius: var(--radius); padding: 1rem 1.25rem;
+  display: flex; flex-direction: column; gap: 0.5rem;
+}
+.notifTitulo { font-weight: 700; font-size: 0.95rem; color: #e65100; }
+.notifItem { font-size: 0.875rem; color: #555; padding: 0.4rem 0.75rem; background: white; border-radius: var(--radius-sm); border-left: 3px solid #ffc107; }
+.notifBtn { align-self: flex-start; margin-top: 0.25rem; padding: 0.4rem 1rem; background: #ffc107; color: #333; border: none; border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+.notifBtn:hover { background: #ffb300; }
+
 .page {
   display: grid;
   gap: 1.5rem;

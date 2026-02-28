@@ -22,7 +22,7 @@ function formatTimestamp(ts) {
 }
 
 export default function FicharPage() {
-  const { authFetch, user } = useAuth();
+  const { authFetch, user, notificaciones, marcarNotificacionesLeidas } = useAuth();
   const [ahora, setAhora] = useState(new Date());
   const [estado, setEstado] = useState(null);
   const [resumen, setResumen] = useState(null);
@@ -91,11 +91,22 @@ export default function FicharPage() {
   if (cargando) return <div className={styles.loading}>Cargando...</div>;
 
   const esDentro = estado?.dentro;
+  const hayNotificaciones = notificaciones?.length > 0;
   const proximoTipo = estado?.proximoTipo;
   const redActiva = config?.ip_activo === '1';
 
   return (
     <div className={styles.page}>
+      {hayNotificaciones && (
+        <div className={styles.notifBox}>
+          <div className={styles.notifTitulo}>📋 Tienes {notificaciones.length} aviso{notificaciones.length > 1 ? 's' : ''} del administrador</div>
+          {notificaciones.map(n => (
+            <div key={n.id} className={styles.notifItem}>{n.mensaje}</div>
+          ))}
+          <button className={styles.notifBtn} onClick={marcarNotificacionesLeidas}>Entendido, marcar como leído</button>
+        </div>
+      )}
+
       <div className={styles.relojCard}>
         <div className={styles.fecha}>{formatDate(ahora)}</div>
         <div className={styles.hora}>{formatTime(ahora)}</div>

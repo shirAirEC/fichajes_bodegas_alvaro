@@ -16,12 +16,12 @@ export default function AdminSolicitudesPage() {
 
   const cargar = useCallback(async () => {
     setCargando(true);
-    const [r1, r2] = await Promise.all([
+    const [r1, r2, r3] = await Promise.all([
       authFetch('/api/solicitudes/admin?estado=pendiente'),
       authFetch('/api/solicitudes/admin?estado=aprobada'),
+      authFetch('/api/solicitudes/admin?estado=rechazada'),
     ]);
-    const [pend, aprob] = await Promise.all([r1.json(), r2.json()]);
-    const { data: rech } = await authFetch('/api/solicitudes/admin?estado=rechazada').then(r => r.json().then(d => ({ data: d })));
+    const [pend, aprob, rech] = await Promise.all([r1.json(), r2.json(), r3.json()]);
     setSolicitudes(pend);
     setHistorial([...aprob, ...rech].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)));
     setCargando(false);

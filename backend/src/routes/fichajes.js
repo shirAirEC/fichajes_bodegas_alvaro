@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
+const { crearNotificacion } = require('./solicitudes');
 
 const router = express.Router();
 
@@ -303,10 +304,49 @@ router.get('/admin/exportar', authMiddleware, adminMiddleware, async (req, res) 
   }
 });
 
+// PUT /api/fichajes/admin/:id — editar fichaje directamente
+router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { tipo, fecha, hora, notificar = true } = req.body;
+    const { rows: exist } = await pool.query(
+      'SELECT * FROM fichajes WHERE id = $1', [req.params.id]
+    );
+    if (!exist[0]) return res.status(404).json({ error: 'Fichaje no encontrado' });
+
+    const fichaje = exist[0];
+    const nuevoTimestamp = fecha && hora ? new Date(`${fecha}T${hora}:00`) : null;
+
+    const { rows } = await pool.query(
+      `UPDATE fichajes SET
+         tipo = COALESCE($1, tipo),
+         timestamp = COALESCE($2, timestamp),
+         notas = $3
+       WHERE id = $4 RETURNING *`,
+      [tipo || null, nuevoTimestamp, `Editado por administrador`, req.params.id]
+    );
+
+    if (notificar) {
+      const fechaLeg = (nuevoTimestamp || new Date(fichaje.timestamp))
+        .toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const horaLeg = (nuevoTimestamp || new Date(fichaje.timestamp))
+        .toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      await crearNotificacion(
+        fichaje.empleado_id,
+        `El administrador ha modificado tu fichaje del ${fechaLeg}: ahora registrado como ${tipo || fichaje.tipo} a las ${horaLeg}.`
+      );
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // DELETE /api/fichajes/admin/:id
 router.delete('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT id FROM fichajes WHERE id = $1', [req.params.id]);
+    const { rows } = await pool.query('SELECT id, empleado_id FROM fichajes WHERE id = $1', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Fichaje no encontrado' });
     await pool.query('DELETE FROM fichajes WHERE id = $1', [req.params.id]);
     res.json({ message: 'Fichaje eliminado' });

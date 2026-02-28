@@ -107,3 +107,24 @@
 .btnEliminarConfirm:hover { background: #a93226; }
 .btnCancelar { padding: 0.625rem 1.25rem; background: transparent; color: var(--color-text); border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.875rem; cursor: pointer; }
 .btnCancelar:hover { background: var(--color-light); }
+
+/* Botón editar en timeline */
+.dtActions { display: flex; gap: 0.3rem; align-items: center; }
+.btnEditar { background: none; border: none; cursor: pointer; font-size: 0.85rem; padding: 0.1rem 0.2rem; opacity: 0.6; }
+.btnEditar:hover { opacity: 1; }
+
+/* Modal edición fichaje */
+.editBox { background: white; border-radius: var(--radius-lg); padding: 0; max-width: 400px; width: 92%; box-shadow: var(--shadow-lg); overflow: hidden; }
+.editHeader { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--color-border); }
+.editHeader h3 { margin: 0; font-size: 1rem; }
+.editClose { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: #999; line-height: 1; }
+.editForm { padding: 1.25rem; display: flex; flex-direction: column; gap: 0.875rem; }
+.editField { display: flex; flex-direction: column; gap: 0.3rem; }
+.editField label { font-size: 0.8rem; font-weight: 600; color: #666; }
+.editField select, .editField input { padding: 0.55rem 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.875rem; }
+.editField select:focus, .editField input:focus { outline: none; border-color: var(--color-primary); }
+.editNota { font-size: 0.78rem; color: #f39c12; background: #fef9e7; border: 1px solid #ffe082; border-radius: var(--radius-sm); padding: 0.5rem 0.75rem; margin: 0; }
+.editFooter { display: flex; gap: 0.75rem; justify-content: flex-end; padding-top: 0.25rem; }
+.btnGuardarEdit { padding: 0.6rem 1.25rem; background: var(--color-primary); color: white; border: none; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+.btnGuardarEdit:hover:not(:disabled) { background: var(--color-primary-dark); }
+.btnGuardarEdit:disabled { opacity: 0.7; cursor: not-allowed; }

@@ -23,7 +23,7 @@ function fmtFechaHora(ts) {
 }
 
 // ─── Fila expandible de jornada ───────────────────────────────────────────────
-function FilaJornada({ jornada, onEliminarFichaje }) {
+function FilaJornada({ jornada, onEliminarFichaje, onEditarFichaje }) {
   const [expandida, setExpandida] = useState(false);
 
   return (
@@ -72,11 +72,18 @@ function FilaJornada({ jornada, onEliminarFichaje }) {
                         </span>
                       )}
                     </div>
-                    <button
-                      className={styles.btnBorrar}
-                      onClick={e => { e.stopPropagation(); onEliminarFichaje(f.id); }}
-                      title="Eliminar este fichaje"
-                    >✕</button>
+                    <div className={styles.dtActions}>
+                      <button
+                        className={styles.btnEditar}
+                        onClick={e => { e.stopPropagation(); onEditarFichaje(f); }}
+                        title="Editar fichaje"
+                      >✏️</button>
+                      <button
+                        className={styles.btnBorrar}
+                        onClick={e => { e.stopPropagation(); onEliminarFichaje(f.id); }}
+                        title="Eliminar este fichaje"
+                      >✕</button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -99,6 +106,9 @@ export default function AdminFichajesPage() {
   const [pagina, setPagina] = useState(1);
   const [cargando, setCargando] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [editModal, setEditModal] = useState(null);
+  const [editForm, setEditForm] = useState({ tipo: '', fecha: '', hora: '' });
+  const [editando, setEditando] = useState(false);
   const LIMITE = 50;
 
   const hoy = new Date().toISOString().split('T')[0];
@@ -142,6 +152,29 @@ export default function AdminFichajesPage() {
   const handleEliminarFichaje = async (id) => {
     if (!window.confirm('¿Eliminar este fichaje?')) return;
     await authFetch(`/api/fichajes/admin/${id}`, { method: 'DELETE' });
+    if (vista === 'jornadas') cargarJornadas();
+    else cargarDetalle();
+  };
+
+  const abrirEditar = (f) => {
+    const d = new Date(f.timestamp);
+    setEditForm({
+      tipo: f.tipo,
+      fecha: d.toISOString().split('T')[0],
+      hora: d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false })
+    });
+    setEditModal(f);
+  };
+
+  const handleGuardarEdicion = async (e) => {
+    e.preventDefault();
+    setEditando(true);
+    await authFetch(`/api/fichajes/admin/${editModal.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(editForm)
+    });
+    setEditModal(null);
+    setEditando(false);
     if (vista === 'jornadas') cargarJornadas();
     else cargarDetalle();
   };
@@ -237,6 +270,7 @@ export default function AdminFichajesPage() {
                     key={`${j.empleado_id}_${j.fecha}`}
                     jornada={j}
                     onEliminarFichaje={handleEliminarFichaje}
+                    onEditarFichaje={abrirEditar}
                   />
                 ))}
               </tbody>
@@ -290,6 +324,41 @@ export default function AdminFichajesPage() {
               <button className={styles.btnEliminarConfirm} onClick={() => { handleEliminarFichaje(confirmDelete); setConfirmDelete(null); }}>Eliminar</button>
               <button className={styles.btnCancelar} onClick={() => setConfirmDelete(null)}>Cancelar</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {editModal && (
+        <div className={styles.confirmOverlay} onClick={e => e.target === e.currentTarget && setEditModal(null)}>
+          <div className={styles.editBox}>
+            <div className={styles.editHeader}>
+              <h3>Editar fichaje</h3>
+              <button className={styles.editClose} onClick={() => setEditModal(null)}>×</button>
+            </div>
+            <form onSubmit={handleGuardarEdicion} className={styles.editForm}>
+              <div className={styles.editField}>
+                <label>Tipo</label>
+                <select value={editForm.tipo} onChange={e => setEditForm(f => ({ ...f, tipo: e.target.value }))}>
+                  <option value="entrada">Entrada</option>
+                  <option value="salida">Salida</option>
+                </select>
+              </div>
+              <div className={styles.editField}>
+                <label>Fecha</label>
+                <input type="date" required value={editForm.fecha} onChange={e => setEditForm(f => ({ ...f, fecha: e.target.value }))} />
+              </div>
+              <div className={styles.editField}>
+                <label>Hora</label>
+                <input type="time" required value={editForm.hora} onChange={e => setEditForm(f => ({ ...f, hora: e.target.value }))} />
+              </div>
+              <p className={styles.editNota}>El empleado recibirá una notificación del cambio en su próximo acceso.</p>
+              <div className={styles.editFooter}>
+                <button type="button" className={styles.btnCancelar} onClick={() => setEditModal(null)}>Cancelar</button>
+                <button type="submit" className={styles.btnGuardarEdit} disabled={editando}>
+                  {editando ? 'Guardando...' : 'Guardar cambio'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

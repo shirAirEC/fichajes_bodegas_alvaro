@@ -33,6 +33,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => localStorage.getItem('fichajes_token'));
   const [loading, setLoading] = useState(true);
+  const [notificaciones, setNotificaciones] = useState([]);
 
   const logout = useCallback(() => {
     localStorage.removeItem('fichajes_token');
@@ -62,6 +63,24 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, [token, logout]);
 
+  const cargarNotificaciones = useCallback(async (tok) => {
+    try {
+      const res = await fetch(`${API_URL}/api/notificaciones`, {
+        headers: { Authorization: `Bearer ${tok}` }
+      });
+      if (res.ok) setNotificaciones(await res.json());
+    } catch {}
+  }, []);
+
+  const marcarNotificacionesLeidas = useCallback(async () => {
+    if (!token) return;
+    await fetch(`${API_URL}/api/notificaciones/marcar-leidas`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setNotificaciones([]);
+  }, [token]);
+
   const login = async (email, password) => {
     const res = await fetch(`${API_URL}/api/auth/login`, {
       method: 'POST',
@@ -78,6 +97,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('fichajes_token', data.token);
     setToken(data.token);
     setUser(data.empleado);
+    await cargarNotificaciones(data.token);
     return data.empleado;
   };
 
@@ -101,7 +121,7 @@ export function AuthProvider({ children }) {
   }, [token, logout]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, authFetch }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, authFetch, notificaciones, marcarNotificacionesLeidas }}>
       {children}
     </AuthContext.Provider>
   );

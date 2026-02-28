@@ -2,6 +2,14 @@ const express = require('express');
 const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
+async function crearNotificacion(empleadoId, mensaje) {
+  await pool.query(
+    `INSERT INTO notificaciones (empleado_id, mensaje) VALUES ($1, $2)`,
+    [empleadoId, mensaje]
+  );
+}
+module.exports.crearNotificacion = crearNotificacion;
+
 const router = express.Router();
 
 // GET /api/solicitudes — empleado ve sus propias solicitudes
@@ -77,7 +85,14 @@ router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
     const solicitud = sol[0];
 
     if (estado === 'aprobada') {
-      const fechaHora = new Date(`${solicitud.fecha_solicitada.toISOString().split('T')[0]}T${solicitud.hora_solicitada}`);
+      // Normalizar fecha (puede llegar como Date o string desde PostgreSQL)
+      const fechaStr = typeof solicitud.fecha_solicitada === 'string'
+        ? solicitud.fecha_solicitada.split('T')[0]
+        : solicitud.fecha_solicitada.toISOString().split('T')[0];
+      const horaStr = typeof solicitud.hora_solicitada === 'string'
+        ? solicitud.hora_solicitada.slice(0, 5)
+        : solicitud.hora_solicitada.toString().slice(0, 5);
+      const fechaHora = new Date(`${fechaStr}T${horaStr}:00`);
 
       if (solicitud.tipo === 'nuevo') {
         await pool.query(
@@ -101,6 +116,15 @@ router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
        WHERE id = $4 RETURNING *`,
       [estado, admin_nota || '', req.user.id, id]
     );
+
+    // Notificar al empleado
+    const accion = estado === 'aprobada' ? 'aprobada y aplicada' : 'rechazada';
+    const notaTexto = admin_nota ? ` Nota del administrador: "${admin_nota}"` : '';
+    await crearNotificacion(
+      solicitud.empleado_id,
+      `Tu solicitud de corrección del ${fechaStr} (${solicitud.tipo_fichaje}) ha sido ${accion}.${notaTexto}`
+    );
+
     res.json(rows[0]);
   } catch (err) {
     console.error(err);
