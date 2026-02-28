@@ -45,13 +45,26 @@ export default function FicharPage() {
         authFetch('/api/fichajes/resumen-hoy'),
         authFetch('/api/config')
       ]);
-      setEstado(await resEstado.json());
-      setResumen(await resResumen.json());
-      setConfig(await resConfig.json());
+      const dataEstado = await resEstado.json();
+      const dataResumen = await resResumen.json();
+      const dataConfig = await resConfig.json();
+      setEstado(dataEstado);
+      setResumen(dataResumen);
+      setConfig(dataConfig);
     } catch (err) {
-      console.error(err);
+      console.error('cargarEstado error:', err);
     } finally {
       setCargando(false);
+    }
+  }, [authFetch]);
+
+  // Solo refresca el resumen del día (sin tocar el estado del botón)
+  const refrescarResumen = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/fichajes/resumen-hoy');
+      setResumen(await res.json());
+    } catch (err) {
+      console.error('refrescarResumen error:', err);
     }
   }, [authFetch]);
 
@@ -80,16 +93,17 @@ export default function FicharPage() {
       const tipoLabel = data.tipo === 'entrada' ? 'Entrada registrada' : 'Salida registrada';
       setMensaje({ tipo: 'success', texto: `${tipoLabel} a las ${formatTimestamp(data.fichaje.timestamp)}` });
 
-      // Actualizar el estado del botón directamente desde la respuesta (no esperar al refetch)
+      // Actualizar estado del botón/badge directamente desde la respuesta — no depende de refetch
+      const nuevoDentro = data.tipo === 'entrada';
       setEstado(prev => ({
         ...prev,
-        dentro: data.tipo === 'entrada',
+        dentro: nuevoDentro,
         ultimoFichaje: data.fichaje,
-        proximoTipo: data.tipo === 'entrada' ? 'salida' : 'entrada'
+        proximoTipo: nuevoDentro ? 'salida' : 'entrada'
       }));
 
-      // Refrescar resumen y demás datos en segundo plano
-      cargarEstado();
+      // Refrescar solo el resumen del día (sin sobrescribir el estado del botón)
+      refrescarResumen();
     } catch (err) {
       setMensaje({ tipo: 'error', texto: err.message || 'Error al registrar fichaje' });
     } finally {
