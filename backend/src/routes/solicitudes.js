@@ -101,13 +101,46 @@ router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
            VALUES ($1, $2, $3, $4)`,
           [solicitud.empleado_id, solicitud.tipo_fichaje, fechaHora, `Añadido por admin (solicitud #${id})`]
         );
-      } else if (solicitud.tipo === 'correccion' && solicitud.fichaje_id) {
-        await pool.query(
-          `UPDATE fichajes SET tipo = $1, timestamp = $2, notas = $3 WHERE id = $4`,
-          [solicitud.tipo_fichaje, fechaHora, `Corregido por admin (solicitud #${id})`, solicitud.fichaje_id]
-        );
-      } else if (solicitud.tipo === 'eliminar' && solicitud.fichaje_id) {
-        await pool.query('DELETE FROM fichajes WHERE id = $1', [solicitud.fichaje_id]);
+      } else if (solicitud.tipo === 'correccion') {
+        // Usar fichaje_id si existe; si no, buscar por empleado + fecha + tipo_fichaje
+        let fichajeId = solicitud.fichaje_id;
+        if (!fichajeId) {
+          const { rows: found } = await pool.query(
+            `SELECT id FROM fichajes
+             WHERE empleado_id = $1 AND tipo = $2 AND timestamp::date = $3::date
+             ORDER BY timestamp ASC LIMIT 1`,
+            [solicitud.empleado_id, solicitud.tipo_fichaje, fechaStr]
+          );
+          fichajeId = found[0]?.id || null;
+        }
+        if (fichajeId) {
+          await pool.query(
+            `UPDATE fichajes SET tipo = $1, timestamp = $2, notas = $3 WHERE id = $4`,
+            [solicitud.tipo_fichaje, fechaHora, `Corregido por admin (solicitud #${id})`, fichajeId]
+          );
+        } else {
+          // No existe el fichaje a corregir: insertar como nuevo
+          await pool.query(
+            `INSERT INTO fichajes (empleado_id, tipo, timestamp, notas)
+             VALUES ($1, $2, $3, $4)`,
+            [solicitud.empleado_id, solicitud.tipo_fichaje, fechaHora, `Añadido por admin (solicitud #${id})`]
+          );
+        }
+      } else if (solicitud.tipo === 'eliminar') {
+        // Usar fichaje_id si existe; si no, buscar por empleado + fecha + tipo_fichaje
+        let fichajeId = solicitud.fichaje_id;
+        if (!fichajeId) {
+          const { rows: found } = await pool.query(
+            `SELECT id FROM fichajes
+             WHERE empleado_id = $1 AND tipo = $2 AND timestamp::date = $3::date
+             ORDER BY timestamp ASC LIMIT 1`,
+            [solicitud.empleado_id, solicitud.tipo_fichaje, fechaStr]
+          );
+          fichajeId = found[0]?.id || null;
+        }
+        if (fichajeId) {
+          await pool.query('DELETE FROM fichajes WHERE id = $1', [fichajeId]);
+        }
       }
     }
 
