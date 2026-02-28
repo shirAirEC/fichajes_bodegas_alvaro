@@ -16,6 +16,17 @@ router.get('/', authMiddleware, adminMiddleware, async (req, res) => {
   }
 });
 
+async function passwordYaExiste(password, excluirId = null) {
+  const { rows } = await pool.query(
+    `SELECT id, password FROM empleados WHERE activo = 1${excluirId ? ' AND id != $1' : ''}`,
+    excluirId ? [excluirId] : []
+  );
+  for (const emp of rows) {
+    if (bcrypt.compareSync(password, emp.password)) return true;
+  }
+  return false;
+}
+
 router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { nombre, apellidos, email, password, rol = 'empleado', departamento = '' } = req.body;
@@ -30,6 +41,10 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
       'SELECT id FROM empleados WHERE email = $1', [email.toLowerCase().trim()]
     );
     if (existe[0]) return res.status(409).json({ error: 'Ya existe un empleado con ese email' });
+
+    if (await passwordYaExiste(password)) {
+      return res.status(409).json({ error: 'Esa contraseña ya está en uso por otro empleado. Cada empleado debe tener una contraseña única.' });
+    }
 
     const { rows } = await pool.query(
       `INSERT INTO empleados (nombre, apellidos, email, password, rol, departamento)
@@ -67,6 +82,9 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
     if (sin_restriccion_ip !== undefined){ campos.push(`sin_restriccion_ip = $${idx++}`); valores.push(sin_restriccion_ip ? 1 : 0); }
     if (password) {
       if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+      if (await passwordYaExiste(password, id)) {
+        return res.status(409).json({ error: 'Esa contraseña ya está en uso por otro empleado. Cada empleado debe tener una contraseña única.' });
+      }
       campos.push(`password = $${idx++}`);
       valores.push(bcrypt.hashSync(password, 10));
     }
