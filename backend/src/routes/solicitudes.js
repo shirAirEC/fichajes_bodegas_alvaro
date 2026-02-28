@@ -84,14 +84,15 @@ router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
     if (!sol[0]) return res.status(404).json({ error: 'Solicitud no encontrada' });
     const solicitud = sol[0];
 
+    // Normalizar fecha y hora (fuera del bloque para que sea accesible en la notificación)
+    const fechaStr = typeof solicitud.fecha_solicitada === 'string'
+      ? solicitud.fecha_solicitada.split('T')[0]
+      : solicitud.fecha_solicitada.toISOString().split('T')[0];
+    const horaStr = typeof solicitud.hora_solicitada === 'string'
+      ? solicitud.hora_solicitada.slice(0, 5)
+      : solicitud.hora_solicitada.toString().slice(0, 5);
+
     if (estado === 'aprobada') {
-      // Normalizar fecha (puede llegar como Date o string desde PostgreSQL)
-      const fechaStr = typeof solicitud.fecha_solicitada === 'string'
-        ? solicitud.fecha_solicitada.split('T')[0]
-        : solicitud.fecha_solicitada.toISOString().split('T')[0];
-      const horaStr = typeof solicitud.hora_solicitada === 'string'
-        ? solicitud.hora_solicitada.slice(0, 5)
-        : solicitud.hora_solicitada.toString().slice(0, 5);
       const fechaHora = new Date(`${fechaStr}T${horaStr}:00`);
 
       if (solicitud.tipo === 'nuevo') {
