@@ -79,7 +79,17 @@ export default function FicharPage() {
 
       const tipoLabel = data.tipo === 'entrada' ? 'Entrada registrada' : 'Salida registrada';
       setMensaje({ tipo: 'success', texto: `${tipoLabel} a las ${formatTimestamp(data.fichaje.timestamp)}` });
-      await cargarEstado();
+
+      // Actualizar el estado del botón directamente desde la respuesta (no esperar al refetch)
+      setEstado(prev => ({
+        ...prev,
+        dentro: data.tipo === 'entrada',
+        ultimoFichaje: data.fichaje,
+        proximoTipo: data.tipo === 'entrada' ? 'salida' : 'entrada'
+      }));
+
+      // Refrescar resumen y demás datos en segundo plano
+      cargarEstado();
     } catch (err) {
       setMensaje({ tipo: 'error', texto: err.message || 'Error al registrar fichaje' });
     } finally {
