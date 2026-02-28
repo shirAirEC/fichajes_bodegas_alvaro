@@ -8,7 +8,6 @@ async function crearNotificacion(empleadoId, mensaje) {
     [empleadoId, mensaje]
   );
 }
-module.exports.crearNotificacion = crearNotificacion;
 
 const router = express.Router();
 
@@ -167,3 +166,5 @@ router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 module.exports = router;
+// Exportar función de notificaciones DESPUÉS de asignar el router (evita que se sobreescriba)
+module.exports.crearNotificacion = crearNotificacion;
