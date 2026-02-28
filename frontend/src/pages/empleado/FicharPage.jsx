@@ -22,7 +22,7 @@ function formatTimestamp(ts) {
 }
 
 export default function FicharPage() {
-  const { authFetch, user, notificaciones, marcarNotificacionesLeidas } = useAuth();
+  const { authFetch, user, notificaciones, marcarNotificacionesLeidas, refrescarNotificaciones } = useAuth();
   const [ahora, setAhora] = useState(new Date());
   const [estado, setEstado] = useState(null);
   const [resumen, setResumen] = useState(null);
@@ -56,6 +56,9 @@ export default function FicharPage() {
   }, [authFetch]);
 
   useEffect(() => { cargarEstado(); }, [cargarEstado]);
+
+  // Refrescar notificaciones al entrar a la pantalla (puede haber nuevas desde el último login)
+  useEffect(() => { refrescarNotificaciones(); }, [refrescarNotificaciones]);
 
   const handleFichar = async () => {
     setFichando(true);

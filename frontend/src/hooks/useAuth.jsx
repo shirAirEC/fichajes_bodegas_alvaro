@@ -72,6 +72,16 @@ export function AuthProvider({ children }) {
     } catch {}
   }, []);
 
+  const refrescarNotificaciones = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/api/notificaciones`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) setNotificaciones(await res.json());
+    } catch {}
+  }, [token]);
+
   const marcarNotificacionesLeidas = useCallback(async () => {
     if (!token) return;
     await fetch(`${API_URL}/api/notificaciones/marcar-leidas`, {
@@ -121,7 +131,7 @@ export function AuthProvider({ children }) {
   }, [token, logout]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, authFetch, notificaciones, marcarNotificacionesLeidas }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, authFetch, notificaciones, marcarNotificacionesLeidas, refrescarNotificaciones }}>
       {children}
     </AuthContext.Provider>
   );

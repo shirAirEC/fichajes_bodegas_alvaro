@@ -168,6 +168,11 @@ export default function AdminFichajesPage() {
 
   const handleGuardarEdicion = async (e) => {
     e.preventDefault();
+    const nuevoTimestamp = new Date(`${editForm.fecha}T${editForm.hora}:00`);
+    if (nuevoTimestamp > new Date()) {
+      alert('No se puede establecer un fichaje en el futuro. Las modificaciones deben ser de tiempo pasado.');
+      return;
+    }
     setEditando(true);
     await authFetch(`/api/fichajes/admin/${editModal.id}`, {
       method: 'PUT',
@@ -345,11 +350,14 @@ export default function AdminFichajesPage() {
               </div>
               <div className={styles.editField}>
                 <label>Fecha</label>
-                <input type="date" required value={editForm.fecha} onChange={e => setEditForm(f => ({ ...f, fecha: e.target.value }))} />
+                <input type="date" required value={editForm.fecha}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={e => setEditForm(f => ({ ...f, fecha: e.target.value }))} />
               </div>
               <div className={styles.editField}>
                 <label>Hora</label>
-                <input type="time" required value={editForm.hora} onChange={e => setEditForm(f => ({ ...f, hora: e.target.value }))} />
+                <input type="time" required value={editForm.hora}
+                  onChange={e => setEditForm(f => ({ ...f, hora: e.target.value }))} />
               </div>
               <p className={styles.editNota}>El empleado recibirá una notificación del cambio en su próximo acceso.</p>
               <div className={styles.editFooter}>

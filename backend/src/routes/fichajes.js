@@ -317,6 +317,10 @@ router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
     const fichaje = exist[0];
     const nuevoTimestamp = fecha && hora ? new Date(`${fecha}T${hora}:00`) : null;
 
+    if (nuevoTimestamp && nuevoTimestamp > new Date()) {
+      return res.status(400).json({ error: 'No se puede establecer un fichaje en el futuro. Las modificaciones deben ser de tiempo pasado.' });
+    }
+
     const { rows } = await pool.query(
       `UPDATE fichajes SET
          tipo = COALESCE($1, tipo),
