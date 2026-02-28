@@ -245,12 +245,56 @@ router.get('/filtro', authMiddleware, async (req, res) => {
 
 // ─── RUTAS ADMIN ──────────────────────────────────────────────────────────────
 
-// GET /api/horas/admin/todos  — resumen del mes actual para todos los empleados
+// Genera array de semanas [{lunes, domingo}] dentro de un rango
+function semanasEnPeriodo(fechaInicio, fechaFin) {
+  const semanas = [];
+  const inicio = new Date(fechaInicio + 'T12:00:00');
+  const fin = new Date(fechaFin + 'T12:00:00');
+  // Retroceder al lunes de la semana de inicio
+  const diaSemana = inicio.getDay() === 0 ? 6 : inicio.getDay() - 1;
+  let lunes = new Date(inicio);
+  lunes.setDate(inicio.getDate() - diaSemana);
+  while (lunes <= fin) {
+    const domingo = new Date(lunes);
+    domingo.setDate(lunes.getDate() + 6);
+    semanas.push({
+      lunes: lunes.toISOString().split('T')[0],
+      domingo: domingo.toISOString().split('T')[0]
+    });
+    lunes = new Date(lunes);
+    lunes.setDate(lunes.getDate() + 7);
+  }
+  return semanas;
+}
+
+// GET /api/horas/admin/todos?modo=semana|mes|anio|rango&desde=&hasta=
 router.get('/admin/todos', authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    const { modo = 'mes', desde, hasta } = req.query;
     const hoy = new Date();
-    const mesInicio = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
-    const mesFin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().split('T')[0];
+    let fechaInicio, fechaFin;
+
+    if (modo === 'semana') {
+      const d = hoy.getDay() === 0 ? 6 : hoy.getDay() - 1;
+      const lunes = new Date(hoy); lunes.setDate(hoy.getDate() - d);
+      const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6);
+      fechaInicio = lunes.toISOString().split('T')[0];
+      fechaFin = domingo.toISOString().split('T')[0];
+    } else if (modo === 'mes') {
+      fechaInicio = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
+      fechaFin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().split('T')[0];
+    } else if (modo === 'anio') {
+      fechaInicio = `${hoy.getFullYear()}-01-01`;
+      fechaFin = `${hoy.getFullYear()}-12-31`;
+    } else if (modo === 'rango' && desde && hasta) {
+      fechaInicio = desde;
+      fechaFin = hasta;
+    } else {
+      fechaInicio = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
+      fechaFin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().split('T')[0];
+    }
+
+    const semanas = semanasEnPeriodo(fechaInicio, fechaFin);
 
     const { rows: empleados } = await pool.query(
       "SELECT id, nombre, apellidos, departamento, fecha_alta FROM empleados WHERE activo = 1 AND rol = 'empleado' ORDER BY apellidos"
@@ -258,12 +302,31 @@ router.get('/admin/todos', authMiddleware, adminMiddleware, async (req, res) => 
 
     const resumen = await Promise.all(empleados.map(async emp => {
       const objetivo = await getObjetivoEmpleado(emp.id);
-      const { horasTrabajadas, horasAjuste } = await calcularBalancePeriodo(emp.id, mesInicio, mesFin);
+      const { horasTrabajadas, horasAjuste } = await calcularBalancePeriodo(emp.id, fechaInicio, fechaFin);
 
-      // Balance acumulado
-      const meses = mesesDesdeAlta(emp.fecha_alta);
+      const objetivoPeriodo = modo === 'semana'
+        ? objetivo.horas_semana
+        : modo === 'anio'
+          ? objetivo.horas_semana * 52
+          : objetivo.horas_semana * semanas.length;
+
+      // Desglose por semana
+      const desgloseSemanas = await Promise.all(semanas.map(async s => {
+        const { horasTrabajadas: ht, horasAjuste: ha } = await calcularBalancePeriodo(emp.id, s.lunes, s.domingo);
+        return {
+          lunes: s.lunes,
+          domingo: s.domingo,
+          trabajadas: Math.round(ht * 100) / 100,
+          ajuste: ha,
+          objetivo: objetivo.horas_semana,
+          diferencia: Math.round((ht + ha - objetivo.horas_semana) * 100) / 100
+        };
+      }));
+
+      // Balance acumulado histórico
+      const mesesHist = mesesDesdeAlta(emp.fecha_alta);
       let balanceAcum = 0;
-      for (const m of meses) {
+      for (const m of mesesHist) {
         const { horasTrabajadas: ht, horasAjuste: ha } = await calcularBalancePeriodo(emp.id, m.primerDia, m.ultimoDia);
         balanceAcum += ht + ha - objetivo.horas_mes;
       }
@@ -271,18 +334,26 @@ router.get('/admin/todos', authMiddleware, adminMiddleware, async (req, res) => 
       return {
         id: emp.id, nombre: emp.nombre, apellidos: emp.apellidos, departamento: emp.departamento,
         objetivo,
+        periodo: {
+          trabajadas: Math.round(horasTrabajadas * 100) / 100,
+          ajuste: horasAjuste,
+          objetivo: Math.round(objetivoPeriodo * 100) / 100,
+          diferencia: Math.round((horasTrabajadas + horasAjuste - objetivoPeriodo) * 100) / 100
+        },
         mes: {
           trabajadas: Math.round(horasTrabajadas * 100) / 100,
           ajuste: horasAjuste,
-          objetivo: objetivo.horas_mes,
-          diferencia: Math.round((horasTrabajadas + horasAjuste - objetivo.horas_mes) * 100) / 100
+          objetivo: Math.round(objetivoPeriodo * 100) / 100,
+          diferencia: Math.round((horasTrabajadas + horasAjuste - objetivoPeriodo) * 100) / 100
         },
+        desgloseSemanas,
         balanceAcumulado: Math.round(balanceAcum * 100) / 100
       };
     }));
 
-    res.json(resumen);
+    res.json({ empleados: resumen, semanas, fechaInicio, fechaFin, modo });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

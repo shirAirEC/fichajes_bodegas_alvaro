@@ -208,10 +208,19 @@ function ModalDetalle({ empleadoId, onClose, authFetch }) {
   );
 }
 
+const hoy = new Date();
+const ISO = d => d.toISOString().split('T')[0];
+
+function fmtSemana(lunes, domingo) {
+  const l = new Date(lunes + 'T12:00:00');
+  const d = new Date(domingo + 'T12:00:00');
+  return `${l.getDate()}/${l.getMonth()+1} – ${d.getDate()}/${d.getMonth()+1}`;
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function AdminHorasPage() {
   const { authFetch } = useAuth();
-  const [empleados, setEmpleados] = useState([]);
+  const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [modalAjuste, setModalAjuste] = useState(null);
   const [modalDetalle, setModalDetalle] = useState(null);
@@ -219,18 +228,26 @@ export default function AdminHorasPage() {
   const [editConfig, setEditConfig] = useState(false);
   const [configForm, setConfigForm] = useState({});
   const [guardandoConfig, setGuardandoConfig] = useState(false);
+  const [vistaTabla, setVistaTabla] = useState('resumen'); // 'resumen' | 'semanal'
 
-  const cargar = useCallback(() => {
+  // Filtros
+  const [modo, setModo] = useState('mes');
+  const [desde, setDesde] = useState(ISO(new Date(hoy.getFullYear(), hoy.getMonth(), 1)));
+  const [hasta, setHasta] = useState(ISO(hoy));
+
+  const cargar = useCallback(async () => {
     setCargando(true);
-    Promise.all([
-      authFetch('/api/horas/admin/todos').then(r => r.json()),
+    const params = new URLSearchParams({ modo });
+    if (modo === 'rango') { params.set('desde', desde); params.set('hasta', hasta); }
+    const [r1, r2] = await Promise.all([
+      authFetch(`/api/horas/admin/todos?${params}`).then(r => r.json()),
       authFetch('/api/config').then(r => r.json())
-    ]).then(([emp, cfg]) => {
-      setEmpleados(emp);
-      setConfigGlobal({ horas_semana: parseFloat(cfg.horas_objetivo_semana) || 40, horas_mes: parseFloat(cfg.horas_objetivo_mes) || 160 });
-      setConfigForm({ horas_semana: cfg.horas_objetivo_semana || '40', horas_mes: cfg.horas_objetivo_mes || '160' });
-    }).finally(() => setCargando(false));
-  }, [authFetch]);
+    ]);
+    setDatos(r1);
+    setConfigGlobal({ horas_semana: parseFloat(r2.horas_objetivo_semana) || 40, horas_mes: parseFloat(r2.horas_objetivo_mes) || 160 });
+    setConfigForm({ horas_semana: r2.horas_objetivo_semana || '40', horas_mes: r2.horas_objetivo_mes || '160' });
+    setCargando(false);
+  }, [authFetch, modo, desde, hasta]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -246,7 +263,8 @@ export default function AdminHorasPage() {
     setGuardandoConfig(false);
   };
 
-  if (cargando) return <div className={styles.loading}>Cargando...</div>;
+  const empleados = datos?.empleados || [];
+  const semanas = datos?.semanas || [];
 
   return (
     <div className={styles.page}>
@@ -275,48 +293,130 @@ export default function AdminHorasPage() {
         </form>
       )}
 
-      <div className={styles.tabla2Wrap}>
-        <table className={styles.tabla2}>
-          <thead>
-            <tr>
-              <th>Empleado</th>
-              <th>Trabajadas (mes)</th>
-              <th>Objetivo (mes)</th>
-              <th>Diferencia</th>
-              <th>Balance acum.</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {empleados.map(emp => {
-              const pos = emp.mes.diferencia >= 0;
-              const balPos = emp.balanceAcumulado >= 0;
-              return (
-                <tr key={emp.id}>
-                  <td>
-                    <div className={styles.empNombre}>{emp.nombre} {emp.apellidos}</div>
-                    <div className={styles.empDept}>{emp.departamento}</div>
-                  </td>
-                  <td>{fmtH(emp.mes.trabajadas)}</td>
-                  <td>{fmtH(emp.mes.objetivo)}</td>
-                  <td className={pos ? styles.positivo : styles.negativo}>
-                    {pos ? '+' : ''}{fmtH(emp.mes.diferencia)}
-                  </td>
-                  <td className={balPos ? styles.positivo : styles.negativo}>
-                    {balPos ? '+' : ''}{fmtH(emp.balanceAcumulado)}
-                  </td>
-                  <td>
-                    <div className={styles.acciones}>
-                      <button className={styles.btnAcc} onClick={() => setModalDetalle(emp.id)} title="Ver historial">📋</button>
-                      <button className={styles.btnAcc} onClick={() => setModalAjuste(emp)} title="Ajustar horas">✏️</button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {/* Filtros de periodo */}
+      <div className={styles.filtroBar}>
+        <div className={styles.filtroModos}>
+          {[['semana','Esta semana'],['mes','Este mes'],['anio','Este año'],['rango','Rango']].map(([v,l]) => (
+            <button key={v}
+              className={`${styles.modoBtn} ${modo === v ? styles.modoBtnActivo : ''}`}
+              onClick={() => setModo(v)}
+            >{l}</button>
+          ))}
+        </div>
+        {modo === 'rango' && (
+          <div className={styles.rangoInputs}>
+            <input type="date" value={desde} onChange={e => setDesde(e.target.value)} className={styles.dateInput} />
+            <span>—</span>
+            <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className={styles.dateInput} />
+          </div>
+        )}
+        <div className={styles.vistaToggle}>
+          <button className={`${styles.modoBtn} ${vistaTabla === 'resumen' ? styles.modoBtnActivo : ''}`} onClick={() => setVistaTabla('resumen')}>Resumen</button>
+          <button className={`${styles.modoBtn} ${vistaTabla === 'semanal' ? styles.modoBtnActivo : ''}`} onClick={() => setVistaTabla('semanal')}>Por semanas</button>
+        </div>
       </div>
+
+      {cargando ? <div className={styles.loading}>Cargando...</div> : (
+        <>
+          {/* Vista resumen */}
+          {vistaTabla === 'resumen' && (
+            <div className={styles.tabla2Wrap}>
+              <table className={styles.tabla2}>
+                <thead>
+                  <tr>
+                    <th>Empleado</th>
+                    <th>Trabajadas</th>
+                    <th>Objetivo periodo</th>
+                    <th>Diferencia</th>
+                    <th>Balance acum.</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {empleados.map(emp => {
+                    const pos = emp.periodo.diferencia >= 0;
+                    const balPos = emp.balanceAcumulado >= 0;
+                    return (
+                      <tr key={emp.id}>
+                        <td>
+                          <div className={styles.empNombre}>{emp.nombre} {emp.apellidos}</div>
+                          <div className={styles.empDept}>{emp.departamento}</div>
+                        </td>
+                        <td>{fmtH(emp.periodo.trabajadas)}</td>
+                        <td>{fmtH(emp.periodo.objetivo)}</td>
+                        <td className={pos ? styles.positivo : styles.negativo}>
+                          {pos ? '+' : ''}{fmtH(emp.periodo.diferencia)}
+                        </td>
+                        <td className={balPos ? styles.positivo : styles.negativo}>
+                          {balPos ? '+' : ''}{fmtH(emp.balanceAcumulado)}
+                        </td>
+                        <td>
+                          <div className={styles.acciones}>
+                            <button className={styles.btnAcc} onClick={() => setModalDetalle(emp.id)} title="Ver historial">📋</button>
+                            <button className={styles.btnAcc} onClick={() => setModalAjuste(emp)} title="Ajustar horas">✏️</button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Vista semanal */}
+          {vistaTabla === 'semanal' && (
+            <div className={styles.tablaSemanasWrap}>
+              <table className={styles.tablaSemanas}>
+                <thead>
+                  <tr>
+                    <th className={styles.thEmpleado}>Empleado</th>
+                    {semanas.map(s => (
+                      <th key={s.lunes} className={styles.thSemana}>
+                        {fmtSemana(s.lunes, s.domingo)}
+                      </th>
+                    ))}
+                    <th>Balance acum.</th>
+                  </tr>
+                  <tr className={styles.subhead}>
+                    <td></td>
+                    {semanas.map(s => (
+                      <td key={s.lunes} className={styles.subheadObj}>
+                        obj. {fmtH(configGlobal.horas_semana)}
+                      </td>
+                    ))}
+                    <td></td>
+                  </tr>
+                </thead>
+                <tbody>
+                  {empleados.map(emp => (
+                    <tr key={emp.id}>
+                      <td>
+                        <div className={styles.empNombre}>{emp.nombre} {emp.apellidos}</div>
+                        <div className={styles.empDept}>{emp.departamento}</div>
+                      </td>
+                      {emp.desgloseSemanas.map(s => {
+                        const pos = s.diferencia >= 0;
+                        return (
+                          <td key={s.lunes} className={styles.tdSemana}>
+                            <div className={styles.celdaHoras}>{fmtH(s.trabajadas)}</div>
+                            <div className={`${styles.celdaDif} ${pos ? styles.positivo : styles.negativo}`}>
+                              {pos ? '+' : ''}{fmtH(s.diferencia)}
+                            </div>
+                          </td>
+                        );
+                      })}
+                      <td className={emp.balanceAcumulado >= 0 ? styles.positivo : styles.negativo}>
+                        <strong>{emp.balanceAcumulado >= 0 ? '+' : ''}{fmtH(emp.balanceAcumulado)}</strong>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
 
       {modalAjuste && (
         <Modal

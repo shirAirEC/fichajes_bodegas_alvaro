@@ -78,3 +78,34 @@
 .btnSecondary { padding: 0.7rem 1.5rem; background: #f5f5f5; color: #555; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 0.95rem; }
 .btnSecondary:hover { background: #ebebeb; }
 .error { background: #fdeaea; color: #c0392b; padding: 0.6rem 0.75rem; border-radius: 8px; font-size: 0.85rem; }
+
+/* Filtros */
+.filtroBar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem;
+  margin-bottom: 1.25rem; background: white; padding: 0.875rem 1rem;
+  border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+}
+.filtroModos { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.modoBtn {
+  padding: 0.35rem 0.875rem; border: 1.5px solid #ddd; background: white;
+  border-radius: 20px; font-size: 0.8rem; font-weight: 600; cursor: pointer; color: #666; transition: all 0.15s;
+}
+.modoBtnActivo { background: #8B2635; border-color: #8B2635; color: white; }
+.rangoInputs { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.dateInput { padding: 0.35rem 0.6rem; border: 1.5px solid #ddd; border-radius: 8px; font-size: 0.85rem; }
+.vistaToggle { margin-left: auto; display: flex; gap: 0.4rem; }
+
+/* Tabla semanal */
+.tablaSemanasWrap { overflow-x: auto; background: white; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+.tablaSemanas { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 600px; }
+.tablaSemanas th { padding: 0.6rem 0.75rem; background: #f8f9fa; border-bottom: 2px solid #eee; color: #666; font-weight: 700; font-size: 0.75rem; text-align: center; white-space: nowrap; }
+.thEmpleado { text-align: left !important; min-width: 160px; }
+.thSemana { min-width: 110px; }
+.subhead td { padding: 0.25rem 0.75rem; font-size: 0.72rem; color: #aaa; text-align: center; background: #fbfbfb; border-bottom: 1px solid #eee; }
+.subheadObj { font-style: italic; }
+.tablaSemanas tbody tr { border-bottom: 1px solid #f0f0f0; }
+.tablaSemanas tbody tr:hover { background: #fafafa; }
+.tablaSemanas td { padding: 0.6rem 0.75rem; vertical-align: middle; }
+.tdSemana { text-align: center; }
+.celdaHoras { font-weight: 600; font-size: 0.9rem; color: #333; }
+.celdaDif { font-size: 0.75rem; margin-top: 0.1rem; }
