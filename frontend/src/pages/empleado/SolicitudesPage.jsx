@@ -7,6 +7,13 @@ const ESTADOS = { pendiente: '⏳ Pendiente', aprobada: '✅ Aprobada', rechazad
 
 const FORM_VACIO = { tipo: 'nuevo', fecha_solicitada: '', hora_solicitada: '', tipo_fichaje: 'entrada', motivo: '', fichaje_id: '' };
 
+function fmtHora(ts) {
+  return new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+function fmtFecha(ts) {
+  return new Date(ts).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 export default function SolicitudesPage() {
   const { authFetch } = useAuth();
   const [solicitudes, setSolicitudes] = useState([]);
@@ -16,6 +23,8 @@ export default function SolicitudesPage() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
   const [exito, setExito] = useState(false);
+  const [fichajesDia, setFichajesDia] = useState([]);
+  const [cargandoFichajes, setCargandoFichajes] = useState(false);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -26,9 +35,50 @@ export default function SolicitudesPage() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
+  // Cargar fichajes del día cuando cambia la fecha (solo para corrección/eliminar)
+  const cargarFichajesDia = useCallback(async (fecha) => {
+    if (!fecha) { setFichajesDia([]); return; }
+    setCargandoFichajes(true);
+    try {
+      const res = await authFetch(`/api/fichajes/mis-fichajes?desde=${fecha}&hasta=${fecha}&limite=50`);
+      const data = await res.json();
+      setFichajesDia(data.fichajes || []);
+    } catch {
+      setFichajesDia([]);
+    } finally {
+      setCargandoFichajes(false);
+    }
+  }, [authFetch]);
+
+  const handleChangeFecha = (fecha) => {
+    setForm(f => ({ ...f, fecha_solicitada: fecha, fichaje_id: '', hora_solicitada: '', tipo_fichaje: 'entrada' }));
+    if (form.tipo !== 'nuevo') cargarFichajesDia(fecha);
+  };
+
+  const handleChangeTipo = (tipo) => {
+    setForm(f => ({ ...f, tipo, fichaje_id: '', hora_solicitada: '', fecha_solicitada: '' }));
+    setFichajesDia([]);
+  };
+
+  const handleSeleccionarFichaje = (f) => {
+    const d = new Date(f.timestamp);
+    const hora = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
+    setForm(prev => ({
+      ...prev,
+      fichaje_id: f.id,
+      tipo_fichaje: f.tipo,
+      hora_solicitada: hora
+    }));
+  };
+
   const handleEnviar = async (e) => {
     e.preventDefault();
     setError('');
+    // Validar que para corrección/eliminar se haya seleccionado un fichaje
+    if ((form.tipo === 'correccion' || form.tipo === 'eliminar') && !form.fichaje_id) {
+      setError('Debes seleccionar el fichaje específico que quieres corregir o eliminar.');
+      return;
+    }
     setEnviando(true);
     try {
       const body = { ...form };
@@ -38,6 +88,7 @@ export default function SolicitudesPage() {
       if (!res.ok) throw new Error(data.error);
       setModalOpen(false);
       setForm(FORM_VACIO);
+      setFichajesDia([]);
       setExito(true);
       setTimeout(() => setExito(false), 5000);
       cargar();
@@ -99,32 +150,85 @@ export default function SolicitudesPage() {
 
               <div className={styles.field}>
                 <label>Tipo de solicitud</label>
-                <select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
+                <select value={form.tipo} onChange={e => handleChangeTipo(e.target.value)}>
                   <option value="nuevo">Añadir un fichaje que no registré</option>
                   <option value="correccion">Corregir un fichaje incorrecto</option>
                   <option value="eliminar">Eliminar un fichaje duplicado o erróneo</option>
                 </select>
               </div>
 
-              <div className={styles.formGrid}>
-                <div className={styles.field}>
-                  <label>Fecha del fichaje *</label>
-                  <input type="date" required value={form.fecha_solicitada}
-                    onChange={e => setForm(f => ({ ...f, fecha_solicitada: e.target.value }))} />
-                </div>
-                <div className={styles.field}>
-                  <label>Hora {form.tipo === 'eliminar' ? 'del fichaje a eliminar' : 'correcta'} *</label>
-                  <input type="time" required value={form.hora_solicitada}
-                    onChange={e => setForm(f => ({ ...f, hora_solicitada: e.target.value }))} />
-                </div>
-                <div className={styles.field}>
-                  <label>Tipo de fichaje *</label>
-                  <select value={form.tipo_fichaje} onChange={e => setForm(f => ({ ...f, tipo_fichaje: e.target.value }))}>
-                    <option value="entrada">Entrada</option>
-                    <option value="salida">Salida</option>
-                  </select>
-                </div>
+              {/* Fecha — siempre visible */}
+              <div className={styles.field}>
+                <label>Fecha del fichaje *</label>
+                <input type="date" required value={form.fecha_solicitada}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={e => handleChangeFecha(e.target.value)} />
               </div>
+
+              {/* Para corrección y eliminar: selector de fichaje existente */}
+              {(form.tipo === 'correccion' || form.tipo === 'eliminar') && form.fecha_solicitada && (
+                <div className={styles.field}>
+                  <label>Selecciona el fichaje *</label>
+                  {cargandoFichajes ? (
+                    <p className={styles.cargandoFichajes}>Cargando fichajes...</p>
+                  ) : fichajesDia.length === 0 ? (
+                    <p className={styles.sinFichajes}>No hay fichajes registrados en esa fecha.</p>
+                  ) : (
+                    <div className={styles.fichajesList}>
+                      {fichajesDia.map(f => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          className={`${styles.fichajeItem} ${form.fichaje_id === f.id ? styles.fichajeSeleccionado : ''}`}
+                          onClick={() => handleSeleccionarFichaje(f)}
+                        >
+                          <span className={`${styles.fichajeTipo} ${f.tipo === 'entrada' ? styles.tipoEntrada : styles.tipoSalida}`}>
+                            {f.tipo === 'entrada' ? '▶ Entrada' : '■ Salida'}
+                          </span>
+                          <span className={styles.fichajeHora}>{fmtHora(f.timestamp)}</span>
+                          <span className={styles.fichajeFecha}>{fmtFecha(f.timestamp)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Para corrección: mostrar la hora correcta a solicitar */}
+              {form.tipo === 'correccion' && form.fichaje_id && (
+                <div className={styles.formGrid}>
+                  <div className={styles.field}>
+                    <label>Hora correcta *</label>
+                    <input type="time" required value={form.hora_solicitada}
+                      onChange={e => setForm(f => ({ ...f, hora_solicitada: e.target.value }))} />
+                  </div>
+                  <div className={styles.field}>
+                    <label>Tipo de fichaje *</label>
+                    <select value={form.tipo_fichaje} onChange={e => setForm(f => ({ ...f, tipo_fichaje: e.target.value }))}>
+                      <option value="entrada">Entrada</option>
+                      <option value="salida">Salida</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Para nuevo: campos completos */}
+              {form.tipo === 'nuevo' && (
+                <div className={styles.formGrid}>
+                  <div className={styles.field}>
+                    <label>Hora *</label>
+                    <input type="time" required value={form.hora_solicitada}
+                      onChange={e => setForm(f => ({ ...f, hora_solicitada: e.target.value }))} />
+                  </div>
+                  <div className={styles.field}>
+                    <label>Tipo de fichaje *</label>
+                    <select value={form.tipo_fichaje} onChange={e => setForm(f => ({ ...f, tipo_fichaje: e.target.value }))}>
+                      <option value="entrada">Entrada</option>
+                      <option value="salida">Salida</option>
+                    </select>
+                  </div>
+                </div>
+              )}
 
               <div className={styles.field}>
                 <label>Motivo de la corrección *</label>

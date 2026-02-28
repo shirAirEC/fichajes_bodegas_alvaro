@@ -49,4 +49,22 @@
 .btnEnviar { padding: 0.6rem 1.5rem; background: var(--color-primary); color: white; border: none; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
 .btnEnviar:disabled { opacity: 0.7; cursor: not-allowed; }
 
+/* Selector de fichaje existente */
+.fichajesList { display: flex; flex-direction: column; gap: 0.5rem; }
+.fichajeItem {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.6rem 0.875rem; border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm); background: white; cursor: pointer;
+  text-align: left; font-family: inherit; transition: border-color 0.15s;
+}
+.fichajeItem:hover { border-color: var(--color-primary); background: #f8f5f0; }
+.fichajeSeleccionado { border-color: var(--color-primary) !important; background: #f4f0ea !important; }
+.fichajeTipo { font-size: 0.8rem; font-weight: 700; min-width: 70px; }
+.tipoEntrada { color: #27ae60; }
+.tipoSalida { color: #e74c3c; }
+.fichajeHora { font-size: 1rem; font-weight: 700; color: #333; }
+.fichajeFecha { font-size: 0.75rem; color: #888; margin-left: auto; }
+.cargandoFichajes { font-size: 0.85rem; color: #888; margin: 0; }
+.sinFichajes { font-size: 0.85rem; color: #c0392b; background: #fdecea; padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); margin: 0; }
+
 @media (max-width: 480px) { .formGrid { grid-template-columns: 1fr; } }
