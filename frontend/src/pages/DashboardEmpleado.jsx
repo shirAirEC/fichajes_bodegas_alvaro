@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import FicharPage from './empleado/FicharPage';
 import HistorialPage from './empleado/HistorialPage';
@@ -18,6 +18,7 @@ export default function DashboardEmpleado() {
           <Route path="/saldos" element={<SaldosPage />} />
           <Route path="/horas" element={<HorasPage />} />
           <Route path="/solicitudes" element={<SolicitudesPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </div>

@@ -20,6 +20,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/*" element={<DashboardEmpleado />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
