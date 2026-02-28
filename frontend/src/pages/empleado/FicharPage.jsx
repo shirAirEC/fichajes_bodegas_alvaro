@@ -45,26 +45,13 @@ export default function FicharPage() {
         authFetch('/api/fichajes/resumen-hoy'),
         authFetch('/api/config')
       ]);
-      const dataEstado = await resEstado.json();
-      const dataResumen = await resResumen.json();
-      const dataConfig = await resConfig.json();
-      setEstado(dataEstado);
-      setResumen(dataResumen);
-      setConfig(dataConfig);
+      setEstado(await resEstado.json());
+      setResumen(await resResumen.json());
+      setConfig(await resConfig.json());
     } catch (err) {
-      console.error('cargarEstado error:', err);
+      console.error(err);
     } finally {
       setCargando(false);
-    }
-  }, [authFetch]);
-
-  // Solo refresca el resumen del día (sin tocar el estado del botón)
-  const refrescarResumen = useCallback(async () => {
-    try {
-      const res = await authFetch('/api/fichajes/resumen-hoy');
-      setResumen(await res.json());
-    } catch (err) {
-      console.error('refrescarResumen error:', err);
     }
   }, [authFetch]);
 
@@ -92,18 +79,7 @@ export default function FicharPage() {
 
       const tipoLabel = data.tipo === 'entrada' ? 'Entrada registrada' : 'Salida registrada';
       setMensaje({ tipo: 'success', texto: `${tipoLabel} a las ${formatTimestamp(data.fichaje.timestamp)}` });
-
-      // Actualizar estado del botón/badge directamente desde la respuesta — no depende de refetch
-      const nuevoDentro = data.tipo === 'entrada';
-      setEstado(prev => ({
-        ...prev,
-        dentro: nuevoDentro,
-        ultimoFichaje: data.fichaje,
-        proximoTipo: nuevoDentro ? 'salida' : 'entrada'
-      }));
-
-      // Refrescar solo el resumen del día (sin sobrescribir el estado del botón)
-      refrescarResumen();
+      await cargarEstado();
     } catch (err) {
       setMensaje({ tipo: 'error', texto: err.message || 'Error al registrar fichaje' });
     } finally {

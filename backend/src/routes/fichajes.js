@@ -48,9 +48,9 @@ router.post('/fichar', authMiddleware, async (req, res) => {
       }
     }
 
-    // Determinar tipo por último fichaje
+    // Determinar tipo por último fichaje (ignorar fichajes con timestamp futuro)
     const { rows: lastRows } = await pool.query(
-      'SELECT tipo FROM fichajes WHERE empleado_id = $1 ORDER BY timestamp DESC LIMIT 1',
+      'SELECT tipo FROM fichajes WHERE empleado_id = $1 AND timestamp <= NOW() ORDER BY timestamp DESC LIMIT 1',
       [empleadoId]
     );
     const tipo = (!lastRows[0] || lastRows[0].tipo === 'salida') ? 'entrada' : 'salida';
@@ -88,8 +88,9 @@ router.post('/fichar', authMiddleware, async (req, res) => {
 // GET /api/fichajes/estado
 router.get('/estado', authMiddleware, async (req, res) => {
   try {
+    // Solo considerar fichajes hasta el momento actual (ignorar timestamps futuros añadidos por admin)
     const { rows } = await pool.query(
-      'SELECT * FROM fichajes WHERE empleado_id = $1 ORDER BY timestamp DESC LIMIT 1',
+      'SELECT * FROM fichajes WHERE empleado_id = $1 AND timestamp <= NOW() ORDER BY timestamp DESC LIMIT 1',
       [req.user.id]
     );
     const ultimo = rows[0] || null;
