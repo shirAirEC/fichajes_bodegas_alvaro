@@ -33,8 +33,8 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
     if (!nombre || !apellidos || !email || !password) {
       return res.status(400).json({ error: 'Nombre, apellidos, email y contraseña son obligatorios' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+    if (!password) {
+      return res.status(400).json({ error: 'La contraseña es obligatoria' });
     }
 
     const { rows: existe } = await pool.query(
@@ -81,7 +81,7 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
     if (activo !== undefined)           { campos.push(`activo = $${idx++}`);              valores.push(activo ? 1 : 0); }
     if (sin_restriccion_ip !== undefined){ campos.push(`sin_restriccion_ip = $${idx++}`); valores.push(sin_restriccion_ip ? 1 : 0); }
     if (password) {
-      if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+      if (!password) return res.status(400).json({ error: 'La contraseña no puede estar vacía' });
       if (await passwordYaExiste(password, id)) {
         return res.status(409).json({ error: 'Esa contraseña ya está en uso por otro empleado. Cada empleado debe tener una contraseña única.' });
       }

@@ -78,8 +78,8 @@ router.put('/cambiar-password', authMiddleware, async (req, res) => {
     if (!passwordActual || !passwordNuevo) {
       return res.status(400).json({ error: 'Se requieren ambas contraseñas' });
     }
-    if (passwordNuevo.length < 6) {
-      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+    if (!passwordNuevo) {
+      return res.status(400).json({ error: 'La nueva contraseña no puede estar vacía' });
     }
 
     const { rows } = await pool.query('SELECT * FROM empleados WHERE id = $1', [req.user.id]);
