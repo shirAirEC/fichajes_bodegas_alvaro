@@ -2,6 +2,7 @@ const express = require('express');
 const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 const { crearNotificacion } = require('./solicitudes');
+const { encontrarHorario, timeToMs } = require('./horarios');
 
 const router = express.Router();
 
@@ -55,21 +56,40 @@ router.post('/fichar', authMiddleware, async (req, res) => {
     );
     const tipo = (!lastRows[0] || lastRows[0].tipo === 'salida') ? 'entrada' : 'salida';
 
-    // Aplicar tiempo de gracia: redondear a la hora exacta si se está dentro del margen
+    // Aplicar tiempo de gracia usando el horario programado del empleado
     const graciaMinutos = parseInt(cfg.gracia_minutos || '0');
     let timestampFichaje = new Date();
+
     if (graciaMinutos > 0) {
-      const minutos = timestampFichaje.getMinutes();
-      const segundos = timestampFichaje.getSeconds();
-      const totalSegundos = minutos * 60 + segundos;
-      const margenSegundos = graciaMinutos * 60;
-      // Si estamos dentro del margen de gracia al inicio de una hora
-      if (totalSegundos <= margenSegundos) {
-        timestampFichaje.setMinutes(0, 0, 0);
-      }
-      // Si estamos dentro del margen de gracia al final de una hora
-      else if (totalSegundos >= 3600 - margenSegundos) {
-        timestampFichaje.setHours(timestampFichaje.getHours() + 1, 0, 0, 0);
+      const graciaMsVal = graciaMinutos * 60 * 1000;
+      const fechaHoy = timestampFichaje.toISOString().split('T')[0];
+      const horario = await encontrarHorario(empleadoId, fechaHoy);
+
+      if (horario) {
+        // Redondear al horario programado si estamos dentro del margen
+        const inicioDelDia = new Date(timestampFichaje);
+        inicioDelDia.setHours(0, 0, 0, 0);
+        const msDelDia = timestampFichaje - inicioDelDia;
+
+        const msEntrada = horario.hora_entrada ? timeToMs(horario.hora_entrada) : null;
+        const msSalida  = horario.hora_salida  ? timeToMs(horario.hora_salida)  : null;
+
+        if (msEntrada !== null && Math.abs(msDelDia - msEntrada) <= graciaMsVal) {
+          timestampFichaje = new Date(inicioDelDia.getTime() + msEntrada);
+        } else if (msSalida !== null && Math.abs(msDelDia - msSalida) <= graciaMsVal) {
+          timestampFichaje = new Date(inicioDelDia.getTime() + msSalida);
+        }
+      } else {
+        // Sin horario programado: redondear a la hora exacta más cercana
+        const minutos = timestampFichaje.getMinutes();
+        const segundos = timestampFichaje.getSeconds();
+        const totalSegundos = minutos * 60 + segundos;
+        const margenSegundos = graciaMinutos * 60;
+        if (totalSegundos <= margenSegundos) {
+          timestampFichaje.setMinutes(0, 0, 0);
+        } else if (totalSegundos >= 3600 - margenSegundos) {
+          timestampFichaje.setHours(timestampFichaje.getHours() + 1, 0, 0, 0);
+        }
       }
     }
 

@@ -121,6 +121,25 @@ async function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_notificaciones_empleado ON notificaciones(empleado_id);
   `);
 
+  // Tabla de horarios programados (para tiempo de gracia por turno)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS horarios (
+      id SERIAL PRIMARY KEY,
+      empleado_id INTEGER REFERENCES empleados(id) ON DELETE CASCADE,
+      tipo TEXT NOT NULL CHECK(tipo IN ('diario','semanal','rango','fecha')),
+      dias_semana TEXT DEFAULT NULL,
+      fecha DATE DEFAULT NULL,
+      fecha_inicio DATE DEFAULT NULL,
+      fecha_fin DATE DEFAULT NULL,
+      hora_entrada TIME NOT NULL,
+      hora_salida TIME DEFAULT NULL,
+      activo INTEGER NOT NULL DEFAULT 1,
+      admin_id INTEGER REFERENCES empleados(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_horarios_empleado ON horarios(empleado_id);`);
+
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_fichajes_empleado ON fichajes(empleado_id);
     CREATE INDEX IF NOT EXISTS idx_fichajes_timestamp ON fichajes(timestamp);

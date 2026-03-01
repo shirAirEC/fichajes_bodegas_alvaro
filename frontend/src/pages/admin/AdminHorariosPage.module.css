@@ -1,0 +1,63 @@
+.page { padding: 1.5rem; max-width: 900px; margin: 0 auto; }
+.topBar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.title { font-size: 1.4rem; font-weight: 700; margin: 0; }
+.desc { color: #666; font-size: 0.875rem; margin: 0 0 1.25rem; }
+.btnNuevo { padding: 0.55rem 1.25rem; background: var(--color-primary); color: white; border: none; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+.successBox { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 0.75rem 1rem; border-radius: var(--radius-sm); margin-bottom: 1rem; font-size: 0.875rem; }
+.errorBox { background: #fdecea; border: 1px solid #f5c6c2; color: #c0392b; padding: 0.6rem 0.875rem; border-radius: var(--radius-sm); font-size: 0.85rem; }
+
+.filtroBar { margin-bottom: 1rem; }
+.select { padding: 0.5rem 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.875rem; min-width: 220px; }
+
+.loading { text-align: center; padding: 2rem; color: #888; }
+.vacio { background: var(--color-light); border: 1px dashed var(--color-border); border-radius: var(--radius); padding: 2rem; text-align: center; color: #888; }
+
+.lista { display: flex; flex-direction: column; gap: 0.75rem; }
+.tarjeta {
+  background: white; border: 1.5px solid var(--color-border); border-radius: var(--radius);
+  padding: 1rem 1.25rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
+}
+.tarjetaLeft { flex: 1; display: flex; flex-direction: column; gap: 0.35rem; }
+.tarjetaEmp { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.empTag { background: #e8f4fd; color: #1a6fa8; font-size: 0.8rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 99px; }
+.empTagGlobal { background: #f0f0f0; color: #555; font-size: 0.8rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 99px; }
+.tipoTag { background: #f4f0ea; color: var(--color-primary); font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 99px; }
+.tarjetaPeriodo { font-size: 0.82rem; color: #666; }
+.tarjetaHoras { display: flex; gap: 1rem; flex-wrap: wrap; }
+.horaEntrada { font-size: 0.875rem; color: #27ae60; }
+.horaSalida  { font-size: 0.875rem; color: #e74c3c; }
+.tarjetaActions { display: flex; flex-direction: column; gap: 0.4rem; }
+.btnEditar { padding: 0.4rem 0.875rem; background: var(--color-light); border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.8rem; cursor: pointer; }
+.btnEditar:hover { background: #e8e0d5; }
+.btnEliminar { padding: 0.4rem 0.875rem; background: #fdecea; border: 1px solid #f5c6c2; color: #c0392b; border-radius: var(--radius-sm); font-size: 0.8rem; cursor: pointer; }
+.btnEliminar:hover { background: #fad7d3; }
+
+/* Modal */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1rem; }
+.modal { background: white; border-radius: var(--radius); width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+.modalHeader { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--color-border); }
+.modalHeader h2 { margin: 0; font-size: 1.1rem; }
+.modalClose { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #999; }
+.modalForm { padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+.field { display: flex; flex-direction: column; gap: 0.35rem; flex: 1; }
+.field label { font-size: 0.8rem; font-weight: 600; color: #555; }
+.field input, .field select { padding: 0.6rem 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.875rem; font-family: inherit; }
+.field input:focus, .field select:focus { outline: none; border-color: var(--color-primary); }
+.fieldRow { display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem; }
+
+.diasGrid { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.diaBtn { padding: 0.4rem 0.7rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); background: white; font-size: 0.8rem; cursor: pointer; font-weight: 500; }
+.diaBtnOn { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+
+.infoGracia { font-size: 0.78rem; color: #888; background: #f9f5f0; padding: 0.6rem 0.875rem; border-radius: var(--radius-sm); margin: 0; border-left: 3px solid var(--color-primary); }
+
+.modalFooter { display: flex; gap: 0.75rem; justify-content: flex-end; padding-top: 0.25rem; }
+.btnCancelar { padding: 0.6rem 1.25rem; background: var(--color-light); border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.875rem; cursor: pointer; }
+.btnGuardar { padding: 0.6rem 1.5rem; background: var(--color-primary); color: white; border: none; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+.btnGuardar:disabled { opacity: 0.7; cursor: not-allowed; }
+
+@media (max-width: 480px) {
+  .fieldRow { grid-template-columns: 1fr; }
+  .tarjeta { flex-direction: column; }
+  .tarjetaActions { flex-direction: row; }
+}
