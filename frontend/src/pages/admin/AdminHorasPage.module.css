@@ -53,8 +53,8 @@
 .formRow button { flex: 1; }
 
 .balanceBadge { margin: 1rem 1.5rem 0; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.9rem; }
-.balancePos { background: #e8f8f0; color: #1a6b3a; }
-.balanceNeg { background: #fdeaea; color: #7b1a2a; }
+.balancePos { background: #fdeaea; color: #7b1a2a; }
+.balanceNeg { background: #e8f8f0; color: #1a6b3a; }
 
 .seccion { margin: 1.25rem 1.5rem 0.5rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: #888; font-weight: 600; }
 .tablaWrap { padding: 0 1.5rem 1rem; overflow-x: auto; }
