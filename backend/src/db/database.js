@@ -45,8 +45,13 @@ async function initializeDatabase() {
       latitud DOUBLE PRECISION DEFAULT NULL,
       longitud DOUBLE PRECISION DEFAULT NULL,
       precision_metros DOUBLE PRECISION DEFAULT NULL,
-      notas TEXT DEFAULT ''
+      notas TEXT DEFAULT '',
+      es_descanso BOOLEAN NOT NULL DEFAULT FALSE
     )
+  `);
+
+  await pool.query(`
+    ALTER TABLE fichajes ADD COLUMN IF NOT EXISTS es_descanso BOOLEAN NOT NULL DEFAULT FALSE
   `);
 
   await pool.query(`

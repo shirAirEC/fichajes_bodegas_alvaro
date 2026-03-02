@@ -29,6 +29,7 @@ export default function FicharPage() {
   const [config, setConfig] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [fichando, setFichando] = useState(false);
+  const [descansando, setDescansando] = useState(false);
   const [mensaje, setMensaje] = useState(null);
   const [errorRed, setErrorRed] = useState(null);
 
@@ -91,9 +92,35 @@ export default function FicharPage() {
     }
   };
 
+  const handleDescanso = async () => {
+    setDescansando(true);
+    setMensaje(null);
+    setErrorRed(null);
+    try {
+      const res = await authFetch('/api/fichajes/descanso', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.requiereRed) {
+          setErrorRed(data.error);
+        } else {
+          throw new Error(data.error);
+        }
+        return;
+      }
+      setMensaje({ tipo: 'success', texto: `Descanso iniciado a las ${formatTimestamp(data.fichaje.timestamp)} · Se acreditarán 30 min de tiempo efectivo` });
+      await cargarEstado();
+    } catch (err) {
+      setMensaje({ tipo: 'error', texto: err.message || 'Error al registrar descanso' });
+    } finally {
+      setDescansando(false);
+      setTimeout(() => setMensaje(null), 8000);
+    }
+  };
+
   if (cargando) return <div className={styles.loading}>Cargando...</div>;
 
   const esDentro = estado?.dentro;
+  const enDescanso = estado?.enDescanso;
   const hayNotificaciones = notificaciones?.length > 0;
   const proximoTipo = estado?.proximoTipo;
   const redActiva = config?.ip_activo === '1';
@@ -114,9 +141,9 @@ export default function FicharPage() {
         <div className={styles.fecha}>{formatDate(ahora)}</div>
         <div className={styles.hora}>{formatTime(ahora)}</div>
 
-        <div className={`${styles.estadoBadge} ${esDentro ? styles.dentro : styles.fuera}`}>
+        <div className={`${styles.estadoBadge} ${esDentro ? styles.dentro : enDescanso ? styles.enDescanso : styles.fuera}`}>
           <span className={styles.estadoDot}></span>
-          {esDentro ? 'En el trabajo' : 'Fuera del trabajo'}
+          {esDentro ? 'En el trabajo' : enDescanso ? '☕ En descanso' : 'Fuera del trabajo'}
         </div>
 
         {redActiva && !errorRed && (
@@ -142,10 +169,17 @@ export default function FicharPage() {
           </div>
         )}
 
+        {enDescanso && (
+          <div className={styles.descansoInfo}>
+            ☕ Estás en descanso. Cuando vuelvas, pulsa <strong>Registrar Entrada</strong>.
+            <span className={styles.descansoCredito}>+30 min acreditados automáticamente</span>
+          </div>
+        )}
+
         <button
           className={`${styles.btnFichar} ${proximoTipo === 'entrada' ? styles.btnEntrada : styles.btnSalida}`}
           onClick={handleFichar}
-          disabled={fichando}
+          disabled={fichando || descansando}
         >
           {fichando ? (
             <>
@@ -164,6 +198,20 @@ export default function FicharPage() {
             </>
           )}
         </button>
+
+        {esDentro && (
+          <button
+            className={styles.btnDescanso}
+            onClick={handleDescanso}
+            disabled={descansando || fichando}
+          >
+            {descansando ? (
+              <><span className={styles.spinner}></span>Registrando descanso...</>
+            ) : (
+              <>☕ Iniciar descanso (30 min)</>
+            )}
+          </button>
+        )}
 
         {estado?.ultimoFichaje && (
           <p className={styles.ultimoFichaje}>
@@ -191,12 +239,15 @@ export default function FicharPage() {
           {resumen.fichajesHoy.length > 0 && (
             <div className={styles.timeline}>
               {resumen.fichajesHoy.map(f => (
-                <div key={f.id} className={`${styles.timelineItem} ${f.tipo === 'entrada' ? styles.tiEntrada : styles.tiSalida}`}>
+                <div key={f.id} className={`${styles.timelineItem} ${f.tipo === 'entrada' ? styles.tiEntrada : f.es_descanso ? styles.tiDescanso : styles.tiSalida}`}>
                   <div className={styles.tiDot}></div>
                   <div className={styles.tiContent}>
-                    <span className={styles.tiTipo}>{f.tipo === 'entrada' ? 'Entrada' : 'Salida'}</span>
+                    <span className={styles.tiTipo}>
+                      {f.tipo === 'entrada' ? 'Entrada' : f.es_descanso ? '☕ Descanso' : 'Salida'}
+                    </span>
                     <div className={styles.tiRight}>
                       <span className={styles.tiHora}>{formatTimestamp(f.timestamp)}</span>
+                      {f.es_descanso && <span className={styles.tiDescansoBadge}>+30 min</span>}
                     </div>
                   </div>
                 </div>

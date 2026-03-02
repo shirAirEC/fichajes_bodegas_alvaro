@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
+const { timeToMs } = require('./horarios');
 
 const router = express.Router();
 
@@ -9,15 +10,95 @@ const router = express.Router();
 function calcularHorasDeFichajes(fichajes) {
   let minutos = 0;
   let entrada = null;
+  let descansos = 0;
   for (const f of fichajes) {
     if (f.tipo === 'entrada') {
       entrada = new Date(f.timestamp);
     } else if (f.tipo === 'salida' && entrada) {
       minutos += (new Date(f.timestamp) - entrada) / 60000;
       entrada = null;
+      if (f.es_descanso) descansos++;
     }
   }
+  // Cada descanso acredita 30 min de tiempo efectivo pagado
+  minutos += descansos * 30;
   return Math.round(minutos) / 60;
+}
+
+function tipoPrioridadHorario(tipo) {
+  return { fecha: 0, rango: 1, semanal: 2, diario: 3 }[tipo] ?? 99;
+}
+
+// Calcula el objetivo de horas del mes basándose en los horarios configurados.
+// Devuelve null si no hay horarios activos para ese empleado.
+async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
+  const { rows: horarios } = await pool.query(
+    `SELECT * FROM horarios
+     WHERE (empleado_id = $1 OR empleado_id IS NULL)
+       AND activo = 1`,
+    [empleadoId]
+  );
+  if (horarios.length === 0) return null;
+
+  const diasEnMes = new Date(anio, mes, 0).getDate();
+  let totalHoras = 0;
+  let hayDiasConHorario = false;
+
+  for (let dia = 1; dia <= diasEnMes; dia++) {
+    const fecha = `${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+    const d = new Date(fecha + 'T12:00:00');
+    const diaSemana = d.getDay() === 0 ? 7 : d.getDay(); // 1=lun...7=dom
+
+    let mejor = null;
+    for (const h of horarios) {
+      const esPersonal = h.empleado_id == empleadoId;
+      const aplica =
+        (h.tipo === 'fecha' && h.fecha === fecha) ||
+        (h.tipo === 'rango' && h.fecha_inicio <= fecha && (!h.fecha_fin || h.fecha_fin >= fecha)) ||
+        (h.tipo === 'semanal' && h.dias_semana && h.dias_semana.split(',').map(Number).includes(diaSemana)) ||
+        h.tipo === 'diario';
+
+      if (aplica) {
+        if (!mejor ||
+          (esPersonal && !mejor._esPersonal) ||
+          (esPersonal === mejor._esPersonal && tipoPrioridadHorario(h.tipo) < tipoPrioridadHorario(mejor.tipo))) {
+          mejor = { ...h, _esPersonal: esPersonal };
+        }
+      }
+    }
+
+    if (mejor && mejor.hora_salida) {
+      const msEntrada = timeToMs(mejor.hora_entrada);
+      const msSalida = timeToMs(mejor.hora_salida);
+      if (msSalida > msEntrada) {
+        totalHoras += (msSalida - msEntrada) / 3600000;
+        hayDiasConHorario = true;
+      }
+    }
+  }
+
+  if (!hayDiasConHorario) return null;
+
+  // Deducir horas de vacaciones usadas en el mes (saldos negativos con fecha en el mes)
+  const fechaInicioMes = `${anio}-${String(mes).padStart(2, '0')}-01`;
+  const fechaFinMes = new Date(anio, mes, 0).toISOString().split('T')[0];
+  const { rows: vacsRows } = await pool.query(
+    `SELECT COALESCE(SUM(cantidad), 0) AS total FROM saldos
+     WHERE empleado_id = $1 AND tipo = 'vacaciones'
+       AND fecha_referencia >= $2::date AND fecha_referencia <= $3::date
+       AND cantidad < 0`,
+    [empleadoId, fechaInicioMes, fechaFinMes]
+  );
+  const horasVacDeducidas = Math.abs(parseFloat(vacsRows[0].total) || 0);
+  return Math.max(0, Math.round((totalHoras - horasVacDeducidas) * 100) / 100);
+}
+
+// Objetivo mensual: usa horarios si están configurados, si no cae al valor configurado
+async function getObjetivoMes(empleadoId, anio, mes) {
+  const porHorario = await calcularObjetivoMensPorHorario(empleadoId, anio, mes);
+  if (porHorario !== null) return porHorario;
+  const objetivo = await getObjetivoEmpleado(empleadoId);
+  return objetivo.horas_mes;
 }
 
 async function getObjetivoEmpleado(empleadoId) {
@@ -47,7 +128,7 @@ async function getObjetivoEmpleado(empleadoId) {
 
 async function calcularBalancePeriodo(empleadoId, fechaInicio, fechaFin) {
   const { rows: fichajes } = await pool.query(
-    `SELECT tipo, timestamp FROM fichajes
+    `SELECT tipo, timestamp, es_descanso FROM fichajes
      WHERE empleado_id = $1 AND timestamp::date >= $2::date AND timestamp::date <= $3::date
      ORDER BY timestamp ASC`,
     [empleadoId, fechaInicio, fechaFin]
@@ -112,10 +193,13 @@ router.get('/resumen', authMiddleware, async (req, res) => {
     const { rows: empRow } = await pool.query('SELECT fecha_alta FROM empleados WHERE id = $1', [empleadoId]);
     const meses = mesesDesdeAlta(empRow[0].fecha_alta);
 
+    const objMesActual = await getObjetivoMes(empleadoId, hoy.getFullYear(), hoy.getMonth() + 1);
+
     let balanceAcumulado = 0;
     for (const m of meses) {
       const { horasTrabajadas, horasAjuste } = await calcularBalancePeriodo(empleadoId, m.primerDia, m.ultimoDia);
-      balanceAcumulado += horasTrabajadas + horasAjuste - objetivo.horas_mes;
+      const objM = await getObjetivoMes(empleadoId, m.anio, m.mes);
+      balanceAcumulado += horasTrabajadas + horasAjuste - objM;
     }
 
     res.json({
@@ -131,8 +215,8 @@ router.get('/resumen', authMiddleware, async (req, res) => {
         inicio: mesInicio, fin: mesFin,
         trabajadas: Math.round(mes.horasTrabajadas * 100) / 100,
         ajuste: mes.horasAjuste,
-        objetivo: objetivo.horas_mes,
-        diferencia: Math.round((mes.horasTrabajadas + mes.horasAjuste - objetivo.horas_mes) * 100) / 100
+        objetivo: objMesActual,
+        diferencia: Math.round((mes.horasTrabajadas + mes.horasAjuste - objMesActual) * 100) / 100
       },
       balanceAcumulado: Math.round(balanceAcumulado * 100) / 100
     });
@@ -154,13 +238,14 @@ router.get('/historial', authMiddleware, async (req, res) => {
     const historial = [];
     for (const m of meses) {
       const { horasTrabajadas, horasAjuste } = await calcularBalancePeriodo(empleadoId, m.primerDia, m.ultimoDia);
-      const diferencia = horasTrabajadas + horasAjuste - objetivo.horas_mes;
+      const objM = await getObjetivoMes(empleadoId, m.anio, m.mes);
+      const diferencia = horasTrabajadas + horasAjuste - objM;
       balanceAcum += diferencia;
       historial.push({
         anio: m.anio, mes: m.mes,
         trabajadas: Math.round(horasTrabajadas * 100) / 100,
         ajuste: horasAjuste,
-        objetivo: objetivo.horas_mes,
+        objetivo: objM,
         diferencia: Math.round(diferencia * 100) / 100,
         balanceAcumulado: Math.round(balanceAcum * 100) / 100
       });
@@ -204,7 +289,7 @@ router.get('/filtro', authMiddleware, async (req, res) => {
 
     // Desglose por semanas dentro del periodo
     const { rows: fichajes } = await pool.query(
-      `SELECT tipo, timestamp FROM fichajes
+      `SELECT tipo, timestamp, es_descanso FROM fichajes
        WHERE empleado_id = $1 AND timestamp::date >= $2::date AND timestamp::date <= $3::date
        ORDER BY timestamp ASC`,
       [empleadoId, fechaInicio, fechaFin]
@@ -218,10 +303,22 @@ router.get('/filtro', authMiddleware, async (req, res) => {
     const horasTrabajadas = calcularHorasDeFichajes(fichajes);
     const horasAjuste = parseFloat(ajRow[0].total);
     const semanasRango = Math.ceil((new Date(fechaFin) - new Date(fechaInicio)) / (7 * 86400000));
-    const objetivoPeriodo = modo === 'semana' ? objetivo.horas_semana
-      : modo === 'mes'  ? objetivo.horas_mes
-      : modo === 'anio' ? objetivo.horas_mes * 12
-      : objetivo.horas_semana * semanasRango; // rango libre: proporcional a semanas
+
+    let objetivoPeriodo;
+    if (modo === 'semana') {
+      objetivoPeriodo = objetivo.horas_semana;
+    } else if (modo === 'mes') {
+      objetivoPeriodo = await getObjetivoMes(empleadoId, hoy.getFullYear(), hoy.getMonth() + 1);
+    } else if (modo === 'anio') {
+      // Sumar el objetivo de cada mes del año
+      let totalAnio = 0;
+      for (let m = 1; m <= 12; m++) {
+        totalAnio += await getObjetivoMes(empleadoId, hoy.getFullYear(), m);
+      }
+      objetivoPeriodo = totalAnio;
+    } else {
+      objetivoPeriodo = objetivo.horas_semana * semanasRango;
+    }
 
     // Desglose diario
     const desglose = {};
@@ -311,13 +408,20 @@ router.get('/admin/todos', authMiddleware, adminMiddleware, async (req, res) => 
       const objetivo = await getObjetivoEmpleado(emp.id);
       const { horasTrabajadas, horasAjuste } = await calcularBalancePeriodo(emp.id, fechaInicio, fechaFin);
 
-      const objetivoPeriodo = modo === 'semana'
-        ? objetivo.horas_semana
-        : modo === 'mes'
-          ? objetivo.horas_mes
-          : modo === 'anio'
-            ? objetivo.horas_mes * 12
-            : objetivo.horas_semana * semanas.length; // rango: proporcional a semanas
+      let objetivoPeriodo;
+      if (modo === 'semana') {
+        objetivoPeriodo = objetivo.horas_semana;
+      } else if (modo === 'mes') {
+        objetivoPeriodo = await getObjetivoMes(emp.id, hoy.getFullYear(), hoy.getMonth() + 1);
+      } else if (modo === 'anio') {
+        let totalAnio = 0;
+        for (let m = 1; m <= 12; m++) {
+          totalAnio += await getObjetivoMes(emp.id, hoy.getFullYear(), m);
+        }
+        objetivoPeriodo = totalAnio;
+      } else {
+        objetivoPeriodo = objetivo.horas_semana * semanas.length;
+      }
 
       // Desglose por semana
       const desgloseSemanas = await Promise.all(semanas.map(async s => {
@@ -337,7 +441,8 @@ router.get('/admin/todos', authMiddleware, adminMiddleware, async (req, res) => 
       let balanceAcum = 0;
       for (const m of mesesHist) {
         const { horasTrabajadas: ht, horasAjuste: ha } = await calcularBalancePeriodo(emp.id, m.primerDia, m.ultimoDia);
-        balanceAcum += ht + ha - objetivo.horas_mes;
+        const objM = await getObjetivoMes(emp.id, m.anio, m.mes);
+        balanceAcum += ht + ha - objM;
       }
 
       return {
@@ -385,13 +490,14 @@ router.get('/admin/empleado/:id', authMiddleware, adminMiddleware, async (req, r
     const historial = [];
     for (const m of meses) {
       const { horasTrabajadas, horasAjuste } = await calcularBalancePeriodo(id, m.primerDia, m.ultimoDia);
-      const diferencia = horasTrabajadas + horasAjuste - objetivo.horas_mes;
+      const objM = await getObjetivoMes(id, m.anio, m.mes);
+      const diferencia = horasTrabajadas + horasAjuste - objM;
       balanceAcum += diferencia;
       historial.push({
         anio: m.anio, mes: m.mes,
         trabajadas: Math.round(horasTrabajadas * 100) / 100,
         ajuste: horasAjuste,
-        objetivo: objetivo.horas_mes,
+        objetivo: objM,
         diferencia: Math.round(diferencia * 100) / 100,
         balanceAcumulado: Math.round(balanceAcum * 100) / 100
       });

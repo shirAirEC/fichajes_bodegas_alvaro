@@ -108,15 +108,61 @@ router.post('/fichar', authMiddleware, async (req, res) => {
 // GET /api/fichajes/estado
 router.get('/estado', authMiddleware, async (req, res) => {
   try {
-    // Solo considerar fichajes hasta el momento actual (ignorar timestamps futuros añadidos por admin)
     const { rows } = await pool.query(
       'SELECT * FROM fichajes WHERE empleado_id = $1 AND timestamp <= NOW() ORDER BY timestamp DESC LIMIT 1',
       [req.user.id]
     );
     const ultimo = rows[0] || null;
     const dentro = ultimo?.tipo === 'entrada';
-    res.json({ dentro, ultimoFichaje: ultimo, proximoTipo: dentro ? 'salida' : 'entrada' });
+    const enDescanso = !dentro && ultimo?.es_descanso === true;
+    res.json({ dentro, enDescanso, ultimoFichaje: ultimo, proximoTipo: dentro ? 'salida' : 'entrada' });
   } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// POST /api/fichajes/descanso — iniciar pausa de 30 min (registra salida con es_descanso=true)
+router.post('/descanso', authMiddleware, async (req, res) => {
+  try {
+    const empleadoId = req.user.id;
+
+    // Solo puede iniciar descanso si está dentro (última acción es entrada)
+    const { rows: lastRows } = await pool.query(
+      'SELECT tipo FROM fichajes WHERE empleado_id = $1 AND timestamp <= NOW() ORDER BY timestamp DESC LIMIT 1',
+      [empleadoId]
+    );
+    if (!lastRows[0] || lastRows[0].tipo !== 'entrada') {
+      return res.status(400).json({ error: 'Solo puedes iniciar el descanso si estás dentro del trabajo.' });
+    }
+
+    // Validar red WiFi si está activa
+    const { rows: cfgRows } = await pool.query(
+      "SELECT clave, valor FROM configuracion WHERE clave IN ('ip_activo','ip_permitidas')"
+    );
+    const cfg = Object.fromEntries(cfgRows.map(r => [r.clave, r.valor]));
+    if (cfg.ip_activo === '1') {
+      const { rows: empRows } = await pool.query(
+        'SELECT sin_restriccion_ip FROM empleados WHERE id = $1', [empleadoId]
+      );
+      if (!empRows[0]?.sin_restriccion_ip) {
+        const ipCliente = getClientIP(req);
+        const ipsPermitidas = (cfg.ip_permitidas || '').split(',').map(ip => ip.trim()).filter(Boolean);
+        if (ipsPermitidas.length > 0 && !ipsPermitidas.includes(ipCliente)) {
+          return res.status(403).json({
+            error: 'No puedes registrar el descanso desde esta red.',
+            requiereRed: true
+          });
+        }
+      }
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO fichajes (empleado_id, tipo, notas, es_descanso) VALUES ($1, 'salida', 'Descanso', TRUE) RETURNING *`,
+      [empleadoId]
+    );
+    res.status(201).json({ fichaje: rows[0] });
+  } catch (err) {
+    console.error('Descanso error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -391,14 +437,18 @@ function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
 function calcularMinutosTrabajados(fichajes) {
   let minutos = 0;
   let entrada = null;
+  let descansos = 0;
   for (const f of fichajes) {
     if (f.tipo === 'entrada') {
       entrada = new Date(f.timestamp);
     } else if (f.tipo === 'salida' && entrada) {
       minutos += (new Date(f.timestamp) - entrada) / 60000;
       entrada = null;
+      if (f.es_descanso) descansos++;
     }
   }
+  // Cada descanso suma 30 min de tiempo efectivo pagado
+  minutos += descansos * 30;
   return Math.round(minutos);
 }
 
