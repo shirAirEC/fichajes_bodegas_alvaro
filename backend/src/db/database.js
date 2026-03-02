@@ -1,10 +1,15 @@
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+
+// Devolver DATE como string "YYYY-MM-DD" en lugar de objeto Date de JS
+types.setTypeParser(1082, val => val);
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // Railway PostgreSQL interno no necesita SSL; conexiones externas sí
-  ssl: process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('localhost')
+  // SSL solo para conexiones internas de Railway (.railway.internal)
+  // El proxy público (.proxy.rlwy.net) y localhost no usan SSL
+  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('.railway.internal')
     ? { rejectUnauthorized: false }
     : false
 });
@@ -140,6 +145,38 @@ async function initializeDatabase() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_horarios_empleado ON horarios(empleado_id);`);
 
+  // Tabla de reservas / planificación
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS reservas (
+      id SERIAL PRIMARY KEY,
+      fecha DATE NOT NULL,
+      hora TIME DEFAULT NULL,
+      nombre TEXT NOT NULL,
+      pax TEXT DEFAULT NULL,
+      estado TEXT NOT NULL DEFAULT 'sin_confirmar' CHECK(estado IN ('confirmado', 'pendiente', 'cancelado', 'sin_confirmar')),
+      tipo_servicio TEXT DEFAULT '',
+      notas TEXT DEFAULT '',
+      guia TEXT DEFAULT '',
+      menu JSONB DEFAULT '[]'::jsonb,
+      necesidades_especiales JSONB DEFAULT '[]'::jsonb,
+      orden INTEGER DEFAULT 0,
+      admin_id INTEGER REFERENCES empleados(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  // Migrar/añadir columnas enriquecidas (JSONB para estructura flexible)
+  await pool.query(`ALTER TABLE reservas DROP COLUMN IF EXISTS menu`);
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS menu JSONB DEFAULT '[]'::jsonb`);
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS tipo_servicio TEXT DEFAULT ''`);
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS necesidades_especiales JSONB DEFAULT '[]'::jsonb`);
+  // pax como TEXT para soportar rangos como "10/11" o "10-15"
+  await pool.query(`ALTER TABLE reservas ALTER COLUMN pax TYPE TEXT USING COALESCE(pax::text, '')`);
+  // Columna guía
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS guia TEXT DEFAULT ''`);
+
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_reservas_fecha ON reservas(fecha);`);
+
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_fichajes_empleado ON fichajes(empleado_id);
     CREATE INDEX IF NOT EXISTS idx_fichajes_timestamp ON fichajes(timestamp);
@@ -174,6 +211,7 @@ async function initializeDatabase() {
     ['ip_activo',             '0',           'Activar restricción de fichaje por red WiFi (1=sí, 0=no)'],
     ['ip_permitidas',         '',            'IPs públicas permitidas para fichar (separadas por comas)'],
     ['gracia_minutos',        '5',           'Minutos de gracia al fichar para redondear a la hora exacta'],
+    ['tv_token',              crypto.randomBytes(8).toString('hex'), 'Token de acceso para la pantalla TV de planificación'],
   ];
   for (const [clave, valor, descripcion] of defaults) {
     await pool.query(

@@ -45,8 +45,8 @@
 .barraExceso { background: #27ae60; }
 
 .diferencia { font-size: 0.9rem; font-weight: 600; }
-.positivo { color: #27ae60; }
-.negativo { color: #c0392b; }
+.positivo { color: #c0392b; }
+.negativo { color: #27ae60; }
 .ajusteNote { font-weight: 400; font-size: 0.8rem; opacity: 0.8; }
 
 .objetivoInfo {

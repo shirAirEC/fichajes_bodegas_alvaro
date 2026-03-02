@@ -1,0 +1,404 @@
+.tv {
+  height: 100vh;
+  background: #f8f5f0;
+  color: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+/* ─── Cabecera ─────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 2rem;
+  background: #fff;
+  border-bottom: 4px solid #8b1a1a;
+  gap: 1rem;
+  flex-shrink: 0;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+}
+
+.logo {
+  height: 52px;
+}
+
+.titulo {
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #8b1a1a;
+  margin: 0;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.actualizado {
+  font-size: 1rem;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 0.3rem 0.8rem;
+  border-radius: 20px;
+}
+
+.btnFullscreen {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+.btnFullscreen:hover { background: #e5e7eb; }
+
+/* ─── Error ─────────────────────────────────────────── */
+.errorBanner {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  text-align: center;
+  border-bottom: 1px solid #fecaca;
+  flex-shrink: 0;
+}
+
+/* ─── Contenido ─────────────────────────────────────── */
+.contenido {
+  flex: 1;
+  min-height: 0;
+  padding: 1rem 2rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.vacio {
+  text-align: center;
+  color: #9ca3af;
+  font-size: 1.5rem;
+  margin: auto;
+  background: #fff;
+  border: 2px dashed #e5e7eb;
+  border-radius: 12px;
+  padding: 4rem 2rem;
+}
+
+/* ─── Bloque por día ─────────────────────────────────── */
+.diaBloque {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 14px;
+  /* clip solo para las esquinas, sin crear scroll container */
+  overflow: clip;
+  box-shadow: 0 2px 14px rgba(0,0,0,0.10);
+}
+
+.diaHeader {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #fff;
+  background: #8b1a1a;
+  text-transform: capitalize;
+  padding: 0.75rem 1.5rem;
+  margin: 0;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+
+.diaEtiqueta {
+  background: rgba(255,255,255,0.25);
+  border-radius: 6px;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.85em;
+  letter-spacing: 0.1em;
+  font-weight: 900;
+}
+
+/* ─── Wrapper tabla: ocupa todo el espacio restante del bloque ── */
+.tablaWrapper {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;   /* scroll interno solo si las filas no caben */
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Tabla ─────────────────────────────────────────── */
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  flex: 1;
+}
+
+.tabla thead th {
+  background: #fdf2f2;
+  color: #8b1a1a;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.45rem 1.2rem;
+  text-align: left;
+  border-bottom: 2px solid #fecaca;
+}
+
+.thHora   { width: 110px; }
+.thNombre { /* auto */ }
+.thGuia   { width: 180px; }
+.thPax    { width: 140px; }
+.thEstado { width: 155px; }
+
+.fila {
+  border-bottom: 1px solid #f3f4f6;
+  transition: background 0.15s;
+  position: relative;
+}
+.fila:last-child { border-bottom: none; }
+
+.filaCancelada td {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+
+/* Editado en las últimas 8 horas: franja naranja izquierda */
+.filaReciente td:first-child {
+  border-left: 5px solid #f59e0b;
+}
+.filaReciente {
+  background: #fffbeb !important;
+}
+
+/* Pulso al detectar cambio por polling */
+@keyframes resaltarFila {
+  0%   { background: #fef9c3; }
+  70%  { background: #fef3c3; }
+  100% { background: #fffbeb; }
+}
+.filaActualizada {
+  animation: resaltarFila 6s ease-out forwards;
+}
+
+/* Badge "actualizado" junto al nombre */
+.badgeReciente {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.7rem;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+  border-radius: 20px;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.65em;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.fila td {
+  /* min-height en vh → con 5-6 filas llenan la pantalla */
+  padding: clamp(0.8rem, 2.2vh, 2.5rem) 1.4rem;
+  vertical-align: middle;
+}
+
+.tdHora {
+  font-size: 2rem;
+  font-weight: 900;
+  color: #8b1a1a;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+
+.tdNombre {
+  vertical-align: top;
+  padding-top: 1.1rem !important;
+}
+
+.nombreTexto {
+  display: block;
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.15;
+}
+
+
+.nombreSub {
+  display: block;
+  font-size: 1rem;
+  color: #6b7280;
+  margin-top: 0.2rem;
+  line-height: 1.3;
+}
+
+.tipoServicio {
+  color: #4338ca;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.tdGuia {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #4b5563;
+  vertical-align: middle;
+}
+
+.tdPax {
+  vertical-align: middle;
+}
+
+.paxNum {
+  display: block;
+  font-size: 2rem;
+  font-weight: 900;
+  color: #374151;
+  line-height: 1;
+}
+
+
+.tdEstado { vertical-align: middle; }
+
+/* ─── Necesidades especiales en TV ──────────────────── */
+.necesidadesTv {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+}
+
+.necesidadTvPill {
+  font-size: 0.9rem;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 0.18rem 0.55rem;
+  font-weight: 800;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* ─── Badges de estado ───────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 0.4rem 0.9rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.diaHoy .badge {
+  font-size: 1rem;
+  padding: 0.45rem 1rem;
+}
+
+.confirmado   { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.pendiente    { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.cancelado    { background: #f3f4f6; color: #9ca3af; border: 1px solid #e5e7eb; }
+.sinConfirmar { background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; }
+
+/* ─── Fila de menú ───────────────────────────────────── */
+.filaMenu td {
+  padding-top: 0 !important;
+  padding-bottom: 0.9rem !important;
+  background: #fffbf0;
+}
+
+.tdMenuIcono {
+  text-align: center;
+  font-size: 1.2rem;
+  padding-left: 1.2rem !important;
+  width: 60px;
+  border-top: 1px dashed #fde68a !important;
+  color: #8b1a1a;
+}
+
+.tdMenuCompleto {
+  font-size: 1.05rem;
+  color: #374151;
+  line-height: 1.8;
+  border-top: 1px dashed #fde68a !important;
+  padding-left: 0.5rem !important;
+}
+
+.menuCatTv {
+  display: inline;
+  margin-right: 2rem;
+}
+
+.menuCatTv strong {
+  color: #8b1a1a;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 900;
+}
+
+/* ─── Footer ─────────────────────────────────────────── */
+.footer {
+  padding: 0.6rem 2rem;
+  background: #fff;
+  border-top: 3px solid #8b1a1a;
+  text-align: center;
+  color: #6b7280;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+/* ─── Pantallas grandes (TV 1080p+) ─────────────────── */
+@media (min-width: 1400px) {
+  .titulo        { font-size: 2.2rem; }
+  .diaHeader     { font-size: 1.8rem; }
+  .tdHora        { font-size: 2.4rem; }
+  .nombreTexto   { font-size: 2rem; }
+  .paxNum        { font-size: 2.4rem; }
+  .badge         { font-size: 1.1rem; padding: 0.5rem 1.1rem; }
+  .tdMenuCompleto { font-size: 1.15rem; }
+  .necesidadTvPill { font-size: 1rem; }
+  .footer        { font-size: 1.3rem; }
+}
+
+/* ─── TV 4K ─────────────────────────────────────────── */
+@media (min-width: 2200px) {
+  .titulo        { font-size: 3rem; }
+  .logo          { height: 80px; }
+  .diaHeader     { font-size: 2.4rem; }
+  .tdHora        { font-size: 3.2rem; }
+  .nombreTexto   { font-size: 2.6rem; }
+  .paxNum        { font-size: 3.2rem; }
+  .badge         { font-size: 1.4rem; padding: 0.6rem 1.4rem; }
+  .footer        { font-size: 1.6rem; }
+}

@@ -1,12 +1,17 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import LoginPage from './pages/LoginPage';
 import DashboardEmpleado from './pages/DashboardEmpleado';
 import DashboardAdmin from './pages/DashboardAdmin';
+import TVPage from './pages/TVPage';
 import LoadingScreen from './components/LoadingScreen';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
+  const location = useLocation();
+
+  // Pantalla TV: acceso público sin autenticación
+  if (location.pathname === '/tv') return <TVPage />;
 
   if (loading) return <LoadingScreen />;
   if (!user) return <LoginPage />;
