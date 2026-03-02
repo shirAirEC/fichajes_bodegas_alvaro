@@ -50,6 +50,10 @@ async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
     ? fechaAlta.getDate()
     : 1;
 
+  // Si el empleado tiene horarios personales, los días no cubiertos por ellos son libres
+  // (no aplicar el horario global en esos días)
+  const tieneHorarioPersonal = horarios.some(h => h.empleado_id == empleadoId);
+
   const diasEnMes = new Date(anio, mes, 0).getDate();
   let totalHoras = 0;
   let hayDiasConHorario = false;
@@ -76,6 +80,9 @@ async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
         }
       }
     }
+
+    // Si el empleado tiene horario personal pero este día solo cubre el global → día libre
+    if (tieneHorarioPersonal && mejor && !mejor._esPersonal) continue;
 
     if (mejor) {
       let horasDia = 0;
