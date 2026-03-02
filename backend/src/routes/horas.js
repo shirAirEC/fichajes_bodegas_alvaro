@@ -26,18 +26,23 @@ async function getObjetivoEmpleado(empleadoId) {
     'SELECT horas_semana, horas_mes FROM horas_objetivo WHERE empleado_id = $1',
     [empleadoId]
   );
-  if (custom[0]?.horas_semana != null) {
-    return { horas_semana: custom[0].horas_semana, horas_mes: custom[0].horas_mes };
+  if (custom[0]?.horas_semana != null || custom[0]?.horas_mes != null) {
+    const semana = parseFloat(custom[0].horas_semana) || 40;
+    // Si solo se configura semana, derivar mes (52 semanas / 12 meses)
+    const mes = custom[0].horas_mes != null
+      ? parseFloat(custom[0].horas_mes)
+      : Math.round(semana * 52 / 12 * 100) / 100;
+    return { horas_semana: semana, horas_mes: mes };
   }
   // Fallback a configuración global
   const { rows: cfg } = await pool.query(
     "SELECT clave, valor FROM configuracion WHERE clave IN ('horas_objetivo_semana','horas_objetivo_mes')"
   );
   const config = Object.fromEntries(cfg.map(r => [r.clave, parseFloat(r.valor)]));
-  return {
-    horas_semana: config.horas_objetivo_semana || 40,
-    horas_mes: config.horas_objetivo_mes || 160
-  };
+  const semana = config.horas_objetivo_semana || 40;
+  // Si horas_mes no está configurado o es 0, derivarlo de horas_semana
+  const mes = config.horas_objetivo_mes || Math.round(semana * 52 / 12 * 100) / 100;
+  return { horas_semana: semana, horas_mes: mes };
 }
 
 async function calcularBalancePeriodo(empleadoId, fechaInicio, fechaFin) {
@@ -212,9 +217,11 @@ router.get('/filtro', authMiddleware, async (req, res) => {
 
     const horasTrabajadas = calcularHorasDeFichajes(fichajes);
     const horasAjuste = parseFloat(ajRow[0].total);
+    const semanasRango = Math.ceil((new Date(fechaFin) - new Date(fechaInicio)) / (7 * 86400000));
     const objetivoPeriodo = modo === 'semana' ? objetivo.horas_semana
-      : modo === 'anio' ? objetivo.horas_semana * 52
-      : objetivo.horas_semana * Math.ceil((new Date(fechaFin) - new Date(fechaInicio)) / (7 * 86400000));
+      : modo === 'mes'  ? objetivo.horas_mes
+      : modo === 'anio' ? objetivo.horas_mes * 12
+      : objetivo.horas_semana * semanasRango; // rango libre: proporcional a semanas
 
     // Desglose diario
     const desglose = {};
@@ -306,9 +313,11 @@ router.get('/admin/todos', authMiddleware, adminMiddleware, async (req, res) => 
 
       const objetivoPeriodo = modo === 'semana'
         ? objetivo.horas_semana
-        : modo === 'anio'
-          ? objetivo.horas_semana * 52
-          : objetivo.horas_semana * semanas.length;
+        : modo === 'mes'
+          ? objetivo.horas_mes
+          : modo === 'anio'
+            ? objetivo.horas_mes * 12
+            : objetivo.horas_semana * semanas.length; // rango: proporcional a semanas
 
       // Desglose por semana
       const desgloseSemanas = await Promise.all(semanas.map(async s => {
