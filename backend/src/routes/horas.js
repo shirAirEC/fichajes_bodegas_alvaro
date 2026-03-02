@@ -86,11 +86,14 @@ async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
         if (msSalida > msEntrada) horasDia = (msSalida - msEntrada) / 3600000;
       } else if (mejor.dias_semana) {
         // Sin hora de salida: horas_semana ÷ nº días configurados = horas/día
-        // Funciona para cualquier tipo de horario (global o personal)
         const diasConfig = mejor.dias_semana.split(',').filter(Boolean).length;
         if (diasConfig > 0) horasDia = objConf.horas_semana / diasConfig;
+      } else if (mejor.tipo === 'diario') {
+        // Horario diario sin días explícitos: jornada lunes–sábado (6 días)
+        // Domingo (diaSemana=7) no cuenta
+        if (diaSemana <= 6) horasDia = objConf.horas_semana / 6;
       }
-      // Sin dias_semana ni hora_salida: no se puede calcular → fallback a horas_mes
+      // Otros casos sin dias_semana ni hora_salida → fallback a horas_mes
 
       if (horasDia > 0) {
         totalHoras += horasDia;
