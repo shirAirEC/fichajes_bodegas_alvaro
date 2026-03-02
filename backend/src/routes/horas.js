@@ -32,19 +32,29 @@ function tipoPrioridadHorario(tipo) {
 // Calcula el objetivo de horas del mes basándose en los horarios configurados.
 // Devuelve null si no hay horarios activos para ese empleado.
 async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
-  const { rows: horarios } = await pool.query(
-    `SELECT * FROM horarios
-     WHERE (empleado_id = $1 OR empleado_id IS NULL)
-       AND activo = 1`,
-    [empleadoId]
-  );
+  const [{ rows: horarios }, { rows: empRows }, objConf] = await Promise.all([
+    pool.query(
+      `SELECT * FROM horarios WHERE (empleado_id = $1 OR empleado_id IS NULL) AND activo = 1`,
+      [empleadoId]
+    ),
+    pool.query('SELECT fecha_alta FROM empleados WHERE id = $1', [empleadoId]),
+    getObjetivoEmpleado(empleadoId)
+  ]);
+
   if (horarios.length === 0) return null;
+
+  // No contar días anteriores a la fecha de alta (primer mes parcial)
+  const fechaAltaRaw = empRows[0]?.fecha_alta;
+  const fechaAlta = fechaAltaRaw ? new Date(fechaAltaRaw + 'T12:00:00') : null;
+  const desdeDia = (fechaAlta && fechaAlta.getFullYear() === anio && fechaAlta.getMonth() + 1 === mes)
+    ? fechaAlta.getDate()
+    : 1;
 
   const diasEnMes = new Date(anio, mes, 0).getDate();
   let totalHoras = 0;
   let hayDiasConHorario = false;
 
-  for (let dia = 1; dia <= diasEnMes; dia++) {
+  for (let dia = desdeDia; dia <= diasEnMes; dia++) {
     const fecha = `${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
     const d = new Date(fecha + 'T12:00:00');
     const diaSemana = d.getDay() === 0 ? 7 : d.getDay(); // 1=lun...7=dom
@@ -67,11 +77,24 @@ async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
       }
     }
 
-    if (mejor && mejor.hora_salida) {
-      const msEntrada = timeToMs(mejor.hora_entrada);
-      const msSalida = timeToMs(mejor.hora_salida);
-      if (msSalida > msEntrada) {
-        totalHoras += (msSalida - msEntrada) / 3600000;
+    if (mejor) {
+      let horasDia = 0;
+      if (mejor.hora_salida) {
+        // Caso ideal: tenemos hora de entrada y salida → diferencia exacta
+        const msEntrada = timeToMs(mejor.hora_entrada);
+        const msSalida = timeToMs(mejor.hora_salida);
+        if (msSalida > msEntrada) horasDia = (msSalida - msEntrada) / 3600000;
+      } else if (mejor.dias_semana) {
+        // Sin hora de salida pero con días configurados: distribuir horas semanales
+        const diasConfig = mejor.dias_semana.split(',').filter(Boolean).length;
+        if (diasConfig > 0) horasDia = objConf.horas_semana / diasConfig;
+      } else if (mejor.tipo === 'diario') {
+        // Sin hora de salida y sin días concretos: distribuir en 5 días laborables
+        horasDia = objConf.horas_semana / 5;
+      }
+
+      if (horasDia > 0) {
+        totalHoras += horasDia;
         hayDiasConHorario = true;
       }
     }
