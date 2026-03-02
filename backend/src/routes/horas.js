@@ -84,14 +84,14 @@ async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
         const msEntrada = timeToMs(mejor.hora_entrada);
         const msSalida = timeToMs(mejor.hora_salida);
         if (msSalida > msEntrada) horasDia = (msSalida - msEntrada) / 3600000;
-      } else if (mejor.tipo === 'semanal' && mejor.dias_semana) {
-        // Sin hora de salida pero con días de semana concretos:
+      } else if (mejor.tipo === 'semanal' && mejor.dias_semana && mejor._esPersonal) {
+        // Sin hora de salida, pero horario PERSONAL con días concretos:
         // distribuir horas semanales entre esos días (ej: 15h / 3 días = 5h/día)
         const diasConfig = mejor.dias_semana.split(',').filter(Boolean).length;
         if (diasConfig > 0) horasDia = objConf.horas_semana / diasConfig;
       }
-      // Para diario/rango/fecha sin hora_salida no podemos calcular con precisión;
-      // la función devolverá null y se usará el fallback de horas_mes configurado.
+      // Para horarios globales (sin empleado_id) o tipos sin hora_salida no se puede
+      // calcular con precisión; la función devolverá null y usará el fallback horas_mes.
 
       if (horasDia > 0) {
         totalHoras += horasDia;
