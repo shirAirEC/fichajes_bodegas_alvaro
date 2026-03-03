@@ -4,6 +4,46 @@ import styles from './AdminFichajesPage.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+// ─── Cálculo del saldo acumulado por semanas completas ───────────────────────
+// Devuelve la suma de (horasTrabajadas - horasObjetivo) de cada semana ISO
+// que haya terminado completamente dentro del periodo (o antes de hoy).
+function getLunesDeSemana(fechaStr) {
+  const d = new Date(fechaStr + 'T12:00:00');
+  const dia = d.getDay(); // 0=Dom
+  const diff = dia === 0 ? -6 : 1 - dia;
+  const lunes = new Date(d);
+  lunes.setDate(d.getDate() + diff);
+  return lunes.toISOString().split('T')[0];
+}
+
+function calcularAcumuladoSemanal(meses, horasSemana, filtroHasta) {
+  const todasJornadas = meses.flatMap(m => m.jornadas);
+  const limiteHasta = filtroHasta ? new Date(filtroHasta + 'T23:59:59') : new Date();
+  const hoy = new Date();
+  const limite = limiteHasta < hoy ? limiteHasta : hoy;
+
+  // Agrupar jornadas por semana (lunes como clave)
+  const semanas = {};
+  for (const j of todasJornadas) {
+    const lunes = getLunesDeSemana(j.fecha);
+    if (!semanas[lunes]) semanas[lunes] = { lunes, minutos: 0 };
+    semanas[lunes].minutos += j.minutos;
+  }
+
+  let acumuladoH = 0;
+  for (const [lunesStr, semana] of Object.entries(semanas)) {
+    // El domingo de esa semana es lunes + 6 días
+    const domingo = new Date(lunesStr + 'T23:59:59');
+    domingo.setDate(domingo.getDate() + 6);
+    // Solo contar semanas completamente cerradas
+    if (domingo > limite) continue;
+    const horasTrabajadas = semana.minutos / 60;
+    acumuladoH += horasTrabajadas - horasSemana;
+  }
+
+  return Math.round(acumuladoH * 100) / 100;
+}
+
 // ─── Generación de PDF del informe ───────────────────────────────────────────
 async function generarInformePDF(empleadosData, filtros) {
   const { default: jsPDF } = await import('jspdf');
@@ -24,10 +64,6 @@ async function generarInformePDF(empleadosData, filtros) {
   const ROJO      = [192, 57, 43];
   const WHITE     = [255, 255, 255];
 
-  const hoyObj = new Date();
-  const mesActual  = hoyObj.getMonth() + 1;
-  const anioActual = hoyObj.getFullYear();
-
   const fmtH = h => {
     const abs = Math.abs(h);
     const hh = Math.floor(abs);
@@ -46,14 +82,11 @@ async function generarInformePDF(empleadosData, filtros) {
     weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric'
   });
 
-  // Calcula el estado solo para meses cerrados (pasados).
-  // Mes en curso o diferencia insignificante -> null (no mostrar nada)
-  const estadoMes = m => {
-    const esMesEnCurso = m.mes === mesActual && m.anio === anioActual;
-    if (esMesEnCurso) return null;
-    if (Math.abs(m.diferencia) < 0.17) return null;
-    if (m.diferencia > 0) return { texto: `+${fmtH(m.diferencia)} de mas`, color: ROJO };
-    return { texto: `-${fmtH(Math.abs(m.diferencia))} pendientes`, color: VERDE };
+  // Texto y color del saldo acumulado
+  const textoSaldo = acum => {
+    if (Math.abs(acum) < 0.17) return { texto: 'Sin deuda acumulada', color: TEXT_L };
+    if (acum > 0) return { texto: `+${fmtH(acum)} de mas acumuladas`, color: ROJO };
+    return { texto: `-${fmtH(Math.abs(acum))} acumuladas de deuda`, color: VERDE };
   };
 
   let paginaNum = 1;
@@ -137,27 +170,17 @@ async function generarInformePDF(empleadosData, filtros) {
         dibujarCabecera(); dibujarPie(); cursorY = 28;
       }
 
-      const est = estadoMes(m);
-
-      // Barra dorada + nombre del mes
+      // Barra dorada + nombre del mes + horas trabajadas
       doc.setFillColor(...GOLD);
       doc.rect(14, cursorY, 3, 7, 'F');
       doc.setTextColor(...TEXT);
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       doc.text(m.label.toUpperCase(), 20, cursorY + 5.2);
-
-      // Horas trabajadas (siempre) y estado solo si hay algo que reportar
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
-      if (est) {
-        doc.setTextColor(...est.color);
-        doc.setFont('helvetica', 'bold');
-        doc.text(est.texto, pW - 18, cursorY + 5.2, { align: 'right' });
-      } else {
-        doc.setTextColor(...TEXT_L);
-        doc.text(`${fmtH(m.trabajadas)} trabajadas`, pW - 18, cursorY + 5.2, { align: 'right' });
-      }
+      doc.setTextColor(...TEXT_L);
+      doc.text(`${fmtH(m.trabajadas)} trabajadas`, pW - 18, cursorY + 5.2, { align: 'right' });
 
       cursorY += 10;
 
@@ -197,28 +220,40 @@ async function generarInformePDF(empleadosData, filtros) {
 
       cursorY = doc.lastAutoTable.finalY;
 
-      // Fila total del mes
+      // Separador fino entre meses
       doc.setFillColor(...PRIMARY_L);
-      doc.rect(14, cursorY, pW - 28, 7.5, 'F');
-      doc.setDrawColor(...BORDER);
-      doc.rect(14, cursorY, pW - 28, 7.5, 'S');
-      doc.setFontSize(8);
+      doc.rect(14, cursorY, pW - 28, 5, 'F');
+      doc.setFontSize(7.5);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...PRIMARY);
-      doc.text(`Total ${m.label}:`, 18, cursorY + 5);
-      if (est) {
-        doc.setTextColor(...est.color);
-        doc.text(est.texto, pW - 18, cursorY + 5, { align: 'right' });
-      } else {
-        doc.setTextColor(...TEXT_L);
-        doc.setFont('helvetica', 'normal');
-        doc.text(fmtH(m.trabajadas), pW - 18, cursorY + 5, { align: 'right' });
-      }
+      doc.text(`Total ${m.label}:`, 18, cursorY + 3.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...TEXT_L);
+      doc.text(fmtH(m.trabajadas), pW - 18, cursorY + 3.5, { align: 'right' });
 
-      cursorY += 12;
+      cursorY += 10;
     }
 
-    cursorY += 4;
+    // ── Saldo acumulado semanal al final del empleado ──
+    const acum = calcularAcumuladoSemanal(emp.meses, emp.horas_semana || 40, filtros.hasta);
+    const saldo = textoSaldo(acum);
+
+    if (cursorY > 258) {
+      doc.addPage(); paginaNum++;
+      dibujarCabecera(); dibujarPie(); cursorY = 28;
+    }
+
+    const saldoColor = acum > 0.17 ? ROJO : acum < -0.17 ? VERDE : TEXT_L;
+    doc.setFillColor(...(acum > 0.17 ? [253, 236, 234] : acum < -0.17 ? [232, 245, 233] : [245, 241, 232]));
+    doc.setDrawColor(...BORDER);
+    doc.roundedRect(14, cursorY, pW - 28, 10, 1.5, 1.5, 'FD');
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...saldoColor);
+    doc.text('Saldo acumulado (semanas cerradas):', 18, cursorY + 6.5);
+    doc.text(saldo.texto, pW - 18, cursorY + 6.5, { align: 'right' });
+
+    cursorY += 18;
   }
 
   // Redibujar pie en todas las páginas con número correcto
@@ -390,15 +425,11 @@ function InformeMensual({ informe, filtros }) {
     weekday: 'short', day: '2-digit', month: '2-digit'
   });
 
-  const hoyObj = new Date();
-  const mesActual  = hoyObj.getMonth() + 1;
-  const anioActual = hoyObj.getFullYear();
-
-  const estadoMes = m => {
-    const esMesEnCurso = m.mes === mesActual && m.anio === anioActual;
-    if (esMesEnCurso || Math.abs(m.diferencia) < 0.17) return null;
-    if (m.diferencia > 0) return { texto: `+${fmtH(m.diferencia)} de más`, cls: styles.estadoExceso };
-    return { texto: `-${fmtH(Math.abs(m.diferencia))} pendientes`, cls: styles.estadoDeficit };
+  const saldoEmp = emp => {
+    const acum = calcularAcumuladoSemanal(emp.meses, emp.horas_semana || 40, filtros.hasta);
+    if (Math.abs(acum) < 0.17) return null;
+    if (acum > 0) return { texto: `+${fmtH(acum)} de más acumuladas`, cls: styles.estadoExceso };
+    return { texto: `-${fmtH(Math.abs(acum))} acumuladas de deuda`, cls: styles.estadoDeficit };
   };
 
   if (!informe.length) return <p className={styles.empty}>No hay datos en el periodo seleccionado.</p>;
@@ -428,56 +459,59 @@ function InformeMensual({ informe, filtros }) {
             </button>
           </div>
 
-          {expandidos[`emp_${emp.id}`] && emp.meses.map(m => {
-            const est = estadoMes(m);
-            return (
-              <div key={m.label} className={styles.informeMes}>
-                <div className={styles.informeMesHeader}>
-                  <span className={styles.informeMesLabel}>{m.label}</span>
-                  <div className={styles.informeMesStats}>
+          {expandidos[`emp_${emp.id}`] && (
+            <>
+              {emp.meses.map(m => (
+                <div key={m.label} className={styles.informeMes}>
+                  <div className={styles.informeMesHeader}>
+                    <span className={styles.informeMesLabel}>{m.label}</span>
                     <span className={styles.informeStat}>
                       <span className={styles.informeStatLabel}>Trabajadas</span>
                       <strong>{fmtH(m.trabajadas)}</strong>
                     </span>
-                    {est && (
-                      <span className={`${styles.informeEstado} ${est.cls}`}>
-                        {est.texto}
-                      </span>
-                    )}
                   </div>
-                </div>
 
-                <table className={styles.informeTabla}>
-                  <thead>
-                    <tr>
-                      <th>Fecha</th>
-                      <th>Entrada</th>
-                      <th>Salida</th>
-                      <th>Horas</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {m.jornadas.map(j => (
-                      <tr key={j.fecha} className={styles.informeFila}>
-                        <td>{fmtFecha(j.fecha)}</td>
-                        <td>{fmtHora(j.primeraEntrada)}</td>
-                        <td>{j.enCurso ? <em className={styles.enCurso}>en curso</em> : fmtHora(j.ultimaSalida)}</td>
-                        <td><strong>{fmtMin(j.minutos)}</strong></td>
+                  <table className={styles.informeTabla}>
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>Entrada</th>
+                        <th>Salida</th>
+                        <th>Horas</th>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className={`${styles.informeTotalFila} ${est ? est.cls : ''}`}>
-                      <td colSpan={3}><strong>Total {m.label}</strong></td>
-                      <td>
-                        <strong>{fmtH(m.trabajadas)}{est ? ` · ${est.texto}` : ''}</strong>
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            );
-          })}
+                    </thead>
+                    <tbody>
+                      {m.jornadas.map(j => (
+                        <tr key={j.fecha} className={styles.informeFila}>
+                          <td>{fmtFecha(j.fecha)}</td>
+                          <td>{fmtHora(j.primeraEntrada)}</td>
+                          <td>{j.enCurso ? <em className={styles.enCurso}>en curso</em> : fmtHora(j.ultimaSalida)}</td>
+                          <td><strong>{fmtMin(j.minutos)}</strong></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className={styles.informeTotalFila}>
+                        <td colSpan={3}><strong>Total {m.label}</strong></td>
+                        <td><strong>{fmtH(m.trabajadas)}</strong></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              ))}
+
+              {/* Saldo acumulado semanal */}
+              {(() => {
+                const saldo = saldoEmp(emp);
+                return (
+                  <div className={`${styles.informeSaldoBox} ${saldo ? (saldo.cls === styles.estadoExceso ? styles.saldoExceso : styles.saldoDeficit) : styles.saldoOk}`}>
+                    <span className={styles.informeSaldoLabel}>Saldo acumulado (semanas cerradas)</span>
+                    <strong>{saldo ? saldo.texto : 'Sin deuda acumulada'}</strong>
+                  </div>
+                );
+              })()}
+            </>
+          )}
         </div>
       ))}
     </div>

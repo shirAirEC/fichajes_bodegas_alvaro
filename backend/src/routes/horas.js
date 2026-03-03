@@ -749,7 +749,8 @@ router.get('/admin/informe', authMiddleware, adminMiddleware, async (req, res) =
         })
       );
 
-      return { id: emp.id, nombre: emp.nombre, apellidos: emp.apellidos, departamento: emp.departamento, meses };
+      const objEmp = await getObjetivoEmpleado(emp.id);
+      return { id: emp.id, nombre: emp.nombre, apellidos: emp.apellidos, departamento: emp.departamento, horas_semana: objEmp.horas_semana, meses };
     }));
 
     if (formato === 'csv') {

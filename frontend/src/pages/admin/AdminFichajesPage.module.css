@@ -254,3 +254,15 @@
 .informeTotalFila.estadoExceso td { color: var(--color-error); }
 .informeTotalFila.estadoDeficit td { color: #2d7a3a; }
 .enCurso { color: var(--color-primary); font-style: normal; font-size: 0.78rem; }
+
+/* Saldo acumulado semanal */
+.informeSaldoBox {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  font-size: 0.9rem;
+  border-top: 2px solid var(--color-border);
+}
+.informeSaldoLabel { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.8; }
+.saldoOk    { background: var(--color-light); color: var(--color-text-light); }
+.saldoExceso { background: var(--color-error-light); color: var(--color-error); }
+.saldoDeficit { background: var(--color-success-light); color: var(--color-success); }
