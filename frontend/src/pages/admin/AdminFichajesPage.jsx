@@ -5,12 +5,26 @@ import styles from './AdminFichajesPage.module.css';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 // ─── Generación de PDF del informe ───────────────────────────────────────────
-async function generarInformePDF(informe, filtros, empleados) {
+// empleadosData: array de empleados del informe (puede ser 1 o todos)
+async function generarInformePDF(empleadosData, filtros) {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pW = doc.internal.pageSize.getWidth();
+  const pH = doc.internal.pageSize.getHeight();
+
+  // ─ Colores del sistema ─
+  const PRIMARY   = [139, 38, 53];    // #8B2635 burdeos
+  const PRIMARY_L = [245, 236, 238];  // burdeos muy claro
+  const GOLD      = [201, 169, 97];   // #c9a961 dorado
+  const CREAM     = [245, 241, 232];  // #f5f1e8 crema
+  const BORDER    = [224, 216, 200];  // #e0d8c8
+  const TEXT      = [45, 45, 45];
+  const TEXT_L    = [102, 102, 102];
+  const VERDE     = [45, 122, 58];    // success
+  const ROJO      = [192, 57, 43];    // error
+  const WHITE     = [255, 255, 255];
 
   const fmtH = h => {
     const abs = Math.abs(h);
@@ -29,83 +43,117 @@ async function generarInformePDF(informe, filtros, empleados) {
   const fmtFecha = str => new Date(str + 'T12:00:00').toLocaleDateString('es-ES', {
     weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric'
   });
-  const fmtDif = h => `${h > 0 ? '+' : ''}${fmtH(h)}`;
 
-  const VERDE  = [39, 174, 96];
-  const ROJO   = [192, 57, 43];
-  const GRIS   = [120, 120, 120];
-  const AZUL   = [52, 73, 94];
-  const CLARO  = [248, 249, 251];
-  const BORDE  = [220, 225, 230];
-
-  // ── Cabecera de página ──
-  const dibujarCabeceraPagina = pageNum => {
-    doc.setFillColor(...AZUL);
-    doc.rect(0, 0, pW, 18, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Bodegas Álvaro · Informe de fichajes', 14, 12);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Pág. ${pageNum}`, pW - 14, 12, { align: 'right' });
+  // Estado del mes simplificado
+  const estadoMes = dif => {
+    if (Math.abs(dif) < 0.17) return { texto: 'Al día', color: VERDE, signo: '✓' };
+    if (dif > 0) return { texto: `+${fmtH(dif)} de más`, color: ROJO, signo: '▲' };
+    return { texto: `-${fmtH(Math.abs(dif))} pendientes`, color: VERDE, signo: '▼' };
   };
 
-  // ── Filtros aplicados ──
-  const empLabel = filtros.empleado_id
-    ? empleados.find(e => String(e.id) === String(filtros.empleado_id))
-      ? (() => { const e = empleados.find(x => String(x.id) === String(filtros.empleado_id)); return `${e.nombre} ${e.apellidos}`; })()
-      : 'Empleado seleccionado'
-    : 'Todos los empleados';
+  let paginaNum = 1;
 
-  const subtitulo = `Periodo: ${filtros.desde} → ${filtros.hasta}  ·  Empleado: ${empLabel}  ·  Generado: ${new Date().toLocaleDateString('es-ES')}`;
+  const dibujarCabecera = () => {
+    // Banda superior burdeos
+    doc.setFillColor(...PRIMARY);
+    doc.rect(0, 0, pW, 22, 'F');
+    // Línea dorada
+    doc.setFillColor(...GOLD);
+    doc.rect(0, 22, pW, 1.5, 'F');
+    // Logo/Título
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('BODEGAS ÁLVARO', 14, 10);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Informe de horas y fichajes', 14, 17);
+    doc.setFontSize(8);
+    doc.text(`Pág. ${paginaNum}`, pW - 14, 14, { align: 'right' });
+  };
 
-  let pagina = 1;
-  dibujarCabeceraPagina(pagina);
+  const dibujarPie = () => {
+    doc.setDrawColor(...BORDER);
+    doc.line(14, pH - 10, pW - 14, pH - 10);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...TEXT_L);
+    doc.text(
+      `Bodegas Álvaro · Generado el ${new Date().toLocaleString('es-ES')}  ·  Periodo: ${filtros.desde || '—'} a ${filtros.hasta || '—'}`,
+      14, pH - 5
+    );
+    doc.text(`${paginaNum}`, pW - 14, pH - 5, { align: 'right' });
+  };
 
-  doc.setTextColor(...GRIS);
+  // ── Primera página ──
+  dibujarCabecera();
+  dibujarPie();
+
+  // Bloque informativo del periodo/empleado
+  doc.setFillColor(...CREAM);
+  doc.setDrawColor(...BORDER);
+  doc.roundedRect(14, 27, pW - 28, 10, 1.5, 1.5, 'FD');
   doc.setFontSize(8);
-  doc.setFont('helvetica', 'italic');
-  doc.text(subtitulo, 14, 24);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...TEXT_L);
+  const esUno = empleadosData.length === 1;
+  const empLabel = esUno
+    ? `${empleadosData[0].nombre} ${empleadosData[0].apellidos}${empleadosData[0].departamento ? '  ·  ' + empleadosData[0].departamento : ''}`
+    : `${empleadosData.length} empleados`;
+  doc.text(`Empleado: `, 18, 33.5);
+  doc.setTextColor(...TEXT);
+  doc.setFont('helvetica', 'bold');
+  doc.text(empLabel, 37, 33.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...TEXT_L);
+  doc.text(`Periodo: ${filtros.desde || '—'} → ${filtros.hasta || '—'}`, pW / 2, 33.5);
 
-  let cursorY = 30;
+  let cursorY = 41;
 
-  for (const emp of informe) {
+  for (let ei = 0; ei < empleadosData.length; ei++) {
+    const emp = empleadosData[ei];
     if (!emp.meses.length) continue;
 
-    // ── Nombre del empleado ──
-    if (cursorY > 260) {
-      doc.addPage();
-      pagina++;
-      dibujarCabeceraPagina(pagina);
-      cursorY = 26;
+    // ── Separador de empleado (si hay varios) ──
+    if (!esUno) {
+      if (cursorY > 255) {
+        doc.addPage(); paginaNum++;
+        dibujarCabecera(); dibujarPie(); cursorY = 28;
+      }
+      doc.setFillColor(...PRIMARY);
+      doc.roundedRect(14, cursorY, pW - 28, 9, 1.5, 1.5, 'F');
+      doc.setTextColor(...WHITE);
+      doc.setFontSize(9.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${emp.nombre} ${emp.apellidos}${emp.departamento ? '  ·  ' + emp.departamento : ''}`, 18, cursorY + 6.2);
+      cursorY += 13;
     }
 
-    doc.setFillColor(...CLARO);
-    doc.setDrawColor(...BORDE);
-    doc.roundedRect(10, cursorY, pW - 20, 9, 1.5, 1.5, 'FD');
-    doc.setTextColor(...AZUL);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${emp.nombre} ${emp.apellidos}${emp.departamento ? '  ·  ' + emp.departamento : ''}`, 14, cursorY + 6);
-    cursorY += 13;
-
     for (const m of emp.meses) {
-      // ── Título mes ──
-      if (cursorY > 255) {
-        doc.addPage();
-        pagina++;
-        dibujarCabeceraPagina(pagina);
-        cursorY = 26;
+      if (cursorY > 250) {
+        doc.addPage(); paginaNum++;
+        dibujarCabecera(); dibujarPie(); cursorY = 28;
       }
 
-      doc.setTextColor(...GRIS);
-      doc.setFontSize(8.5);
+      // Título del mes con línea dorada
+      doc.setFillColor(...GOLD);
+      doc.rect(14, cursorY, 3, 7, 'F');
+      doc.setTextColor(...TEXT);
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
-      doc.text(m.label.toUpperCase(), 14, cursorY);
-      cursorY += 4;
+      doc.text(m.label.toUpperCase(), 20, cursorY + 5.2);
 
-      // ── Tabla de jornadas ──
+      // Estado del mes (a la derecha del título)
+      const est = estadoMes(m.diferencia);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...est.color);
+      const estTexto = `${est.signo}  ${est.texto}  ·  ${fmtH(m.trabajadas)} trabajadas`;
+      doc.text(estTexto, pW - 18, cursorY + 5.2, { align: 'right' });
+
+      cursorY += 10;
+
+      // Tabla de jornadas
       const filas = m.jornadas.map(j => [
         fmtFecha(j.fecha),
         fmtHora(j.primeraEntrada),
@@ -116,78 +164,63 @@ async function generarInformePDF(informe, filtros, empleados) {
       autoTable(doc, {
         startY: cursorY,
         margin: { left: 14, right: 14 },
-        head: [['Fecha', 'Entrada', 'Salida', 'Horas']],
+        head: [['Fecha', 'Entrada', 'Salida', 'Horas trabajadas']],
         body: filas,
-        foot: [[
-          { content: `Total ${m.label}`, colSpan: 3, styles: { fontStyle: 'bold', halign: 'right' } },
-          { content: fmtMin(m.trabajadas * 60), styles: { fontStyle: 'bold', halign: 'center' } }
-        ]],
-        showFoot: 'lastPage',
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2.5, textColor: [50, 50, 50] },
-        headStyles: { fillColor: AZUL, textColor: 255, fontStyle: 'bold', fontSize: 8, halign: 'center' },
-        footStyles: { fillColor: CLARO, textColor: AZUL, fontSize: 8 },
-        columnStyles: {
-          0: { cellWidth: 52 },
-          1: { halign: 'center', cellWidth: 28 },
-          2: { halign: 'center', cellWidth: 28 },
-          3: { halign: 'center', cellWidth: 22 }
+        theme: 'plain',
+        styles: {
+          fontSize: 8, cellPadding: { top: 3, bottom: 3, left: 4, right: 4 },
+          textColor: TEXT, lineColor: BORDER, lineWidth: 0.3
         },
-        alternateRowStyles: { fillColor: [252, 253, 254] },
+        headStyles: {
+          fillColor: CREAM, textColor: PRIMARY, fontStyle: 'bold',
+          fontSize: 7.5, halign: 'center', lineColor: BORDER, lineWidth: 0.3
+        },
+        columnStyles: {
+          0: { cellWidth: 55 },
+          1: { halign: 'center', cellWidth: 30 },
+          2: { halign: 'center', cellWidth: 30 },
+          3: { halign: 'center', cellWidth: 35 }
+        },
+        alternateRowStyles: { fillColor: [250, 248, 244] },
         didDrawPage: () => {
-          pagina = doc.internal.getCurrentPageInfo().pageNumber;
-          dibujarCabeceraPagina(pagina);
+          paginaNum = doc.internal.getCurrentPageInfo().pageNumber;
+          dibujarCabecera(); dibujarPie();
         }
       });
 
-      cursorY = doc.lastAutoTable.finalY + 3;
+      cursorY = doc.lastAutoTable.finalY;
 
-      // ── Resumen mes ──
-      const difColor = m.diferencia > 0 ? ROJO : m.diferencia < 0 ? VERDE : GRIS;
-      doc.setFillColor(245, 247, 250);
-      doc.roundedRect(14, cursorY, pW - 28, 8, 1, 1, 'F');
-      doc.setFontSize(7.5);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...GRIS);
-      doc.text(`Trabajadas: `, 18, cursorY + 5.2);
+      // Fila resumen total del mes
+      const est2 = estadoMes(m.diferencia);
+      doc.setFillColor(...PRIMARY_L);
+      doc.rect(14, cursorY, pW - 28, 8, 'F');
+      doc.setDrawColor(...BORDER);
+      doc.rect(14, cursorY, pW - 28, 8, 'S');
+      doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(50, 50, 50);
-      doc.text(fmtH(m.trabajadas), 40, cursorY + 5.2);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...GRIS);
-      doc.text(`Objetivo: `, 60, cursorY + 5.2);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(50, 50, 50);
-      doc.text(fmtH(m.objetivo), 78, cursorY + 5.2);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...GRIS);
-      doc.text(`Diferencia: `, 100, cursorY + 5.2);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...difColor);
-      doc.text(fmtDif(m.diferencia), 122, cursorY + 5.2);
+      doc.setTextColor(...PRIMARY);
+      doc.text(`Total ${m.label}`, 18, cursorY + 5.3);
+      doc.setTextColor(...est2.color);
+      doc.text(`${est2.signo}  ${est2.texto}`, pW - 18, cursorY + 5.3, { align: 'right' });
 
-      cursorY += 13;
+      cursorY += 14;
     }
 
-    cursorY += 4;
+    cursorY += 3;
   }
 
-  // ── Pie con fecha de generación ──
-  const totalPages = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= totalPages; i++) {
+  // ── Añadir pie a todas las páginas ──
+  const totalPags = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPags; i++) {
     doc.setPage(i);
-    doc.setDrawColor(...BORDE);
-    doc.line(14, 288, pW - 14, 288);
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...GRIS);
-    doc.text(`Bodegas Álvaro · Informe generado el ${new Date().toLocaleString('es-ES')}`, 14, 293);
-    doc.text(`${i} / ${totalPages}`, pW - 14, 293, { align: 'right' });
+    paginaNum = i;
+    dibujarPie();
   }
 
-  const desde = filtros.desde || 'inicio';
-  const hasta = filtros.hasta || 'hoy';
-  doc.save(`informe_${desde}_${hasta}.pdf`);
+  const nombre = esUno
+    ? `${empleadosData[0].apellidos}_${empleadosData[0].nombre}`.replace(/\s+/g, '_')
+    : 'todos';
+  doc.save(`informe_${nombre}_${filtros.desde || 'inicio'}_${filtros.hasta || 'hoy'}.pdf`);
 }
 
 function fmtHora(ts) {
@@ -323,7 +356,7 @@ function FilaJornada({ jornada, onEliminarFichaje, onEditarFichaje }) {
 }
 
 // ─── Informe mensual ──────────────────────────────────────────────────────────
-function InformeMensual({ informe }) {
+function InformeMensual({ informe, filtros }) {
   const [expandidos, setExpandidos] = useState({});
   const toggle = key => setExpandidos(s => ({ ...s, [key]: !s[key] }));
 
@@ -345,72 +378,85 @@ function InformeMensual({ informe }) {
     weekday: 'short', day: '2-digit', month: '2-digit'
   });
 
+  const estadoMes = dif => {
+    if (Math.abs(dif) < 0.17) return { texto: 'Al día', cls: styles.estadoOk };
+    if (dif > 0) return { texto: `+${fmtH(dif)} de más`, cls: styles.estadoExceso };
+    return { texto: `-${fmtH(Math.abs(dif))} pendientes`, cls: styles.estadoDeficit };
+  };
+
   if (!informe.length) return <p className={styles.empty}>No hay datos en el periodo seleccionado.</p>;
 
   return (
     <div className={styles.informeWrap}>
       {informe.map(emp => (
         <div key={emp.id} className={styles.informeEmp}>
-          <div className={styles.informeEmpHeader} onClick={() => toggle(`emp_${emp.id}`)}>
-            <span className={styles.informeEmpNombre}>{emp.nombre} {emp.apellidos}</span>
-            {emp.departamento && <span className={styles.informeEmpDept}>{emp.departamento}</span>}
-            <span className={styles.informeChevron}>{expandidos[`emp_${emp.id}`] ? '▴' : '▾'}</span>
+          <div className={styles.informeEmpHeader}>
+            <div className={styles.informeEmpHeaderLeft} onClick={() => toggle(`emp_${emp.id}`)}>
+              <span className={styles.informeChevron}>{expandidos[`emp_${emp.id}`] ? '▴' : '▾'}</span>
+              <span className={styles.informeEmpNombre}>{emp.nombre} {emp.apellidos}</span>
+              {emp.departamento && <span className={styles.informeEmpDept}>{emp.departamento}</span>}
+            </div>
+            <button
+              className={styles.btnEmpPDF}
+              title="Descargar informe PDF de este empleado"
+              onClick={() => generarInformePDF([emp], filtros)}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14,2 14,8 20,8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+              PDF
+            </button>
           </div>
 
-          {expandidos[`emp_${emp.id}`] && emp.meses.map(m => (
-            <div key={m.label} className={styles.informeMes}>
-              {/* Cabecera mes con resumen */}
-              <div className={styles.informeMesHeader}>
-                <span className={styles.informeMesLabel}>{m.label}</span>
-                <div className={styles.informeMesStats}>
-                  <span className={styles.informeStat}>
-                    <span className={styles.informeStatLabel}>Trabajadas</span>
-                    <strong>{fmtH(m.trabajadas)}</strong>
-                  </span>
-                  <span className={styles.informeStat}>
-                    <span className={styles.informeStatLabel}>Objetivo</span>
-                    <strong>{fmtH(m.objetivo)}</strong>
-                  </span>
-                  <span className={`${styles.informeStat} ${m.diferencia > 0 ? styles.exceso : styles.deficit}`}>
-                    <span className={styles.informeStatLabel}>Diferencia</span>
-                    <strong>{m.diferencia > 0 ? '+' : ''}{fmtH(m.diferencia)}</strong>
-                  </span>
+          {expandidos[`emp_${emp.id}`] && emp.meses.map(m => {
+            const est = estadoMes(m.diferencia);
+            return (
+              <div key={m.label} className={styles.informeMes}>
+                <div className={styles.informeMesHeader}>
+                  <span className={styles.informeMesLabel}>{m.label}</span>
+                  <div className={styles.informeMesStats}>
+                    <span className={styles.informeStat}>
+                      <span className={styles.informeStatLabel}>Trabajadas</span>
+                      <strong>{fmtH(m.trabajadas)}</strong>
+                    </span>
+                    <span className={`${styles.informeEstado} ${est.cls}`}>
+                      {est.texto}
+                    </span>
+                  </div>
                 </div>
-              </div>
 
-              {/* Tabla de jornadas */}
-              <table className={styles.informeTabla}>
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Entrada</th>
-                    <th>Salida</th>
-                    <th>Horas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {m.jornadas.map(j => (
-                    <tr key={j.fecha} className={styles.informeFila}>
-                      <td>{fmtFecha(j.fecha)}</td>
-                      <td>{fmtHora(j.primeraEntrada)}</td>
-                      <td>{j.enCurso ? <em className={styles.enCurso}>en curso</em> : fmtHora(j.ultimaSalida)}</td>
-                      <td><strong>{fmtMin(j.minutos)}</strong></td>
+                <table className={styles.informeTabla}>
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Entrada</th>
+                      <th>Salida</th>
+                      <th>Horas</th>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className={styles.informeTotalFila}>
-                    <td colSpan={3}><strong>Total {m.label}</strong></td>
-                    <td>
-                      <strong className={m.diferencia > 0 ? styles.excessText : styles.deficitText}>
-                        {fmtH(m.trabajadas)}
-                      </strong>
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          ))}
+                  </thead>
+                  <tbody>
+                    {m.jornadas.map(j => (
+                      <tr key={j.fecha} className={styles.informeFila}>
+                        <td>{fmtFecha(j.fecha)}</td>
+                        <td>{fmtHora(j.primeraEntrada)}</td>
+                        <td>{j.enCurso ? <em className={styles.enCurso}>en curso</em> : fmtHora(j.ultimaSalida)}</td>
+                        <td><strong>{fmtMin(j.minutos)}</strong></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className={`${styles.informeTotalFila} ${est.cls}`}>
+                      <td colSpan={3}><strong>Total {m.label}</strong></td>
+                      <td><strong>{fmtH(m.trabajadas)} · {est.texto}</strong></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            );
+          })}
         </div>
       ))}
     </div>
@@ -550,7 +596,7 @@ export default function AdminFichajesPage() {
   };
 
   const handleExportarPDF = () => {
-    generarInformePDF(informe, filtros, empleados);
+    generarInformePDF(informe, filtros);
   };
 
   const totalHorasJornadas = jornadas.reduce((s, j) => s + j.minutosTrabajados, 0);
@@ -617,7 +663,7 @@ export default function AdminFichajesPage() {
       {cargando ? (
         <div className={styles.loading}>Cargando...</div>
       ) : vista === 'informe' ? (
-        <InformeMensual informe={informe} />
+        <InformeMensual informe={informe} filtros={filtros} />
       ) : vista === 'jornadas' ? (
         <>
           {jornadas.length > 0 && (

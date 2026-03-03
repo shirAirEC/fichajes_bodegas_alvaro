@@ -170,19 +170,33 @@
 }
 
 .informeEmpHeader {
-  display: flex; align-items: center; gap: 1rem;
-  padding: 0.9rem 1.25rem;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.75rem 1.25rem;
   background: var(--color-light);
-  cursor: pointer;
-  user-select: none;
   border-bottom: 1.5px solid var(--color-border);
-  transition: background 0.15s;
 }
-.informeEmpHeader:hover { background: #e8edf5; }
+.informeEmpHeaderLeft {
+  display: flex; align-items: center; gap: 0.75rem;
+  cursor: pointer; user-select: none; flex: 1;
+  transition: opacity 0.15s;
+}
+.informeEmpHeaderLeft:hover { opacity: 0.8; }
 
-.informeEmpNombre { font-weight: 700; font-size: 1rem; color: var(--color-primary); flex: 1; }
-.informeEmpDept { font-size: 0.8rem; color: var(--color-text-light); background: var(--color-border); padding: 0.2rem 0.6rem; border-radius: 99px; }
-.informeChevron { color: var(--color-text-light); font-size: 0.9rem; }
+.informeEmpNombre { font-weight: 700; font-size: 1rem; color: var(--color-primary); }
+.informeEmpDept { font-size: 0.78rem; color: var(--color-text-light); background: var(--color-border); padding: 0.2rem 0.6rem; border-radius: 99px; }
+.informeChevron { color: var(--color-text-light); font-size: 0.85rem; width: 14px; flex-shrink: 0; }
+
+.btnEmpPDF {
+  display: flex; align-items: center; gap: 0.35rem;
+  padding: 0.4rem 0.875rem;
+  background: var(--color-primary);
+  color: white;
+  border: none; border-radius: var(--radius-sm);
+  font-size: 0.78rem; font-weight: 700;
+  cursor: pointer; transition: var(--transition);
+  flex-shrink: 0;
+}
+.btnEmpPDF:hover { background: var(--color-primary-dark); }
 
 .informeMes { border-bottom: 1.5px solid var(--color-border); }
 .informeMes:last-child { border-bottom: none; }
@@ -196,15 +210,26 @@
 }
 .informeMesLabel { font-weight: 700; font-size: 0.95rem; color: var(--color-dark); }
 
-.informeMesStats { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+.informeMesStats { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
 .informeStat { display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem; }
 .informeStatLabel { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-light); }
-.informeStat strong { font-size: 0.95rem; }
+.informeStat strong { font-size: 0.9rem; }
 
 .exceso strong { color: #c0392b; }
 .deficit strong { color: #27ae60; }
 .excessText { color: #c0392b; }
 .deficitText { color: #27ae60; }
+
+/* Estado del mes simplificado */
+.informeEstado {
+  display: inline-flex; align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 99px;
+  font-size: 0.8rem; font-weight: 700;
+}
+.estadoOk    { background: #e8f5ea; color: #2d7a3a; border: 1px solid #a8d5b0; }
+.estadoExceso { background: var(--color-error-light); color: var(--color-error); border: 1px solid #f5b7b1; }
+.estadoDeficit { background: #e8f5ea; color: #2d7a3a; border: 1px solid #a8d5b0; }
 
 .informeTabla { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
 .informeTabla thead tr { background: #f8f9fb; }
@@ -221,8 +246,11 @@
 .informeTabla tfoot .informeTotalFila td {
   padding: 0.65rem 1rem;
   background: var(--color-light);
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   border-top: 1.5px solid var(--color-border);
 }
-.informeTotalFila td:last-child { text-align: center; }
+.informeTotalFila td:last-child { text-align: right; }
+.informeTotalFila.estadoOk td { color: #2d7a3a; }
+.informeTotalFila.estadoExceso td { color: var(--color-error); }
+.informeTotalFila.estadoDeficit td { color: #2d7a3a; }
 .enCurso { color: var(--color-primary); font-style: normal; font-size: 0.78rem; }
