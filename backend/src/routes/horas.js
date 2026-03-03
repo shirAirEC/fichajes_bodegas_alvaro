@@ -50,6 +50,15 @@ async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
     ? fechaAlta.getDate()
     : 1;
 
+  // Obtener períodos de vacaciones del empleado que solapan este mes
+  const fechaInicioMesStr = `${anio}-${String(mes).padStart(2, '0')}-01`;
+  const fechaFinMesStr = new Date(anio, mes, 0).toISOString().split('T')[0];
+  const { rows: vacRows } = await pool.query(
+    `SELECT fecha_inicio, fecha_fin FROM vacaciones
+     WHERE empleado_id = $1 AND fecha_inicio <= $2 AND fecha_fin >= $3`,
+    [empleadoId, fechaFinMesStr, fechaInicioMesStr]
+  );
+
   // Si el empleado tiene horarios personales, los días no cubiertos por ellos son libres
   // (no aplicar el horario global en esos días)
   const tieneHorarioPersonal = horarios.some(h => h.empleado_id == empleadoId);
@@ -84,6 +93,10 @@ async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
     // Si el empleado tiene horario personal pero este día solo cubre el global → día libre
     if (tieneHorarioPersonal && mejor && !mejor._esPersonal) continue;
 
+    // Si este día cae en un período de vacaciones registrado → no se espera trabajo
+    const esVacaciones = vacRows.some(v => v.fecha_inicio <= fecha && v.fecha_fin >= fecha);
+    if (esVacaciones) continue;
+
     if (mejor) {
       let horasDia = 0;
       if (mejor.hora_salida) {
@@ -111,18 +124,7 @@ async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
 
   if (!hayDiasConHorario) return null;
 
-  // Deducir horas de vacaciones usadas en el mes (saldos negativos con fecha en el mes)
-  const fechaInicioMes = `${anio}-${String(mes).padStart(2, '0')}-01`;
-  const fechaFinMes = new Date(anio, mes, 0).toISOString().split('T')[0];
-  const { rows: vacsRows } = await pool.query(
-    `SELECT COALESCE(SUM(cantidad), 0) AS total FROM saldos
-     WHERE empleado_id = $1 AND tipo = 'vacaciones'
-       AND fecha_referencia >= $2::date AND fecha_referencia <= $3::date
-       AND cantidad < 0`,
-    [empleadoId, fechaInicioMes, fechaFinMes]
-  );
-  const horasVacDeducidas = Math.abs(parseFloat(vacsRows[0].total) || 0);
-  return Math.max(0, Math.round((totalHoras - horasVacDeducidas) * 100) / 100);
+  return Math.max(0, Math.round(totalHoras * 100) / 100);
 }
 
 // Objetivo mensual: usa horarios si están configurados, si no cae al valor configurado

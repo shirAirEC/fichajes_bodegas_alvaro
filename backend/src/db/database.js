@@ -182,6 +182,20 @@ async function initializeDatabase() {
 
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_reservas_fecha ON reservas(fecha);`);
 
+  // Tabla de períodos de vacaciones por empleado
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS vacaciones (
+      id SERIAL PRIMARY KEY,
+      empleado_id INTEGER NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
+      fecha_inicio DATE NOT NULL,
+      fecha_fin DATE NOT NULL,
+      motivo TEXT DEFAULT '',
+      admin_id INTEGER REFERENCES empleados(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_vacaciones_empleado ON vacaciones(empleado_id);`);
+
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_fichajes_empleado ON fichajes(empleado_id);
     CREATE INDEX IF NOT EXISTS idx_fichajes_timestamp ON fichajes(timestamp);

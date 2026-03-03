@@ -313,3 +313,56 @@
 @media (max-width: 480px) {
   .formGrid { grid-template-columns: 1fr; }
 }
+
+/* ─── Botón Vacaciones en tarjeta ─────────────────────────────────────────── */
+.btnVacaciones {
+  padding: 0.35rem 0.75rem;
+  background: #fff3e0;
+  border: 1.5px solid #f0a500;
+  color: #b07a00;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.btnVacaciones:hover { background: #ffe0b2; }
+
+/* ─── Modal de vacaciones ─────────────────────────────────────────────────── */
+.vacForm {
+  padding: 1.25rem 1.5rem 0.5rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+.vacHelp { font-size: 0.83rem; color: #888; margin: 0 0 0.9rem; }
+.vacFormRow {
+  display: flex; align-items: flex-end; gap: 0.75rem; flex-wrap: wrap;
+}
+.vacFormRow .field { flex: 1; min-width: 120px; }
+.vacFormRow .fieldMotivo { flex: 2; min-width: 160px; }
+.vacFormRow .field label { display: block; font-size: 0.82rem; color: #555; font-weight: 500; margin-bottom: 0.3rem; }
+.vacFormRow .field input { width: 100%; padding: 0.55rem 0.7rem; border: 1.5px solid #ddd; border-radius: 8px; font-size: 0.9rem; box-sizing: border-box; }
+.vacFormRow .btnGuardar {
+  padding: 0.55rem 1.25rem; background: var(--color-primary); color: white;
+  border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600;
+  cursor: pointer; white-space: nowrap; height: 38px; align-self: flex-end;
+}
+.vacFormRow .btnGuardar:hover { background: #a02d3e; }
+
+.vacLista { padding: 0.75rem 1.5rem 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; max-height: 320px; overflow-y: auto; }
+.vacEmpty { text-align: center; color: #aaa; font-size: 0.87rem; padding: 1rem 0; }
+.vacItem {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.6rem 0.75rem; background: #fffbf2;
+  border: 1.5px solid #f0d080; border-radius: 8px;
+}
+.vacRango { flex: 1; display: flex; flex-direction: column; gap: 0.15rem; }
+.vacFechas { font-size: 0.88rem; font-weight: 600; color: #333; }
+.vacDias { font-size: 0.75rem; color: #b07a00; }
+.vacMotivo { font-size: 0.8rem; color: #888; font-style: italic; flex: 1; }
+.btnEliminarVac {
+  background: none; border: 1.5px solid #fcc; color: #c0392b;
+  border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer;
+  font-size: 1rem; font-weight: 700; flex-shrink: 0;
+}
+.btnEliminarVac:hover { background: #fdeaea; }
