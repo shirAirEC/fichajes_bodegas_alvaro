@@ -127,6 +127,94 @@ async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
   return Math.max(0, Math.round(totalHoras * 100) / 100);
 }
 
+// Calcula el objetivo de horas para un rango arbitrario de fechas,
+// aplicando la misma lógica de horarios + vacaciones que el cálculo mensual.
+// Devuelve null si no hay horarios activos.
+async function calcularObjetivoRango(empleadoId, fechaInicio, fechaFin) {
+  const [{ rows: horarios }, { rows: empRows }, objConf] = await Promise.all([
+    pool.query(
+      `SELECT * FROM horarios WHERE (empleado_id = $1 OR empleado_id IS NULL) AND activo = 1`,
+      [empleadoId]
+    ),
+    pool.query('SELECT fecha_alta FROM empleados WHERE id = $1', [empleadoId]),
+    getObjetivoEmpleado(empleadoId)
+  ]);
+
+  if (horarios.length === 0) return null;
+
+  const fechaAltaRaw = empRows[0]?.fecha_alta;
+  // fecha_alta puede venir como YYYY-MM-DD o como ISO timestamp
+  const fechaAltaStr = fechaAltaRaw
+    ? (typeof fechaAltaRaw === 'string' ? fechaAltaRaw.split('T')[0] : new Date(fechaAltaRaw).toISOString().split('T')[0])
+    : null;
+
+  const { rows: vacRows } = await pool.query(
+    `SELECT fecha_inicio, fecha_fin FROM vacaciones
+     WHERE empleado_id = $1 AND fecha_inicio <= $2 AND fecha_fin >= $3`,
+    [empleadoId, fechaFin, fechaInicio]
+  );
+
+  const tieneHorarioPersonal = horarios.some(h => h.empleado_id == empleadoId);
+
+  let totalHoras = 0;
+  let hayDiasConHorario = false;
+
+  const dInicio = new Date(fechaInicio + 'T12:00:00');
+  const dFin    = new Date(fechaFin    + 'T12:00:00');
+
+  for (let d = new Date(dInicio); d <= dFin; d.setDate(d.getDate() + 1)) {
+    const fecha = d.toISOString().split('T')[0];
+
+    // No contar días anteriores a la fecha de alta
+    if (fechaAltaStr && fecha < fechaAltaStr) continue;
+
+    const diaSemana = d.getDay() === 0 ? 7 : d.getDay(); // 1=lun…7=dom
+
+    let mejor = null;
+    for (const h of horarios) {
+      const esPersonal = h.empleado_id == empleadoId;
+      const aplica =
+        (h.tipo === 'fecha'    && h.fecha === fecha) ||
+        (h.tipo === 'rango'    && h.fecha_inicio <= fecha && (!h.fecha_fin || h.fecha_fin >= fecha)) ||
+        (h.tipo === 'semanal'  && h.dias_semana && h.dias_semana.split(',').map(Number).includes(diaSemana)) ||
+        h.tipo === 'diario';
+
+      if (aplica) {
+        if (!mejor ||
+          (esPersonal && !mejor._esPersonal) ||
+          (esPersonal === mejor._esPersonal && tipoPrioridadHorario(h.tipo) < tipoPrioridadHorario(mejor.tipo))) {
+          mejor = { ...h, _esPersonal: esPersonal };
+        }
+      }
+    }
+
+    // Día no cubierto por horario personal → día libre
+    if (tieneHorarioPersonal && mejor && !mejor._esPersonal) continue;
+
+    // Día de vacaciones → no se espera trabajo
+    const esVacaciones = vacRows.some(v => v.fecha_inicio <= fecha && v.fecha_fin >= fecha);
+    if (esVacaciones) continue;
+
+    if (mejor) {
+      let horasDia = 0;
+      if (mejor.hora_salida) {
+        const msEntrada = timeToMs(mejor.hora_entrada);
+        const msSalida  = timeToMs(mejor.hora_salida);
+        if (msSalida > msEntrada) horasDia = (msSalida - msEntrada) / 3600000;
+      } else if (mejor.dias_semana) {
+        const diasConfig = mejor.dias_semana.split(',').filter(Boolean).length;
+        if (diasConfig > 0) horasDia = objConf.horas_semana / diasConfig;
+      } else if (mejor.tipo === 'diario') {
+        if (diaSemana <= 6) horasDia = objConf.horas_semana / 6;
+      }
+      if (horasDia > 0) { totalHoras += horasDia; hayDiasConHorario = true; }
+    }
+  }
+
+  if (!hayDiasConHorario) return null;
+  return Math.max(0, Math.round(totalHoras * 100) / 100);
+}
+
 // Objetivo mensual: usa horarios si están configurados, si no cae al valor configurado
 async function getObjetivoMes(empleadoId, anio, mes) {
   const porHorario = await calcularObjetivoMensPorHorario(empleadoId, anio, mes);
@@ -405,7 +493,10 @@ async function calcularSaldoSemanalAcum(empleadoId, fechaAlta, objetivoSemanal) 
   let saldo = 0;
   for (const s of semanas) {
     const { horasTrabajadas, horasAjuste } = await calcularBalancePeriodo(empleadoId, s.lunes, s.domingo);
-    saldo += horasTrabajadas + horasAjuste - objetivoSemanal;
+    // Objetivo real de esa semana: aplica horario + vacaciones (puede ser < horas_semana si hay ausencias)
+    const objSemana = await calcularObjetivoRango(empleadoId, s.lunes, s.domingo);
+    const objetivoEfectivo = objSemana !== null ? objSemana : objetivoSemanal;
+    saldo += horasTrabajadas + horasAjuste - objetivoEfectivo;
   }
   return Math.round(saldo * 100) / 100;
 }
@@ -470,7 +561,8 @@ router.get('/admin/todos', authMiddleware, adminMiddleware, async (req, res) => 
 
       let objetivoPeriodo;
       if (modo === 'semana') {
-        objetivoPeriodo = objetivo.horas_semana;
+        const objSem = await calcularObjetivoRango(emp.id, fechaInicio, fechaFin);
+        objetivoPeriodo = objSem !== null ? objSem : objetivo.horas_semana;
       } else if (modo === 'mes') {
         objetivoPeriodo = await getObjetivoMes(emp.id, hoy.getFullYear(), hoy.getMonth() + 1);
       } else if (modo === 'anio') {
@@ -483,16 +575,18 @@ router.get('/admin/todos', authMiddleware, adminMiddleware, async (req, res) => 
         objetivoPeriodo = objetivo.horas_semana * semanas.length;
       }
 
-      // Desglose por semana
+      // Desglose por semana — objetivo real por semana (aplica horario + vacaciones)
       const desgloseSemanas = await Promise.all(semanas.map(async s => {
         const { horasTrabajadas: ht, horasAjuste: ha } = await calcularBalancePeriodo(emp.id, s.lunes, s.domingo);
+        const objSemana = await calcularObjetivoRango(emp.id, s.lunes, s.domingo);
+        const objEfectivo = objSemana !== null ? objSemana : objetivo.horas_semana;
         return {
           lunes: s.lunes,
           domingo: s.domingo,
           trabajadas: Math.round(ht * 100) / 100,
           ajuste: ha,
-          objetivo: objetivo.horas_semana,
-          diferencia: Math.round((ht + ha - objetivo.horas_semana) * 100) / 100
+          objetivo: Math.round(objEfectivo * 100) / 100,
+          diferencia: Math.round((ht + ha - objEfectivo) * 100) / 100
         };
       }));
 
@@ -772,7 +866,9 @@ router.get('/admin/informe', authMiddleware, adminMiddleware, async (req, res) =
       );
 
       const objEmp = await getObjetivoEmpleado(emp.id);
-      return { id: emp.id, nombre: emp.nombre, apellidos: emp.apellidos, departamento: emp.departamento, horas_semana: objEmp.horas_semana, meses };
+      // Balance acumulado correcto (semanas cerradas + vacaciones descontadas)
+      const balanceAcumulado = await calcularSaldoSemanalAcum(emp.id, emp.fecha_alta, objEmp.horas_semana);
+      return { id: emp.id, nombre: emp.nombre, apellidos: emp.apellidos, departamento: emp.departamento, horas_semana: objEmp.horas_semana, balanceAcumulado, meses };
     }));
 
     if (formato === 'csv') {

@@ -4,45 +4,6 @@ import styles from './AdminFichajesPage.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-// ─── Cálculo del saldo acumulado por semanas completas ───────────────────────
-// Devuelve la suma de (horasTrabajadas - horasObjetivo) de cada semana ISO
-// que haya terminado completamente dentro del periodo (o antes de hoy).
-function getLunesDeSemana(fechaStr) {
-  const d = new Date(fechaStr + 'T12:00:00');
-  const dia = d.getDay(); // 0=Dom
-  const diff = dia === 0 ? -6 : 1 - dia;
-  const lunes = new Date(d);
-  lunes.setDate(d.getDate() + diff);
-  return lunes.toISOString().split('T')[0];
-}
-
-function calcularAcumuladoSemanal(meses, horasSemana, filtroHasta) {
-  const todasJornadas = meses.flatMap(m => m.jornadas);
-  const limiteHasta = filtroHasta ? new Date(filtroHasta + 'T23:59:59') : new Date();
-  const hoy = new Date();
-  const limite = limiteHasta < hoy ? limiteHasta : hoy;
-
-  // Agrupar jornadas por semana (lunes como clave)
-  const semanas = {};
-  for (const j of todasJornadas) {
-    const lunes = getLunesDeSemana(j.fecha);
-    if (!semanas[lunes]) semanas[lunes] = { lunes, minutos: 0 };
-    semanas[lunes].minutos += j.minutos;
-  }
-
-  let acumuladoH = 0;
-  for (const [lunesStr, semana] of Object.entries(semanas)) {
-    // El domingo de esa semana es lunes + 6 días
-    const domingo = new Date(lunesStr + 'T23:59:59');
-    domingo.setDate(domingo.getDate() + 6);
-    // Solo contar semanas completamente cerradas
-    if (domingo > limite) continue;
-    const horasTrabajadas = semana.minutos / 60;
-    acumuladoH += horasTrabajadas - horasSemana;
-  }
-
-  return Math.round(acumuladoH * 100) / 100;
-}
 
 // ─── Generación de PDF del informe ───────────────────────────────────────────
 async function generarInformePDF(empleadosData, filtros) {
@@ -234,8 +195,8 @@ async function generarInformePDF(empleadosData, filtros) {
       cursorY += 10;
     }
 
-    // ── Saldo acumulado semanal al final del empleado ──
-    const acum = calcularAcumuladoSemanal(emp.meses, emp.horas_semana || 40, filtros.hasta);
+    // ── Saldo acumulado semanal al final del empleado (calculado en servidor, con vacaciones) ──
+    const acum = emp.balanceAcumulado ?? 0;
     const saldo = textoSaldo(acum);
 
     if (cursorY > 258) {
@@ -425,8 +386,9 @@ function InformeMensual({ informe, filtros }) {
     weekday: 'short', day: '2-digit', month: '2-digit'
   });
 
+  // balanceAcumulado viene del servidor con vacaciones ya descontadas
   const saldoEmp = emp => {
-    const acum = calcularAcumuladoSemanal(emp.meses, emp.horas_semana || 40, filtros.hasta);
+    const acum = emp.balanceAcumulado ?? 0;
     if (Math.abs(acum) < 0.17) return null;
     if (acum > 0) return { texto: `+${fmtH(acum)} de más acumuladas`, cls: styles.estadoExceso };
     return { texto: `-${fmtH(Math.abs(acum))} acumuladas de deuda`, cls: styles.estadoDeficit };
@@ -711,7 +673,7 @@ export default function AdminFichajesPage() {
           Detalle de fichajes
         </button>
         <button className={vista === 'informe' ? styles.vistaTabActive : styles.vistaTab} onClick={() => setVista('informe')}>
-          📊 Informe mensual
+          Informe
         </button>
       </div>
 
