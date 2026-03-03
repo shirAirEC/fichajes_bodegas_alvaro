@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './AdminReservasPage.module.css';
 
@@ -167,6 +167,111 @@ function NecesidadesEditor({ necesidades = [], onChange }) {
   );
 }
 
+// ─── Panel de avisos ─────────────────────────────────────────────────────────
+function PanelAvisos({ authFetch }) {
+  const [avisos, setAvisos] = useState([]);
+  const [nuevoTitulo, setNuevoTitulo] = useState('');
+  const [nuevoMensaje, setNuevoMensaje] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [expandir, setExpandir] = useState(false);
+
+  const cargar = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/avisos/admin');
+      const data = await res.json();
+      setAvisos(Array.isArray(data) ? data : []);
+    } catch {}
+  }, [authFetch]);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const enviar = async e => {
+    e.preventDefault();
+    if (!nuevoTitulo.trim() || !nuevoMensaje.trim()) return;
+    setEnviando(true);
+    try {
+      await authFetch('/api/avisos', {
+        method: 'POST',
+        body: JSON.stringify({ titulo: nuevoTitulo.trim(), mensaje: nuevoMensaje.trim() })
+      });
+      setNuevoTitulo('');
+      setNuevoMensaje('');
+      cargar();
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const desactivar = async id => {
+    await authFetch(`/api/avisos/${id}/desactivar`, { method: 'PATCH' });
+    cargar();
+  };
+
+  return (
+    <div className={styles.panelAvisos}>
+      <button className={styles.btnAvisosToggle} onClick={() => setExpandir(v => !v)}>
+        📢 Avisos a empleados {avisos.filter(a => a.activo).length > 0 && (
+          <span className={styles.badgeAvisos}>{avisos.filter(a => a.activo).length} activo{avisos.filter(a => a.activo).length !== 1 ? 's' : ''}</span>
+        )}
+        <span className={styles.chevron}>{expandir ? '▲' : '▼'}</span>
+      </button>
+
+      {expandir && (
+        <div className={styles.avisosPanel}>
+          <form onSubmit={enviar} className={styles.avisoForm}>
+            <h4 className={styles.avisoFormTitulo}>Nuevo aviso</h4>
+            <input
+              className={styles.avisoInput}
+              placeholder="Título del aviso"
+              value={nuevoTitulo}
+              onChange={e => setNuevoTitulo(e.target.value)}
+              required
+            />
+            <textarea
+              className={styles.avisoTextarea}
+              placeholder="Mensaje para los empleados..."
+              value={nuevoMensaje}
+              onChange={e => setNuevoMensaje(e.target.value)}
+              rows={3}
+              required
+            />
+            <button type="submit" className={styles.btnEnviarAviso} disabled={enviando}>
+              {enviando ? 'Enviando...' : '📤 Enviar a todos'}
+            </button>
+          </form>
+
+          {avisos.length > 0 && (
+            <div className={styles.avisosLista}>
+              <h4 className={styles.avisoFormTitulo}>Historial</h4>
+              {avisos.map(a => (
+                <div key={a.id} className={`${styles.avisoItem} ${!a.activo ? styles.avisoInactivo : ''}`}>
+                  <div className={styles.avisoItemHeader}>
+                    <span className={styles.avisoItemTitulo}>{a.titulo}</span>
+                    <span className={styles.avisoVisto}>
+                      {a.total_visto ?? 0}/{a.total_empleados ?? 0} visto
+                    </span>
+                    {a.activo && (
+                      <button className={styles.btnDesactivar} onClick={() => desactivar(a.id)} title="Desactivar">✕</button>
+                    )}
+                  </div>
+                  <div className={styles.avisoItemMensaje}>{a.mensaje}</div>
+                  {a.vistos && a.vistos.length > 0 && (
+                    <div className={styles.vistosPor}>
+                      {a.vistos.map((v, i) => (
+                        <span key={i} className={styles.vistoBadge}>{v.nombre} {v.apellidos}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function AdminReservasPage() {
   const { authFetch } = useAuth();
@@ -307,6 +412,8 @@ export default function AdminReservasPage() {
           </div>
         )}
       </div>
+
+      <PanelAvisos authFetch={authFetch} />
 
       <div className={styles.semanaNav}>
         <button className={styles.btnNav} onClick={semanaAnterior}>← Semana anterior</button>

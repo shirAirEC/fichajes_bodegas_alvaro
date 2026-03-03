@@ -24,6 +24,9 @@ frontend/keystore/
 *.jks
 *.keystore
 
+# Firebase service account (secreto, NUNCA subir)
+backend/firebase-service-account*.json
+
 # Logs
 *.log
 npm-debug.log*

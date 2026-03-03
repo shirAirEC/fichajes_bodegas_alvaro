@@ -227,6 +227,69 @@
 .cancelado    { background: #f3f4f6; color: #6b7280; }
 .sinConfirmar { background: #eef2ff; color: #4338ca; }
 
+/* ─── Avisos admin ───────────────────────────────────── */
+.avisosContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.avisoCard {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #fff7ed;
+  border: 2px solid #f97316;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  animation: pulseBorder 2s ease-in-out infinite;
+}
+
+@keyframes pulseBorder {
+  0%, 100% { border-color: #f97316; }
+  50%       { border-color: #fdba74; }
+}
+
+.avisoIcono {
+  font-size: 1.75rem;
+  flex-shrink: 0;
+}
+
+.avisoContenido {
+  flex: 1;
+  min-width: 0;
+}
+
+.avisoTitulo {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #9a3412;
+  margin-bottom: 0.25rem;
+}
+
+.avisoMensaje {
+  font-size: 0.9rem;
+  color: #7c2d12;
+  line-height: 1.4;
+}
+
+.btnConfirmar {
+  flex-shrink: 0;
+  background: #f97316;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.1rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btnConfirmar:hover:not(:disabled) { background: #ea580c; }
+.btnConfirmar:disabled { opacity: 0.6; cursor: not-allowed; }
+
 /* ─── Responsive ─────────────────────────────────────── */
 @media (max-width: 768px) {
   .thead,

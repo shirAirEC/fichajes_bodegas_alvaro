@@ -201,6 +201,41 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE vacaciones ADD COLUMN IF NOT EXISTS saldo_id INTEGER REFERENCES saldos(id) ON DELETE SET NULL`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_vacaciones_empleado ON vacaciones(empleado_id);`);
 
+  // Tokens FCM para push notifications
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fcm_tokens (
+      id SERIAL PRIMARY KEY,
+      empleado_id INTEGER NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
+      token TEXT NOT NULL,
+      plataforma TEXT DEFAULT 'android',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(empleado_id)
+    )
+  `);
+
+  // Avisos de planificación creados por el admin
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS avisos (
+      id SERIAL PRIMARY KEY,
+      admin_id INTEGER NOT NULL REFERENCES empleados(id),
+      titulo TEXT NOT NULL,
+      mensaje TEXT NOT NULL,
+      activo BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // Registro de empleados que han confirmado ver el aviso
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS avisos_visto (
+      id SERIAL PRIMARY KEY,
+      aviso_id INTEGER NOT NULL REFERENCES avisos(id) ON DELETE CASCADE,
+      empleado_id INTEGER NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
+      visto_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(aviso_id, empleado_id)
+    )
+  `);
+
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_fichajes_empleado ON fichajes(empleado_id);
     CREATE INDEX IF NOT EXISTS idx_fichajes_timestamp ON fichajes(timestamp);

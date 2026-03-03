@@ -741,3 +741,153 @@
   transition: background 0.15s;
 }
 .btnAddNecesidad:hover { background: #fffbeb; }
+
+/* ─── Panel Avisos ─────────────────────────────────── */
+.panelAvisos {
+  margin-bottom: 1.25rem;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.btnAvisosToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fff7ed;
+  border: none;
+  padding: 0.85rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #9a3412;
+  cursor: pointer;
+  text-align: left;
+}
+
+.btnAvisosToggle:hover { background: #ffedd5; }
+
+.badgeAvisos {
+  background: #f97316;
+  color: white;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.chevron { margin-left: auto; }
+
+.avisosPanel {
+  padding: 1rem 1.25rem;
+  background: white;
+  border-top: 1px solid #fed7aa;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.avisoForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.avisoFormTitulo {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #374151;
+  margin: 0 0 0.25rem;
+}
+
+.avisoInput {
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.9rem;
+  outline: none;
+}
+.avisoInput:focus { border-color: #f97316; }
+
+.avisoTextarea {
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.9rem;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+}
+.avisoTextarea:focus { border-color: #f97316; }
+
+.btnEnviarAviso {
+  background: #f97316;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.65rem 1.25rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: background 0.15s;
+}
+.btnEnviarAviso:hover:not(:disabled) { background: #ea580c; }
+.btnEnviarAviso:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.avisosLista { display: flex; flex-direction: column; gap: 0.6rem; }
+
+.avisoItem {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.avisoInactivo { opacity: 0.5; }
+
+.avisoItemHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.3rem;
+}
+
+.avisoItemTitulo { font-weight: 700; font-size: 0.9rem; flex: 1; }
+
+.avisoVisto {
+  font-size: 0.8rem;
+  background: #dcfce7;
+  color: #15803d;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-weight: 600;
+}
+
+.btnDesactivar {
+  background: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 5px;
+  padding: 0.15rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+.btnDesactivar:hover { background: #f3f4f6; }
+
+.avisoItemMensaje { font-size: 0.85rem; color: #6b7280; }
+
+.vistosPor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.vistoBadge {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  color: #166534;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.78rem;
+}

@@ -4,6 +4,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { initializeDatabase } = require('./db/database');
+const { initFirebase } = require('./firebase');
 
 const authRoutes = require('./routes/auth');
 const fichajesRoutes = require('./routes/fichajes');
@@ -16,6 +17,7 @@ const notificacionesRoutes = require('./routes/notificaciones');
 const horariosRoutes = require('./routes/horarios');
 const reservasRoutes = require('./routes/reservas');
 const vacacionesRoutes = require('./routes/vacaciones');
+const avisosRoutes = require('./routes/avisos');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -61,11 +63,13 @@ app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/horarios', horariosRoutes);
 app.use('/api/reservas', reservasRoutes);
 app.use('/api/vacaciones', vacacionesRoutes);
+app.use('/api/avisos', avisosRoutes);
 
 app.use('/api/*', (req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
 
 async function start() {
   try {
+    initFirebase();
     console.log('Conectando a PostgreSQL...');
     await initializeDatabase();
     console.log('Base de datos lista.');

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { usePushNotifications } from '../../hooks/usePushNotifications';
 import styles from './PlanPage.module.css';
 
 const ESTADO_INFO = {
@@ -41,7 +42,13 @@ export default function PlanPage() {
   const [reservas, setReservas] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [filasCambiadas, setFilasCambiadas] = useState(new Set());
+  const [avisos, setAvisos] = useState([]);
+  const [confirmando, setConfirmando] = useState(null);
   const lastSeenRef = useRef({});
+  const wakeLockRef = useRef(null);
+
+  // Registrar token FCM para push notifications
+  usePushNotifications(authFetch);
 
   const ahora = new Date();
   const pad = n => String(n).padStart(2, '0');
@@ -75,12 +82,47 @@ export default function PlanPage() {
     }
   }, [authFetch, hoy, hasta]);
 
-  useEffect(() => { cargar(false); }, [cargar]);
+  const cargarAvisos = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/avisos');
+      const data = await res.json();
+      setAvisos(Array.isArray(data) ? data.filter(a => !a.visto) : []);
+    } catch {}
+  }, [authFetch]);
+
+  const confirmarAviso = async (id) => {
+    setConfirmando(id);
+    try {
+      await authFetch(`/api/avisos/${id}/visto`, { method: 'POST' });
+      setAvisos(prev => prev.filter(a => a.id !== id));
+    } finally {
+      setConfirmando(null);
+    }
+  };
+
+  useEffect(() => { cargar(false); cargarAvisos(); }, [cargar, cargarAvisos]);
 
   useEffect(() => {
-    const interval = setInterval(() => cargar(true), 20000);
+    const interval = setInterval(() => { cargar(true); cargarAvisos(); }, 20000);
     return () => clearInterval(interval);
-  }, [cargar]);
+  }, [cargar, cargarAvisos]);
+
+  // Wake Lock: evitar que la pantalla se apague mientras se ve la planificación
+  useEffect(() => {
+    async function activarWakeLock() {
+      if (!('wakeLock' in navigator)) return;
+      try {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+      } catch {}
+    }
+    activarWakeLock();
+    const reactivar = () => { if (document.visibilityState === 'visible') activarWakeLock(); };
+    document.addEventListener('visibilitychange', reactivar);
+    return () => {
+      document.removeEventListener('visibilitychange', reactivar);
+      if (wakeLockRef.current) wakeLockRef.current.release().catch(() => {});
+    };
+  }, []);
 
   const grupos = agruparPorFecha(reservas);
 
@@ -94,6 +136,28 @@ export default function PlanPage() {
           {new Date(hasta + 'T00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
         </span>
       </div>
+
+      {/* Avisos del administrador */}
+      {avisos.length > 0 && (
+        <div className={styles.avisosContainer}>
+          {avisos.map(aviso => (
+            <div key={aviso.id} className={styles.avisoCard}>
+              <div className={styles.avisoIcono}>📢</div>
+              <div className={styles.avisoContenido}>
+                <div className={styles.avisoTitulo}>{aviso.titulo}</div>
+                <div className={styles.avisoMensaje}>{aviso.mensaje}</div>
+              </div>
+              <button
+                className={styles.btnConfirmar}
+                onClick={() => confirmarAviso(aviso.id)}
+                disabled={confirmando === aviso.id}
+              >
+                {confirmando === aviso.id ? '...' : 'Visto ✓'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {cargando && <div className={styles.cargando}>Cargando...</div>}
 
