@@ -9,6 +9,9 @@ const TIPOS = {
   baja_medica: { label: 'Baja médica', unidad: 'días', color: '#e67e22' }
 };
 
+const TIPOS_AUSENCIA = ['vacaciones', 'permiso_especial', 'baja_medica'];
+const HOY = new Date().toISOString().split('T')[0];
+
 const FORM_VACIO = { empleado_id: '', tipo: 'vacaciones', cantidad: '', concepto: '', fecha_referencia: '' };
 
 function formatFecha(ts) {
@@ -121,8 +124,11 @@ export default function AdminSaldosPage() {
       ) : (
         <VistaDetalle
           detalle={detalleEmpleado}
+          empleado={empleadoSeleccionado}
           onEliminar={handleEliminar}
           onNuevo={() => abrirNuevo(empleadoSeleccionado?.id)}
+          authFetch={authFetch}
+          onRecargar={() => empleadoSeleccionado && verDetalle(empleadoSeleccionado.id)}
         />
       )}
 
@@ -239,7 +245,50 @@ function VistaResumen({ empleados, onVerDetalle, onNuevo }) {
   );
 }
 
-function VistaDetalle({ detalle, onEliminar }) {
+function VistaDetalle({ detalle, empleado, onEliminar, onNuevo, authFetch, onRecargar }) {
+  const [periodos, setPeriodos] = useState([]);
+  const [cargandoPer, setCargandoPer] = useState(true);
+  const [formPer, setFormPer] = useState({ tipo: 'vacaciones', fecha_inicio: HOY, fecha_fin: HOY, motivo: '' });
+  const [guardandoPer, setGuardandoPer] = useState(false);
+  const [errorPer, setErrorPer] = useState('');
+
+  const cargarPeriodos = useCallback(async () => {
+    if (!empleado?.id) return;
+    setCargandoPer(true);
+    const r = await authFetch(`/api/vacaciones?empleado_id=${empleado.id}`);
+    const data = await r.json();
+    setPeriodos(Array.isArray(data) ? data : []);
+    setCargandoPer(false);
+  }, [authFetch, empleado?.id]);
+
+  useEffect(() => { cargarPeriodos(); }, [cargarPeriodos]);
+
+  const handleAddPeriodo = async e => {
+    e.preventDefault();
+    if (formPer.fecha_inicio > formPer.fecha_fin) return setErrorPer('La fecha de inicio debe ser anterior o igual a la de fin');
+    setErrorPer(''); setGuardandoPer(true);
+    const r = await authFetch('/api/vacaciones', {
+      method: 'POST',
+      body: JSON.stringify({ empleado_id: empleado.id, ...formPer })
+    });
+    const data = await r.json();
+    if (!r.ok) { setErrorPer(data.error); setGuardandoPer(false); return; }
+    setFormPer({ tipo: 'vacaciones', fecha_inicio: HOY, fecha_fin: HOY, motivo: '' });
+    setGuardandoPer(false);
+    cargarPeriodos();
+    onRecargar(); // recarga saldos para ver el descuento
+  };
+
+  const handleEliminarPeriodo = async id => {
+    if (!confirm('¿Eliminar este período? También se eliminará el descuento de saldo asociado.')) return;
+    await authFetch(`/api/vacaciones/${id}`, { method: 'DELETE' });
+    cargarPeriodos();
+    onRecargar();
+  };
+
+  const fmtFecha = f => new Date(f + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+  const diasPer = (ini, fin) => Math.round((new Date(fin + 'T12:00:00') - new Date(ini + 'T12:00:00')) / 86400000) + 1;
+
   if (!detalle) return <div className={styles.loading}>Cargando...</div>;
   const { resumen, movimientos } = detalle;
 
@@ -256,8 +305,78 @@ function VistaDetalle({ detalle, onEliminar }) {
         ))}
       </div>
 
+      {/* ── Períodos de ausencia ─────────────────────────────────────── */}
+      <div className={styles.ausenciaCard}>
+        <h3 className={styles.subtitulo}>Períodos de ausencia</h3>
+        <p className={styles.ausenciaHelp}>
+          Al registrar un período, los días se descuentan automáticamente del saldo correspondiente
+          y el sistema no esperará fichajes esos días.
+        </p>
+
+        <form onSubmit={handleAddPeriodo} className={styles.ausenciaForm}>
+          {errorPer && <div className={styles.error}>{errorPer}</div>}
+          <div className={styles.ausenciaFormRow}>
+            <div className={styles.field}>
+              <label>Tipo</label>
+              <select value={formPer.tipo} onChange={e => setFormPer(f => ({ ...f, tipo: e.target.value }))}>
+                {TIPOS_AUSENCIA.map(t => (
+                  <option key={t} value={t}>{TIPOS[t].label}</option>
+                ))}
+              </select>
+            </div>
+            <div className={styles.field}>
+              <label>Desde</label>
+              <input type="date" value={formPer.fecha_inicio}
+                onChange={e => setFormPer(f => ({ ...f, fecha_inicio: e.target.value }))} required />
+            </div>
+            <div className={styles.field}>
+              <label>Hasta</label>
+              <input type="date" value={formPer.fecha_fin}
+                onChange={e => setFormPer(f => ({ ...f, fecha_fin: e.target.value }))} required />
+            </div>
+            <div className={`${styles.field} ${styles.fieldFlex}`}>
+              <label>Motivo (opcional)</label>
+              <input type="text" value={formPer.motivo} placeholder="Ej: Vacaciones verano"
+                onChange={e => setFormPer(f => ({ ...f, motivo: e.target.value }))} />
+            </div>
+            <button type="submit" className={styles.btnAusencia} disabled={guardandoPer}>
+              {guardandoPer ? '...' : 'Registrar'}
+            </button>
+          </div>
+        </form>
+
+        <div className={styles.ausenciaLista}>
+          {cargandoPer ? <p className={styles.empty}>Cargando...</p> :
+            periodos.length === 0 ? <p className={styles.empty}>Sin períodos registrados.</p> :
+              periodos.map(p => {
+                const info = TIPOS[p.tipo];
+                return (
+                  <div key={p.id} className={styles.ausenciaItem}>
+                    <span className={styles.ausenciaBadge} style={{ background: info.color + '18', color: info.color }}>
+                      {info.label}
+                    </span>
+                    <div className={styles.ausenciaRango}>
+                      <span className={styles.ausenciaFechas}>
+                        {fmtFecha(p.fecha_inicio)} — {fmtFecha(p.fecha_fin)}
+                      </span>
+                      <span className={styles.ausenciaDias}>{diasPer(p.fecha_inicio, p.fecha_fin)} días</span>
+                    </div>
+                    {p.motivo && <span className={styles.ausenciaMotivo}>{p.motivo}</span>}
+                    <button className={styles.btnEliminar} onClick={() => handleEliminarPeriodo(p.id)} title="Eliminar">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14H6L5,6"/>
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })
+          }
+        </div>
+      </div>
+
+      {/* ── Historial de movimientos ─────────────────────────────────── */}
       <div className={styles.historialCard}>
-        <h3 className={styles.subtitulo}>Historial de movimientos</h3>
+        <h3 className={styles.subtitulo}>Historial de movimientos de saldo</h3>
         {movimientos.length === 0 ? (
           <div className={styles.empty}>Sin movimientos.</div>
         ) : movimientos.map(m => {

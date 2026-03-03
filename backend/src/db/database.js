@@ -182,18 +182,23 @@ async function initializeDatabase() {
 
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_reservas_fecha ON reservas(fecha);`);
 
-  // Tabla de períodos de vacaciones por empleado
+  // Tabla de períodos de ausencia (vacaciones, permiso especial, baja médica)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS vacaciones (
       id SERIAL PRIMARY KEY,
       empleado_id INTEGER NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
       fecha_inicio DATE NOT NULL,
       fecha_fin DATE NOT NULL,
+      tipo TEXT NOT NULL DEFAULT 'vacaciones' CHECK(tipo IN ('vacaciones','permiso_especial','baja_medica')),
       motivo TEXT DEFAULT '',
+      saldo_id INTEGER REFERENCES saldos(id) ON DELETE SET NULL,
       admin_id INTEGER REFERENCES empleados(id),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  // Migraciones por si la tabla ya existía sin las nuevas columnas
+  await pool.query(`ALTER TABLE vacaciones ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'vacaciones'`);
+  await pool.query(`ALTER TABLE vacaciones ADD COLUMN IF NOT EXISTS saldo_id INTEGER REFERENCES saldos(id) ON DELETE SET NULL`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_vacaciones_empleado ON vacaciones(empleado_id);`);
 
   await pool.query(`
