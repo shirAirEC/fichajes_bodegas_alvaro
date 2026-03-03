@@ -21,6 +21,8 @@ function formatTimestamp(ts) {
   return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 }
 
+const REVERT_WINDOW_S = 120; // 2 minutos
+
 export default function FicharPage() {
   const { authFetch, user, notificaciones, marcarNotificacionesLeidas, refrescarNotificaciones } = useAuth();
   const [ahora, setAhora] = useState(new Date());
@@ -32,6 +34,7 @@ export default function FicharPage() {
   const [descansando, setDescansando] = useState(false);
   const [mensaje, setMensaje] = useState(null);
   const [errorRed, setErrorRed] = useState(null);
+  const [segsRevertir, setSegsRevertir] = useState(null);
 
   // Reloj en tiempo real
   useEffect(() => {
@@ -60,6 +63,22 @@ export default function FicharPage() {
 
   // Refrescar notificaciones al entrar a la pantalla (puede haber nuevas desde el último login)
   useEffect(() => { refrescarNotificaciones(); }, [refrescarNotificaciones]);
+
+  // Cuenta atrás para revertir descanso (2 min desde que se registró)
+  useEffect(() => {
+    if (!estado?.enDescanso || !estado?.descansoHoy) {
+      setSegsRevertir(null);
+      return;
+    }
+    const calcular = () => {
+      const transcurridos = Math.floor((Date.now() - new Date(estado.descansoHoy.timestamp).getTime()) / 1000);
+      const restantes = REVERT_WINDOW_S - transcurridos;
+      setSegsRevertir(restantes > 0 ? restantes : 0);
+    };
+    calcular();
+    const id = setInterval(calcular, 1000);
+    return () => clearInterval(id);
+  }, [estado]);
 
   const handleFichar = async () => {
     setFichando(true);
@@ -238,14 +257,19 @@ export default function FicharPage() {
           </div>
         )}
 
-        {enDescanso && (
+        {enDescanso && segsRevertir > 0 && (
           <button
             className={styles.btnRevertirDescanso}
             onClick={handleRevertirDescanso}
             disabled={descansando || fichando}
           >
-            ↩ Revertir descanso (pulsado por error)
+            ↩ Revertir descanso (pulsado por error) · {segsRevertir}s
           </button>
+        )}
+        {enDescanso && segsRevertir === 0 && (
+          <div className={styles.revertirExpirado}>
+            Plazo de corrección expirado · Para corregirlo, avisa al administrador
+          </div>
         )}
 
         {estado?.ultimoFichaje && (

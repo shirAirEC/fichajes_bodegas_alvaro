@@ -188,18 +188,27 @@ router.post('/descanso', authMiddleware, async (req, res) => {
   }
 });
 
-// DELETE /api/fichajes/descanso — revertir descanso pulsado por error
+// DELETE /api/fichajes/descanso — revertir descanso pulsado por error (solo 2 min de plazo)
 router.delete('/descanso', authMiddleware, async (req, res) => {
   try {
     const empleadoId = req.user.id;
 
     // Solo se puede revertir si el estado actual ES descanso (último fichaje es_descanso)
     const { rows: lastRows } = await pool.query(
-      'SELECT id, es_descanso FROM fichajes WHERE empleado_id = $1 AND timestamp <= NOW() ORDER BY timestamp DESC LIMIT 1',
+      'SELECT id, es_descanso, timestamp FROM fichajes WHERE empleado_id = $1 AND timestamp <= NOW() ORDER BY timestamp DESC LIMIT 1',
       [empleadoId]
     );
     if (!lastRows[0] || !lastRows[0].es_descanso) {
       return res.status(400).json({ error: 'No hay ningún descanso activo que revertir.' });
+    }
+
+    // Plazo máximo: 2 minutos desde que se registró
+    const segundosTranscurridos = (Date.now() - new Date(lastRows[0].timestamp).getTime()) / 1000;
+    if (segundosTranscurridos > 120) {
+      return res.status(403).json({
+        error: 'El plazo de 2 minutos para revertir el descanso ha expirado. Pide al administrador que lo corrija.',
+        expirado: true
+      });
     }
 
     await pool.query('DELETE FROM fichajes WHERE id = $1', [lastRows[0].id]);
