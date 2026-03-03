@@ -109,3 +109,8 @@
 .tdSemana { text-align: center; }
 .celdaHoras { font-weight: 600; font-size: 0.9rem; color: #333; }
 .celdaDif { font-size: 0.75rem; margin-top: 0.1rem; }
+
+/* Saldo acumulado en vista semanal */
+.thSaldoAcum { min-width: 130px; }
+.tdSaldoAcum { text-align: center; font-size: 0.85rem; padding: 0.6rem 0.75rem; }
+.neutro { color: #555; font-weight: 600; }

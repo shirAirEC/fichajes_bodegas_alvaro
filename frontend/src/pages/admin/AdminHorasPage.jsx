@@ -228,10 +228,10 @@ export default function AdminHorasPage() {
   const [editConfig, setEditConfig] = useState(false);
   const [configForm, setConfigForm] = useState({});
   const [guardandoConfig, setGuardandoConfig] = useState(false);
-  const [vistaTabla, setVistaTabla] = useState('resumen'); // 'resumen' | 'semanal'
+  const [vistaTabla, setVistaTabla] = useState('semanal'); // 'resumen' | 'semanal'
 
   // Filtros
-  const [modo, setModo] = useState('mes');
+  const [modo, setModo] = useState('semana');
   const [desde, setDesde] = useState(ISO(new Date(hoy.getFullYear(), hoy.getMonth(), 1)));
   const [hasta, setHasta] = useState(ISO(hoy));
 
@@ -376,7 +376,7 @@ export default function AdminHorasPage() {
                         {fmtSemana(s.lunes, s.domingo)}
                       </th>
                     ))}
-                    <th>Balance acum.</th>
+                    <th className={styles.thSaldoAcum}>Saldo acumulado</th>
                   </tr>
                   <tr className={styles.subhead}>
                     <td></td>
@@ -385,32 +385,41 @@ export default function AdminHorasPage() {
                         obj. {fmtH(configGlobal.horas_semana)}
                       </td>
                     ))}
-                    <td></td>
+                    <td className={styles.subheadObj}>semanas cerradas</td>
                   </tr>
                 </thead>
                 <tbody>
-                  {empleados.map(emp => (
-                    <tr key={emp.id}>
-                      <td>
-                        <div className={styles.empNombre}>{emp.nombre} {emp.apellidos}</div>
-                        <div className={styles.empDept}>{emp.departamento}</div>
-                      </td>
-                      {emp.desgloseSemanas.map(s => {
-                        const pos = s.diferencia >= 0;
-                        return (
-                          <td key={s.lunes} className={styles.tdSemana}>
-                            <div className={styles.celdaHoras}>{fmtH(s.trabajadas)}</div>
-                            <div className={`${styles.celdaDif} ${pos ? styles.positivo : styles.negativo}`}>
-                              {pos ? '+' : ''}{fmtH(s.diferencia)}
-                            </div>
-                          </td>
-                        );
-                      })}
-                      <td className={emp.balanceAcumulado >= 0 ? styles.positivo : styles.negativo}>
-                        <strong>{emp.balanceAcumulado >= 0 ? '+' : ''}{fmtH(emp.balanceAcumulado)}</strong>
-                      </td>
-                    </tr>
-                  ))}
+                  {empleados.map(emp => {
+                    const acum = emp.balanceAcumulado;
+                    const acumCls = acum > 0.1 ? styles.positivo : acum < -0.1 ? styles.negativo : styles.neutro;
+                    const acumTexto = acum > 0.1
+                      ? `+${fmtH(acum)} de mas`
+                      : acum < -0.1
+                        ? `${fmtH(acum)} pendientes`
+                        : 'Al dia';
+                    return (
+                      <tr key={emp.id}>
+                        <td>
+                          <div className={styles.empNombre}>{emp.nombre} {emp.apellidos}</div>
+                          <div className={styles.empDept}>{emp.departamento}</div>
+                        </td>
+                        {emp.desgloseSemanas.map(s => {
+                          const pos = s.diferencia >= 0;
+                          return (
+                            <td key={s.lunes} className={styles.tdSemana}>
+                              <div className={styles.celdaHoras}>{fmtH(s.trabajadas)}</div>
+                              <div className={`${styles.celdaDif} ${pos ? styles.positivo : styles.negativo}`}>
+                                {pos ? '+' : ''}{fmtH(s.diferencia)}
+                              </div>
+                            </td>
+                          );
+                        })}
+                        <td className={`${styles.tdSaldoAcum} ${acumCls}`}>
+                          <strong>{acumTexto}</strong>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

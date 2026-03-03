@@ -382,6 +382,32 @@ router.get('/filtro', authMiddleware, async (req, res) => {
 // ─── RUTAS ADMIN ──────────────────────────────────────────────────────────────
 
 // Genera array de semanas [{lunes, domingo}] dentro de un rango
+// Calcula el saldo acumulado basado en semanas ISO completamente cerradas
+// (lunes a domingo, el domingo debe haber pasado)
+async function calcularSaldoSemanalAcum(empleadoId, fechaAlta, objetivoSemanal) {
+  const hoy = new Date();
+  // Obtener el último domingo completamente pasado
+  const diaSemana = hoy.getDay(); // 0=Dom, 1=Lun…
+  // Si hoy es domingo (0) retrocedemos 7 días; si es lunes (1) retrocedemos 1 día, etc.
+  const diasAtras = diaSemana === 0 ? 7 : diaSemana;
+  const ultimoDomingo = new Date(hoy);
+  ultimoDomingo.setDate(hoy.getDate() - diasAtras);
+  const ultimoDomingoStr = ultimoDomingo.toISOString().split('T')[0];
+
+  // Si el empleado se incorporó después del último domingo → no hay semanas cerradas
+  if (!fechaAlta || fechaAlta > ultimoDomingoStr) return 0;
+
+  const semanas = semanasEnPeriodo(fechaAlta, ultimoDomingoStr)
+    .filter(s => s.domingo <= ultimoDomingoStr);
+
+  let saldo = 0;
+  for (const s of semanas) {
+    const { horasTrabajadas, horasAjuste } = await calcularBalancePeriodo(empleadoId, s.lunes, s.domingo);
+    saldo += horasTrabajadas + horasAjuste - objetivoSemanal;
+  }
+  return Math.round(saldo * 100) / 100;
+}
+
 function semanasEnPeriodo(fechaInicio, fechaFin) {
   const semanas = [];
   const inicio = new Date(fechaInicio + 'T12:00:00');
@@ -468,14 +494,8 @@ router.get('/admin/todos', authMiddleware, adminMiddleware, async (req, res) => 
         };
       }));
 
-      // Balance acumulado histórico
-      const mesesHist = mesesDesdeAlta(emp.fecha_alta);
-      let balanceAcum = 0;
-      for (const m of mesesHist) {
-        const { horasTrabajadas: ht, horasAjuste: ha } = await calcularBalancePeriodo(emp.id, m.primerDia, m.ultimoDia);
-        const objM = await getObjetivoMes(emp.id, m.anio, m.mes);
-        balanceAcum += ht + ha - objM;
-      }
+      // Balance acumulado por semanas cerradas
+      const balanceAcum = await calcularSaldoSemanalAcum(emp.id, emp.fecha_alta, objetivo.horas_semana);
 
       return {
         id: emp.id, nombre: emp.nombre, apellidos: emp.apellidos, departamento: emp.departamento,
@@ -493,7 +513,7 @@ router.get('/admin/todos', authMiddleware, adminMiddleware, async (req, res) => 
           diferencia: Math.round((horasTrabajadas + horasAjuste - objetivoPeriodo) * 100) / 100
         },
         desgloseSemanas,
-        balanceAcumulado: Math.round(balanceAcum * 100) / 100
+        balanceAcumulado: balanceAcum
       };
     }));
 
