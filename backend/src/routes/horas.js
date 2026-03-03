@@ -484,20 +484,30 @@ async function calcularSaldoSemanalAcum(empleadoId, fechaAlta, objetivoSemanal) 
   ultimoDomingo.setDate(hoy.getDate() - diasAtras);
   const ultimoDomingoStr = ultimoDomingo.toISOString().split('T')[0];
 
-  // Si el empleado se incorporó después del último domingo → no hay semanas cerradas
-  if (!fechaAlta || fechaAlta > ultimoDomingoStr) return 0;
+  // Suma TODOS los ajustes manuales del empleado (sin filtro de fecha)
+  // para que ajustes de la semana actual (aún abierta) también cuenten
+  const ajustesTotal = await pool.query(
+    'SELECT COALESCE(SUM(cantidad_horas), 0) AS total FROM ajustes_horas WHERE empleado_id = $1',
+    [empleadoId]
+  );
+  const totalAjustes = parseFloat(ajustesTotal.rows[0].total) || 0;
+
+  // Si el empleado se incorporó después del último domingo → solo ajustes
+  if (!fechaAlta || fechaAlta > ultimoDomingoStr) return Math.round(totalAjustes * 100) / 100;
 
   const semanas = semanasEnPeriodo(fechaAlta, ultimoDomingoStr)
     .filter(s => s.domingo <= ultimoDomingoStr);
 
   let saldo = 0;
   for (const s of semanas) {
-    const { horasTrabajadas, horasAjuste } = await calcularBalancePeriodo(empleadoId, s.lunes, s.domingo);
+    const { horasTrabajadas } = await calcularBalancePeriodo(empleadoId, s.lunes, s.domingo);
     // Objetivo real de esa semana: aplica horario + vacaciones (puede ser < horas_semana si hay ausencias)
     const objSemana = await calcularObjetivoRango(empleadoId, s.lunes, s.domingo);
     const objetivoEfectivo = objSemana !== null ? objSemana : objetivoSemanal;
-    saldo += horasTrabajadas + horasAjuste - objetivoEfectivo;
+    saldo += horasTrabajadas - objetivoEfectivo;
   }
+  // Sumar todos los ajustes manuales por separado (independientemente de la semana)
+  saldo += totalAjustes;
   return Math.round(saldo * 100) / 100;
 }
 
