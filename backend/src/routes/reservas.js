@@ -1,8 +1,36 @@
 const express = require('express');
 const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
+const { enviarPushMultiple } = require('../firebase');
 
 const router = express.Router();
+
+// Crea un aviso automático y envía push a todos los empleados activos
+async function notificarCambioPlanificacion(adminId, titulo, mensaje) {
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO avisos (admin_id, titulo, mensaje) VALUES ($1, $2, $3) RETURNING id`,
+      [adminId, titulo, mensaje]
+    );
+    const avisoId = rows[0].id;
+
+    const { rows: tokens } = await pool.query(
+      `SELECT f.token FROM fcm_tokens f
+       JOIN empleados e ON e.id = f.empleado_id
+       WHERE e.activo = 1 AND e.rol = 'empleado'`
+    );
+    if (tokens.length) {
+      await enviarPushMultiple(
+        tokens.map(t => t.token),
+        titulo,
+        mensaje,
+        { tipo: 'cambio_planificacion', aviso_id: String(avisoId) }
+      );
+    }
+  } catch (err) {
+    console.error('Error notificando cambio planificación:', err.message);
+  }
+}
 
 // Middleware: acceso público solo con token TV
 async function tvTokenMiddleware(req, res, next) {
@@ -91,7 +119,14 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
         orden || 0, req.user.id
       ]
     );
-    res.status(201).json(rows[0]);
+    const reserva = rows[0];
+    const fechaStr = new Date(reserva.fecha + 'T00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    notificarCambioPlanificacion(
+      req.user.id,
+      'Planificacion actualizada',
+      `Nueva reserva: ${reserva.nombre} el ${fechaStr}${reserva.hora ? ' a las ' + reserva.hora.slice(0,5) : ''}`
+    );
+    res.status(201).json(reserva);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -127,7 +162,14 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
       ]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Reserva no encontrada' });
-    res.json(rows[0]);
+    const reserva = rows[0];
+    const fechaStr = new Date(reserva.fecha + 'T00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    notificarCambioPlanificacion(
+      req.user.id,
+      'Planificacion actualizada',
+      `Cambio en reserva: ${reserva.nombre} el ${fechaStr}${reserva.hora ? ' a las ' + reserva.hora.slice(0,5) : ''}`
+    );
+    res.json(reserva);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -137,8 +179,17 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
 // DELETE /api/reservas/:id (solo admin)
 router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    const { rows: prev } = await pool.query('SELECT nombre, fecha FROM reservas WHERE id = $1', [req.params.id]);
     const { rowCount } = await pool.query('DELETE FROM reservas WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Reserva no encontrada' });
+    if (prev[0]) {
+      const fechaStr = new Date(prev[0].fecha + 'T00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+      notificarCambioPlanificacion(
+        req.user.id,
+        'Planificacion actualizada',
+        `Reserva cancelada: ${prev[0].nombre} el ${fechaStr}`
+      );
+    }
     res.json({ message: 'Reserva eliminada' });
   } catch (err) {
     console.error(err);
