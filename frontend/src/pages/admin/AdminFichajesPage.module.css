@@ -3,12 +3,22 @@
 .topBar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
 .title { font-family: var(--font-heading); font-size: 1.75rem; color: var(--color-primary); margin: 0; }
 
+.topBtns { display: flex; gap: 0.5rem; align-items: center; }
+
 .btnExportar {
   display: flex; align-items: center; gap: 0.5rem;
   padding: 0.625rem 1.25rem; background: var(--color-secondary); color: var(--color-dark);
   border: none; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 600; transition: var(--transition);
 }
 .btnExportar:hover { background: var(--color-secondary-dark); }
+
+.btnPDF {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.625rem 1.25rem; background: #c0392b; color: white;
+  border: none; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 600; transition: var(--transition);
+}
+.btnPDF:hover:not(:disabled) { background: #a93226; }
+.btnPDF:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .filtros { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: center; }
 .filtroSelect, .filtroInput {

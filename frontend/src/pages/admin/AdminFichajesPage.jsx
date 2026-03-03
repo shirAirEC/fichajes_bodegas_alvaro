@@ -4,6 +4,192 @@ import styles from './AdminFichajesPage.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+// ─── Generación de PDF del informe ───────────────────────────────────────────
+async function generarInformePDF(informe, filtros, empleados) {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pW = doc.internal.pageSize.getWidth();
+
+  const fmtH = h => {
+    const abs = Math.abs(h);
+    const hh = Math.floor(abs);
+    const mm = Math.round((abs - hh) * 60);
+    return mm > 0 ? `${hh}h ${mm}m` : `${hh}h`;
+  };
+  const fmtMin = m => {
+    const h = Math.floor(Math.abs(m) / 60);
+    const mm = Math.abs(m) % 60;
+    return mm > 0 ? `${h}h ${mm}m` : `${h}h`;
+  };
+  const fmtHora = ts => ts
+    ? new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+    : '—';
+  const fmtFecha = str => new Date(str + 'T12:00:00').toLocaleDateString('es-ES', {
+    weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric'
+  });
+  const fmtDif = h => `${h > 0 ? '+' : ''}${fmtH(h)}`;
+
+  const VERDE  = [39, 174, 96];
+  const ROJO   = [192, 57, 43];
+  const GRIS   = [120, 120, 120];
+  const AZUL   = [52, 73, 94];
+  const CLARO  = [248, 249, 251];
+  const BORDE  = [220, 225, 230];
+
+  // ── Cabecera de página ──
+  const dibujarCabeceraPagina = pageNum => {
+    doc.setFillColor(...AZUL);
+    doc.rect(0, 0, pW, 18, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Bodegas Álvaro · Informe de fichajes', 14, 12);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Pág. ${pageNum}`, pW - 14, 12, { align: 'right' });
+  };
+
+  // ── Filtros aplicados ──
+  const empLabel = filtros.empleado_id
+    ? empleados.find(e => String(e.id) === String(filtros.empleado_id))
+      ? (() => { const e = empleados.find(x => String(x.id) === String(filtros.empleado_id)); return `${e.nombre} ${e.apellidos}`; })()
+      : 'Empleado seleccionado'
+    : 'Todos los empleados';
+
+  const subtitulo = `Periodo: ${filtros.desde} → ${filtros.hasta}  ·  Empleado: ${empLabel}  ·  Generado: ${new Date().toLocaleDateString('es-ES')}`;
+
+  let pagina = 1;
+  dibujarCabeceraPagina(pagina);
+
+  doc.setTextColor(...GRIS);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'italic');
+  doc.text(subtitulo, 14, 24);
+
+  let cursorY = 30;
+
+  for (const emp of informe) {
+    if (!emp.meses.length) continue;
+
+    // ── Nombre del empleado ──
+    if (cursorY > 260) {
+      doc.addPage();
+      pagina++;
+      dibujarCabeceraPagina(pagina);
+      cursorY = 26;
+    }
+
+    doc.setFillColor(...CLARO);
+    doc.setDrawColor(...BORDE);
+    doc.roundedRect(10, cursorY, pW - 20, 9, 1.5, 1.5, 'FD');
+    doc.setTextColor(...AZUL);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${emp.nombre} ${emp.apellidos}${emp.departamento ? '  ·  ' + emp.departamento : ''}`, 14, cursorY + 6);
+    cursorY += 13;
+
+    for (const m of emp.meses) {
+      // ── Título mes ──
+      if (cursorY > 255) {
+        doc.addPage();
+        pagina++;
+        dibujarCabeceraPagina(pagina);
+        cursorY = 26;
+      }
+
+      doc.setTextColor(...GRIS);
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text(m.label.toUpperCase(), 14, cursorY);
+      cursorY += 4;
+
+      // ── Tabla de jornadas ──
+      const filas = m.jornadas.map(j => [
+        fmtFecha(j.fecha),
+        fmtHora(j.primeraEntrada),
+        j.enCurso ? 'En curso' : fmtHora(j.ultimaSalida),
+        fmtMin(j.minutos)
+      ]);
+
+      autoTable(doc, {
+        startY: cursorY,
+        margin: { left: 14, right: 14 },
+        head: [['Fecha', 'Entrada', 'Salida', 'Horas']],
+        body: filas,
+        foot: [[
+          { content: `Total ${m.label}`, colSpan: 3, styles: { fontStyle: 'bold', halign: 'right' } },
+          { content: fmtMin(m.trabajadas * 60), styles: { fontStyle: 'bold', halign: 'center' } }
+        ]],
+        showFoot: 'lastPage',
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2.5, textColor: [50, 50, 50] },
+        headStyles: { fillColor: AZUL, textColor: 255, fontStyle: 'bold', fontSize: 8, halign: 'center' },
+        footStyles: { fillColor: CLARO, textColor: AZUL, fontSize: 8 },
+        columnStyles: {
+          0: { cellWidth: 52 },
+          1: { halign: 'center', cellWidth: 28 },
+          2: { halign: 'center', cellWidth: 28 },
+          3: { halign: 'center', cellWidth: 22 }
+        },
+        alternateRowStyles: { fillColor: [252, 253, 254] },
+        didDrawPage: () => {
+          pagina = doc.internal.getCurrentPageInfo().pageNumber;
+          dibujarCabeceraPagina(pagina);
+        }
+      });
+
+      cursorY = doc.lastAutoTable.finalY + 3;
+
+      // ── Resumen mes ──
+      const difColor = m.diferencia > 0 ? ROJO : m.diferencia < 0 ? VERDE : GRIS;
+      doc.setFillColor(245, 247, 250);
+      doc.roundedRect(14, cursorY, pW - 28, 8, 1, 1, 'F');
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...GRIS);
+      doc.text(`Trabajadas: `, 18, cursorY + 5.2);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(50, 50, 50);
+      doc.text(fmtH(m.trabajadas), 40, cursorY + 5.2);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...GRIS);
+      doc.text(`Objetivo: `, 60, cursorY + 5.2);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(50, 50, 50);
+      doc.text(fmtH(m.objetivo), 78, cursorY + 5.2);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...GRIS);
+      doc.text(`Diferencia: `, 100, cursorY + 5.2);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...difColor);
+      doc.text(fmtDif(m.diferencia), 122, cursorY + 5.2);
+
+      cursorY += 13;
+    }
+
+    cursorY += 4;
+  }
+
+  // ── Pie con fecha de generación ──
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(...BORDE);
+    doc.line(14, 288, pW - 14, 288);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...GRIS);
+    doc.text(`Bodegas Álvaro · Informe generado el ${new Date().toLocaleString('es-ES')}`, 14, 293);
+    doc.text(`${i} / ${totalPages}`, pW - 14, 293, { align: 'right' });
+  }
+
+  const desde = filtros.desde || 'inicio';
+  const hasta = filtros.hasta || 'hoy';
+  doc.save(`informe_${desde}_${hasta}.pdf`);
+}
+
 function fmtHora(ts) {
   if (!ts) return '—';
   return new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
@@ -334,7 +520,7 @@ export default function AdminFichajesPage() {
     else cargarDetalle();
   };
 
-  const handleExportar = () => {
+  const handleExportarCSV = () => {
     const params = new URLSearchParams();
     if (filtros.empleado_id) params.append('empleado_id', filtros.empleado_id);
     if (filtros.desde) params.append('desde', filtros.desde);
@@ -363,6 +549,10 @@ export default function AdminFichajesPage() {
     }
   };
 
+  const handleExportarPDF = () => {
+    generarInformePDF(informe, filtros, empleados);
+  };
+
   const totalHorasJornadas = jornadas.reduce((s, j) => s + j.minutosTrabajados, 0);
   const totalPaginas = Math.ceil(total / LIMITE);
 
@@ -370,12 +560,23 @@ export default function AdminFichajesPage() {
     <div className={styles.page}>
       <div className={styles.topBar}>
         <h1 className={styles.title}>Fichajes</h1>
-        <button onClick={handleExportar} className={styles.btnExportar}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          {vista === 'informe' ? 'Descargar informe CSV' : 'Exportar CSV'}
-        </button>
+        <div className={styles.topBtns}>
+          {vista === 'informe' && (
+            <button onClick={handleExportarPDF} className={styles.btnPDF} disabled={!informe.length}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/>
+              </svg>
+              Descargar PDF
+            </button>
+          )}
+          <button onClick={handleExportarCSV} className={styles.btnExportar}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            {vista === 'informe' ? 'CSV' : 'Exportar CSV'}
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
