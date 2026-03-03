@@ -377,6 +377,7 @@ export default function AdminHorasPage() {
                       </th>
                     ))}
                     <th className={styles.thSaldoAcum}>Saldo acumulado</th>
+                    <th></th>
                   </tr>
                   <tr className={styles.subhead}>
                     <td></td>
@@ -386,6 +387,7 @@ export default function AdminHorasPage() {
                       </td>
                     ))}
                     <td className={styles.subheadObj}>semanas cerradas</td>
+                    <td></td>
                   </tr>
                 </thead>
                 <tbody>
@@ -416,6 +418,12 @@ export default function AdminHorasPage() {
                         })}
                         <td className={`${styles.tdSaldoAcum} ${acumCls}`}>
                           <strong>{acumTexto}</strong>
+                        </td>
+                        <td>
+                          <div className={styles.acciones}>
+                            <button className={styles.btnAcc} onClick={() => setModalDetalle(emp.id)} title="Ver historial">📋</button>
+                            <button className={styles.btnAcc} onClick={() => setModalAjuste(emp)} title="Ajustar horas">✏️</button>
+                          </div>
                         </td>
                       </tr>
                     );
