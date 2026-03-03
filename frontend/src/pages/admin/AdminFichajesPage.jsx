@@ -26,6 +26,15 @@ function fmtFechaHora(ts) {
 function FilaJornada({ jornada, onEliminarFichaje, onEditarFichaje }) {
   const [expandida, setExpandida] = useState(false);
 
+  // Detectar si hubo descanso en esta jornada y calcular hora de vuelta
+  const descansoFichaje = jornada.fichajes.find(f => f.es_descanso);
+  let vueltaDescanso = null;
+  if (descansoFichaje) {
+    const idxDesc = jornada.fichajes.indexOf(descansoFichaje);
+    const siguiente = jornada.fichajes[idxDesc + 1];
+    if (siguiente?.tipo === 'entrada') vueltaDescanso = siguiente;
+  }
+
   return (
     <>
       <tr
@@ -41,6 +50,11 @@ function FilaJornada({ jornada, onEliminarFichaje, onEditarFichaje }) {
         <td>
           <span className={styles.horasValor}>{fmtDuracion(jornada.minutosTrabajados)}</span>
           {jornada.enProgreso && <span className={styles.badgeVivo}>en curso</span>}
+          {descansoFichaje && (
+            <span className={styles.badgeDescanso} title={`Descanso: ${fmtHora(descansoFichaje.timestamp)}${vueltaDescanso ? ` → ${fmtHora(vueltaDescanso.timestamp)}` : ' (sin vuelta)'}`}>
+              ☕
+            </span>
+          )}
         </td>
         <td className={styles.tdHorario}>
           {jornada.primeraEntrada ? (
@@ -59,33 +73,60 @@ function FilaJornada({ jornada, onEliminarFichaje, onEditarFichaje }) {
         <tr className={styles.filaDetalle}>
           <td colSpan={6}>
             <div className={styles.detalleContainer}>
+              {descansoFichaje && (
+                <div className={styles.descansoResumen}>
+                  <span className={styles.descansoResumenIcon}>☕</span>
+                  <span>
+                    <strong>Descanso:</strong> inicio {fmtHora(descansoFichaje.timestamp)}
+                    {vueltaDescanso
+                      ? <> · vuelta {fmtHora(vueltaDescanso.timestamp)} · duración real {fmtDuracion(Math.round((new Date(vueltaDescanso.timestamp) - new Date(descansoFichaje.timestamp)) / 60000))}</>
+                      : <em> · aún en descanso</em>
+                    }
+                    <span className={styles.descansoResumenCredito}> (+30 min acreditados)</span>
+                  </span>
+                </div>
+              )}
               <div className={styles.detalleTimeline}>
-                {jornada.fichajes.map((f, i) => (
-                  <div key={f.id} className={`${styles.dtItem} ${f.tipo === 'entrada' ? styles.dtEntrada : styles.dtSalida}`}>
-                    <div className={styles.dtDot} />
-                    <div className={styles.dtInfo}>
-                      <span className={styles.dtTipo}>{f.tipo === 'entrada' ? '▶ Entrada' : '■ Salida'}</span>
-                      <span className={styles.dtHora}>{fmtFechaHora(f.timestamp)}</span>
-                      {i > 0 && f.tipo === 'salida' && jornada.fichajes[i - 1]?.tipo === 'entrada' && (
-                        <span className={styles.dtDuracion}>
-                          {fmtDuracion(Math.round((new Date(f.timestamp) - new Date(jornada.fichajes[i - 1].timestamp)) / 60000))}
-                        </span>
-                      )}
+                {jornada.fichajes.map((f, i) => {
+                  const esDescansoItem = f.es_descanso;
+                  const esVueltaDescanso = vueltaDescanso && f.id === vueltaDescanso.id;
+                  let tipoLabel = f.tipo === 'entrada' ? '▶ Entrada' : '■ Salida';
+                  if (esDescansoItem) tipoLabel = '☕ Inicio descanso';
+                  if (esVueltaDescanso) tipoLabel = '▶ Vuelta del descanso';
+                  const itemClass = esDescansoItem
+                    ? styles.dtDescanso
+                    : esVueltaDescanso
+                    ? styles.dtVuelta
+                    : f.tipo === 'entrada' ? styles.dtEntrada : styles.dtSalida;
+
+                  return (
+                    <div key={f.id} className={`${styles.dtItem} ${itemClass}`}>
+                      <div className={styles.dtDot} />
+                      <div className={styles.dtInfo}>
+                        <span className={styles.dtTipo}>{tipoLabel}</span>
+                        <span className={styles.dtHora}>{fmtFechaHora(f.timestamp)}</span>
+                        {i > 0 && f.tipo === 'salida' && !esDescansoItem && jornada.fichajes[i - 1]?.tipo === 'entrada' && (
+                          <span className={styles.dtDuracion}>
+                            {fmtDuracion(Math.round((new Date(f.timestamp) - new Date(jornada.fichajes[i - 1].timestamp)) / 60000))}
+                          </span>
+                        )}
+                        {esDescansoItem && <span className={styles.dtCreditoBadge}>+30 min</span>}
+                      </div>
+                      <div className={styles.dtActions}>
+                        <button
+                          className={styles.btnEditar}
+                          onClick={e => { e.stopPropagation(); onEditarFichaje(f); }}
+                          title="Editar fichaje"
+                        >✏️</button>
+                        <button
+                          className={styles.btnBorrar}
+                          onClick={e => { e.stopPropagation(); onEliminarFichaje(f.id); }}
+                          title="Eliminar este fichaje"
+                        >✕</button>
+                      </div>
                     </div>
-                    <div className={styles.dtActions}>
-                      <button
-                        className={styles.btnEditar}
-                        onClick={e => { e.stopPropagation(); onEditarFichaje(f); }}
-                        title="Editar fichaje"
-                      >✏️</button>
-                      <button
-                        className={styles.btnBorrar}
-                        onClick={e => { e.stopPropagation(); onEliminarFichaje(f.id); }}
-                        title="Eliminar este fichaje"
-                      >✕</button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </td>

@@ -117,10 +117,29 @@ export default function FicharPage() {
     }
   };
 
+  const handleRevertirDescanso = async () => {
+    if (!window.confirm('¿Revertir el descanso? Se eliminará el registro y no se acreditarán los 30 minutos.')) return;
+    setDescansando(true);
+    setMensaje(null);
+    try {
+      const res = await authFetch('/api/fichajes/descanso', { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setMensaje({ tipo: 'success', texto: 'Descanso revertido. Puedes continuar trabajando.' });
+      await cargarEstado();
+    } catch (err) {
+      setMensaje({ tipo: 'error', texto: err.message || 'Error al revertir descanso' });
+    } finally {
+      setDescansando(false);
+      setTimeout(() => setMensaje(null), 6000);
+    }
+  };
+
   if (cargando) return <div className={styles.loading}>Cargando...</div>;
 
   const esDentro = estado?.dentro;
   const enDescanso = estado?.enDescanso;
+  const yaDescanso = estado?.yaDescanso;
   const hayNotificaciones = notificaciones?.length > 0;
   const proximoTipo = estado?.proximoTipo;
   const redActiva = config?.ip_activo === '1';
@@ -199,7 +218,7 @@ export default function FicharPage() {
           )}
         </button>
 
-        {esDentro && (
+        {esDentro && !yaDescanso && (
           <button
             className={styles.btnDescanso}
             onClick={handleDescanso}
@@ -210,6 +229,22 @@ export default function FicharPage() {
             ) : (
               <>☕ Iniciar descanso (30 min)</>
             )}
+          </button>
+        )}
+
+        {esDentro && yaDescanso && (
+          <div className={styles.descansoUsado}>
+            ☕ Descanso ya utilizado hoy
+          </div>
+        )}
+
+        {enDescanso && (
+          <button
+            className={styles.btnRevertirDescanso}
+            onClick={handleRevertirDescanso}
+            disabled={descansando || fichando}
+          >
+            ↩ Revertir descanso (pulsado por error)
           </button>
         )}
 

@@ -206,6 +206,38 @@
   color: var(--color-success);
 }
 
+.descansoUsado {
+  width: 100%;
+  background: #f5f5f5;
+  border: 1.5px solid #ddd;
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 1rem;
+  font-size: 0.85rem;
+  color: #999;
+  text-align: center;
+  font-weight: 500;
+}
+
+.btnRevertirDescanso {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border: 1.5px dashed #c0392b;
+  border-radius: var(--radius-sm);
+  background: #fdf3f2;
+  color: #c0392b;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.btnRevertirDescanso:hover:not(:disabled) {
+  background: #fce4e1;
+}
+.btnRevertirDescanso:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .spinner {
   width: 22px;
   height: 22px;

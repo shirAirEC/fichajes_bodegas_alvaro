@@ -115,7 +115,18 @@ router.get('/estado', authMiddleware, async (req, res) => {
     const ultimo = rows[0] || null;
     const dentro = ultimo?.tipo === 'entrada';
     const enDescanso = !dentro && ultimo?.es_descanso === true;
-    res.json({ dentro, enDescanso, ultimoFichaje: ultimo, proximoTipo: dentro ? 'salida' : 'entrada' });
+
+    // Comprobar si ya hubo un descanso hoy
+    const { rows: descHoy } = await pool.query(
+      `SELECT id, timestamp FROM fichajes
+       WHERE empleado_id = $1 AND es_descanso = TRUE AND timestamp::date = CURRENT_DATE
+       ORDER BY timestamp DESC LIMIT 1`,
+      [req.user.id]
+    );
+    const yaDescanso = descHoy.length > 0;
+    const descansoHoy = descHoy[0] || null;
+
+    res.json({ dentro, enDescanso, ultimoFichaje: ultimo, proximoTipo: dentro ? 'salida' : 'entrada', yaDescanso, descansoHoy });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
@@ -133,6 +144,16 @@ router.post('/descanso', authMiddleware, async (req, res) => {
     );
     if (!lastRows[0] || lastRows[0].tipo !== 'entrada') {
       return res.status(400).json({ error: 'Solo puedes iniciar el descanso si estás dentro del trabajo.' });
+    }
+
+    // Solo un descanso por jornada (por día)
+    const { rows: descHoy } = await pool.query(
+      `SELECT id FROM fichajes
+       WHERE empleado_id = $1 AND es_descanso = TRUE AND timestamp::date = CURRENT_DATE`,
+      [empleadoId]
+    );
+    if (descHoy.length > 0) {
+      return res.status(400).json({ error: 'Ya has utilizado el descanso de hoy. Solo se permite un descanso por jornada.' });
     }
 
     // Validar red WiFi si está activa
@@ -163,6 +184,28 @@ router.post('/descanso', authMiddleware, async (req, res) => {
     res.status(201).json({ fichaje: rows[0] });
   } catch (err) {
     console.error('Descanso error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// DELETE /api/fichajes/descanso — revertir descanso pulsado por error
+router.delete('/descanso', authMiddleware, async (req, res) => {
+  try {
+    const empleadoId = req.user.id;
+
+    // Solo se puede revertir si el estado actual ES descanso (último fichaje es_descanso)
+    const { rows: lastRows } = await pool.query(
+      'SELECT id, es_descanso FROM fichajes WHERE empleado_id = $1 AND timestamp <= NOW() ORDER BY timestamp DESC LIMIT 1',
+      [empleadoId]
+    );
+    if (!lastRows[0] || !lastRows[0].es_descanso) {
+      return res.status(400).json({ error: 'No hay ningún descanso activo que revertir.' });
+    }
+
+    await pool.query('DELETE FROM fichajes WHERE id = $1', [lastRows[0].id]);
+    res.json({ message: 'Descanso revertido correctamente.' });
+  } catch (err) {
+    console.error('Revertir descanso error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
