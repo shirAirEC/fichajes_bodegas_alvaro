@@ -5,7 +5,6 @@ import styles from './AdminFichajesPage.module.css';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 // ─── Generación de PDF del informe ───────────────────────────────────────────
-// empleadosData: array de empleados del informe (puede ser 1 o todos)
 async function generarInformePDF(empleadosData, filtros) {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
@@ -14,17 +13,20 @@ async function generarInformePDF(empleadosData, filtros) {
   const pW = doc.internal.pageSize.getWidth();
   const pH = doc.internal.pageSize.getHeight();
 
-  // ─ Colores del sistema ─
-  const PRIMARY   = [139, 38, 53];    // #8B2635 burdeos
-  const PRIMARY_L = [245, 236, 238];  // burdeos muy claro
-  const GOLD      = [201, 169, 97];   // #c9a961 dorado
-  const CREAM     = [245, 241, 232];  // #f5f1e8 crema
-  const BORDER    = [224, 216, 200];  // #e0d8c8
+  const PRIMARY   = [139, 38, 53];
+  const PRIMARY_L = [245, 236, 238];
+  const GOLD      = [201, 169, 97];
+  const CREAM     = [245, 241, 232];
+  const BORDER    = [224, 216, 200];
   const TEXT      = [45, 45, 45];
   const TEXT_L    = [102, 102, 102];
-  const VERDE     = [45, 122, 58];    // success
-  const ROJO      = [192, 57, 43];    // error
+  const VERDE     = [45, 122, 58];
+  const ROJO      = [192, 57, 43];
   const WHITE     = [255, 255, 255];
+
+  const hoyObj = new Date();
+  const mesActual  = hoyObj.getMonth() + 1;
+  const anioActual = hoyObj.getFullYear();
 
   const fmtH = h => {
     const abs = Math.abs(h);
@@ -39,37 +41,36 @@ async function generarInformePDF(empleadosData, filtros) {
   };
   const fmtHora = ts => ts
     ? new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-    : '—';
+    : '--';
   const fmtFecha = str => new Date(str + 'T12:00:00').toLocaleDateString('es-ES', {
     weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric'
   });
 
-  // Estado del mes simplificado
-  const estadoMes = dif => {
-    if (Math.abs(dif) < 0.17) return { texto: 'Al día', color: VERDE, signo: '✓' };
-    if (dif > 0) return { texto: `+${fmtH(dif)} de más`, color: ROJO, signo: '▲' };
-    return { texto: `-${fmtH(Math.abs(dif))} pendientes`, color: VERDE, signo: '▼' };
+  // Calcula el estado solo para meses cerrados (pasados).
+  // Mes en curso o diferencia insignificante -> null (no mostrar nada)
+  const estadoMes = m => {
+    const esMesEnCurso = m.mes === mesActual && m.anio === anioActual;
+    if (esMesEnCurso) return null;
+    if (Math.abs(m.diferencia) < 0.17) return null;
+    if (m.diferencia > 0) return { texto: `+${fmtH(m.diferencia)} de mas`, color: ROJO };
+    return { texto: `-${fmtH(Math.abs(m.diferencia))} pendientes`, color: VERDE };
   };
 
   let paginaNum = 1;
 
   const dibujarCabecera = () => {
-    // Banda superior burdeos
     doc.setFillColor(...PRIMARY);
     doc.rect(0, 0, pW, 22, 'F');
-    // Línea dorada
     doc.setFillColor(...GOLD);
     doc.rect(0, 22, pW, 1.5, 'F');
-    // Logo/Título
     doc.setTextColor(...WHITE);
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('BODEGAS ÁLVARO', 14, 10);
+    doc.text('BODEGAS ALVARO', 14, 10);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.text('Informe de horas y fichajes', 14, 17);
-    doc.setFontSize(8);
-    doc.text(`Pág. ${paginaNum}`, pW - 14, 14, { align: 'right' });
+    doc.text(`Pag. ${paginaNum}`, pW - 14, 14, { align: 'right' });
   };
 
   const dibujarPie = () => {
@@ -79,42 +80,40 @@ async function generarInformePDF(empleadosData, filtros) {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_L);
     doc.text(
-      `Bodegas Álvaro · Generado el ${new Date().toLocaleString('es-ES')}  ·  Periodo: ${filtros.desde || '—'} a ${filtros.hasta || '—'}`,
+      `Bodegas Alvaro - Generado el ${new Date().toLocaleString('es-ES')}  -  Periodo: ${filtros.desde || '-'} a ${filtros.hasta || '-'}`,
       14, pH - 5
     );
     doc.text(`${paginaNum}`, pW - 14, pH - 5, { align: 'right' });
   };
 
-  // ── Primera página ──
   dibujarCabecera();
   dibujarPie();
 
-  // Bloque informativo del periodo/empleado
+  // Bloque de cabecera del informe
+  const esUno = empleadosData.length === 1;
+  const empLabel = esUno
+    ? `${empleadosData[0].nombre} ${empleadosData[0].apellidos}${empleadosData[0].departamento ? ' - ' + empleadosData[0].departamento : ''}`
+    : `${empleadosData.length} empleados`;
+
   doc.setFillColor(...CREAM);
   doc.setDrawColor(...BORDER);
   doc.roundedRect(14, 27, pW - 28, 10, 1.5, 1.5, 'FD');
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_L);
-  const esUno = empleadosData.length === 1;
-  const empLabel = esUno
-    ? `${empleadosData[0].nombre} ${empleadosData[0].apellidos}${empleadosData[0].departamento ? '  ·  ' + empleadosData[0].departamento : ''}`
-    : `${empleadosData.length} empleados`;
-  doc.text(`Empleado: `, 18, 33.5);
+  doc.text('Empleado:', 18, 33.5);
   doc.setTextColor(...TEXT);
   doc.setFont('helvetica', 'bold');
-  doc.text(empLabel, 37, 33.5);
+  doc.text(empLabel, 38, 33.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_L);
-  doc.text(`Periodo: ${filtros.desde || '—'} → ${filtros.hasta || '—'}`, pW / 2, 33.5);
+  doc.text(`Periodo: ${filtros.desde || '-'} a ${filtros.hasta || '-'}`, pW - 18, 33.5, { align: 'right' });
 
-  let cursorY = 41;
+  let cursorY = 42;
 
-  for (let ei = 0; ei < empleadosData.length; ei++) {
-    const emp = empleadosData[ei];
+  for (const emp of empleadosData) {
     if (!emp.meses.length) continue;
 
-    // ── Separador de empleado (si hay varios) ──
     if (!esUno) {
       if (cursorY > 255) {
         doc.addPage(); paginaNum++;
@@ -125,17 +124,22 @@ async function generarInformePDF(empleadosData, filtros) {
       doc.setTextColor(...WHITE);
       doc.setFontSize(9.5);
       doc.setFont('helvetica', 'bold');
-      doc.text(`${emp.nombre} ${emp.apellidos}${emp.departamento ? '  ·  ' + emp.departamento : ''}`, 18, cursorY + 6.2);
+      doc.text(
+        `${emp.nombre} ${emp.apellidos}${emp.departamento ? ' - ' + emp.departamento : ''}`,
+        18, cursorY + 6.2
+      );
       cursorY += 13;
     }
 
     for (const m of emp.meses) {
-      if (cursorY > 250) {
+      if (cursorY > 252) {
         doc.addPage(); paginaNum++;
         dibujarCabecera(); dibujarPie(); cursorY = 28;
       }
 
-      // Título del mes con línea dorada
+      const est = estadoMes(m);
+
+      // Barra dorada + nombre del mes
       doc.setFillColor(...GOLD);
       doc.rect(14, cursorY, 3, 7, 'F');
       doc.setTextColor(...TEXT);
@@ -143,43 +147,46 @@ async function generarInformePDF(empleadosData, filtros) {
       doc.setFont('helvetica', 'bold');
       doc.text(m.label.toUpperCase(), 20, cursorY + 5.2);
 
-      // Estado del mes (a la derecha del título)
-      const est = estadoMes(m.diferencia);
+      // Horas trabajadas (siempre) y estado solo si hay algo que reportar
       doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...est.color);
-      const estTexto = `${est.signo}  ${est.texto}  ·  ${fmtH(m.trabajadas)} trabajadas`;
-      doc.text(estTexto, pW - 18, cursorY + 5.2, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      if (est) {
+        doc.setTextColor(...est.color);
+        doc.setFont('helvetica', 'bold');
+        doc.text(est.texto, pW - 18, cursorY + 5.2, { align: 'right' });
+      } else {
+        doc.setTextColor(...TEXT_L);
+        doc.text(`${fmtH(m.trabajadas)} trabajadas`, pW - 18, cursorY + 5.2, { align: 'right' });
+      }
 
       cursorY += 10;
 
       // Tabla de jornadas
-      const filas = m.jornadas.map(j => [
-        fmtFecha(j.fecha),
-        fmtHora(j.primeraEntrada),
-        j.enCurso ? 'En curso' : fmtHora(j.ultimaSalida),
-        fmtMin(j.minutos)
-      ]);
-
       autoTable(doc, {
         startY: cursorY,
         margin: { left: 14, right: 14 },
-        head: [['Fecha', 'Entrada', 'Salida', 'Horas trabajadas']],
-        body: filas,
+        head: [['Fecha', 'Entrada', 'Salida', 'Horas']],
+        body: m.jornadas.map(j => [
+          fmtFecha(j.fecha),
+          fmtHora(j.primeraEntrada),
+          j.enCurso ? 'En curso' : fmtHora(j.ultimaSalida),
+          fmtMin(j.minutos)
+        ]),
         theme: 'plain',
         styles: {
-          fontSize: 8, cellPadding: { top: 3, bottom: 3, left: 4, right: 4 },
-          textColor: TEXT, lineColor: BORDER, lineWidth: 0.3
+          fontSize: 8,
+          cellPadding: { top: 2.5, bottom: 2.5, left: 4, right: 4 },
+          textColor: TEXT, lineColor: BORDER, lineWidth: 0.25
         },
         headStyles: {
           fillColor: CREAM, textColor: PRIMARY, fontStyle: 'bold',
-          fontSize: 7.5, halign: 'center', lineColor: BORDER, lineWidth: 0.3
+          fontSize: 7.5, halign: 'center', lineColor: BORDER, lineWidth: 0.25
         },
         columnStyles: {
-          0: { cellWidth: 55 },
-          1: { halign: 'center', cellWidth: 30 },
-          2: { halign: 'center', cellWidth: 30 },
-          3: { halign: 'center', cellWidth: 35 }
+          0: { cellWidth: 56 },
+          1: { halign: 'center', cellWidth: 32 },
+          2: { halign: 'center', cellWidth: 32 },
+          3: { halign: 'center', cellWidth: 30 }
         },
         alternateRowStyles: { fillColor: [250, 248, 244] },
         didDrawPage: () => {
@@ -190,26 +197,31 @@ async function generarInformePDF(empleadosData, filtros) {
 
       cursorY = doc.lastAutoTable.finalY;
 
-      // Fila resumen total del mes
-      const est2 = estadoMes(m.diferencia);
+      // Fila total del mes
       doc.setFillColor(...PRIMARY_L);
-      doc.rect(14, cursorY, pW - 28, 8, 'F');
+      doc.rect(14, cursorY, pW - 28, 7.5, 'F');
       doc.setDrawColor(...BORDER);
-      doc.rect(14, cursorY, pW - 28, 8, 'S');
+      doc.rect(14, cursorY, pW - 28, 7.5, 'S');
       doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...PRIMARY);
-      doc.text(`Total ${m.label}`, 18, cursorY + 5.3);
-      doc.setTextColor(...est2.color);
-      doc.text(`${est2.signo}  ${est2.texto}`, pW - 18, cursorY + 5.3, { align: 'right' });
+      doc.text(`Total ${m.label}:`, 18, cursorY + 5);
+      if (est) {
+        doc.setTextColor(...est.color);
+        doc.text(est.texto, pW - 18, cursorY + 5, { align: 'right' });
+      } else {
+        doc.setTextColor(...TEXT_L);
+        doc.setFont('helvetica', 'normal');
+        doc.text(fmtH(m.trabajadas), pW - 18, cursorY + 5, { align: 'right' });
+      }
 
-      cursorY += 14;
+      cursorY += 12;
     }
 
-    cursorY += 3;
+    cursorY += 4;
   }
 
-  // ── Añadir pie a todas las páginas ──
+  // Redibujar pie en todas las páginas con número correcto
   const totalPags = doc.internal.getNumberOfPages();
   for (let i = 1; i <= totalPags; i++) {
     doc.setPage(i);
@@ -378,10 +390,15 @@ function InformeMensual({ informe, filtros }) {
     weekday: 'short', day: '2-digit', month: '2-digit'
   });
 
-  const estadoMes = dif => {
-    if (Math.abs(dif) < 0.17) return { texto: 'Al día', cls: styles.estadoOk };
-    if (dif > 0) return { texto: `+${fmtH(dif)} de más`, cls: styles.estadoExceso };
-    return { texto: `-${fmtH(Math.abs(dif))} pendientes`, cls: styles.estadoDeficit };
+  const hoyObj = new Date();
+  const mesActual  = hoyObj.getMonth() + 1;
+  const anioActual = hoyObj.getFullYear();
+
+  const estadoMes = m => {
+    const esMesEnCurso = m.mes === mesActual && m.anio === anioActual;
+    if (esMesEnCurso || Math.abs(m.diferencia) < 0.17) return null;
+    if (m.diferencia > 0) return { texto: `+${fmtH(m.diferencia)} de más`, cls: styles.estadoExceso };
+    return { texto: `-${fmtH(Math.abs(m.diferencia))} pendientes`, cls: styles.estadoDeficit };
   };
 
   if (!informe.length) return <p className={styles.empty}>No hay datos en el periodo seleccionado.</p>;
@@ -412,7 +429,7 @@ function InformeMensual({ informe, filtros }) {
           </div>
 
           {expandidos[`emp_${emp.id}`] && emp.meses.map(m => {
-            const est = estadoMes(m.diferencia);
+            const est = estadoMes(m);
             return (
               <div key={m.label} className={styles.informeMes}>
                 <div className={styles.informeMesHeader}>
@@ -422,9 +439,11 @@ function InformeMensual({ informe, filtros }) {
                       <span className={styles.informeStatLabel}>Trabajadas</span>
                       <strong>{fmtH(m.trabajadas)}</strong>
                     </span>
-                    <span className={`${styles.informeEstado} ${est.cls}`}>
-                      {est.texto}
-                    </span>
+                    {est && (
+                      <span className={`${styles.informeEstado} ${est.cls}`}>
+                        {est.texto}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -448,9 +467,11 @@ function InformeMensual({ informe, filtros }) {
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className={`${styles.informeTotalFila} ${est.cls}`}>
+                    <tr className={`${styles.informeTotalFila} ${est ? est.cls : ''}`}>
                       <td colSpan={3}><strong>Total {m.label}</strong></td>
-                      <td><strong>{fmtH(m.trabajadas)} · {est.texto}</strong></td>
+                      <td>
+                        <strong>{fmtH(m.trabajadas)}{est ? ` · ${est.texto}` : ''}</strong>
+                      </td>
                     </tr>
                   </tfoot>
                 </table>
