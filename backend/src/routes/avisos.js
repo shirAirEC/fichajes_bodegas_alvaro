@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db/database');
-const { verificarToken, verificarAdmin } = require('../middleware/auth');
+const { authMiddleware: verificarToken, adminMiddleware: verificarAdmin } = require('../middleware/auth');
 const { enviarPushMultiple, enviarPush } = require('../firebase');
 
 // ── Registrar / actualizar token FCM del dispositivo ─────────────────────────
