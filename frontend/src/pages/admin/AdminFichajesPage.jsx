@@ -95,12 +95,108 @@ function FilaJornada({ jornada, onEliminarFichaje, onEditarFichaje }) {
   );
 }
 
+// ─── Informe mensual ──────────────────────────────────────────────────────────
+function InformeMensual({ informe }) {
+  const [expandidos, setExpandidos] = useState({});
+  const toggle = key => setExpandidos(s => ({ ...s, [key]: !s[key] }));
+
+  const fmtH = h => {
+    const abs = Math.abs(h);
+    const hh = Math.floor(abs);
+    const mm = Math.round((abs - hh) * 60);
+    return mm > 0 ? `${hh}h ${mm}m` : `${hh}h`;
+  };
+  const fmtMin = m => {
+    const h = Math.floor(Math.abs(m) / 60);
+    const mm = Math.abs(m) % 60;
+    return mm > 0 ? `${h}h ${mm}m` : `${h}h`;
+  };
+  const fmtHora = ts => ts
+    ? new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+    : '—';
+  const fmtFecha = str => new Date(str + 'T12:00:00').toLocaleDateString('es-ES', {
+    weekday: 'short', day: '2-digit', month: '2-digit'
+  });
+
+  if (!informe.length) return <p className={styles.empty}>No hay datos en el periodo seleccionado.</p>;
+
+  return (
+    <div className={styles.informeWrap}>
+      {informe.map(emp => (
+        <div key={emp.id} className={styles.informeEmp}>
+          <div className={styles.informeEmpHeader} onClick={() => toggle(`emp_${emp.id}`)}>
+            <span className={styles.informeEmpNombre}>{emp.nombre} {emp.apellidos}</span>
+            {emp.departamento && <span className={styles.informeEmpDept}>{emp.departamento}</span>}
+            <span className={styles.informeChevron}>{expandidos[`emp_${emp.id}`] ? '▴' : '▾'}</span>
+          </div>
+
+          {expandidos[`emp_${emp.id}`] && emp.meses.map(m => (
+            <div key={m.label} className={styles.informeMes}>
+              {/* Cabecera mes con resumen */}
+              <div className={styles.informeMesHeader}>
+                <span className={styles.informeMesLabel}>{m.label}</span>
+                <div className={styles.informeMesStats}>
+                  <span className={styles.informeStat}>
+                    <span className={styles.informeStatLabel}>Trabajadas</span>
+                    <strong>{fmtH(m.trabajadas)}</strong>
+                  </span>
+                  <span className={styles.informeStat}>
+                    <span className={styles.informeStatLabel}>Objetivo</span>
+                    <strong>{fmtH(m.objetivo)}</strong>
+                  </span>
+                  <span className={`${styles.informeStat} ${m.diferencia > 0 ? styles.exceso : styles.deficit}`}>
+                    <span className={styles.informeStatLabel}>Diferencia</span>
+                    <strong>{m.diferencia > 0 ? '+' : ''}{fmtH(m.diferencia)}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Tabla de jornadas */}
+              <table className={styles.informeTabla}>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Entrada</th>
+                    <th>Salida</th>
+                    <th>Horas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {m.jornadas.map(j => (
+                    <tr key={j.fecha} className={styles.informeFila}>
+                      <td>{fmtFecha(j.fecha)}</td>
+                      <td>{fmtHora(j.primeraEntrada)}</td>
+                      <td>{j.enCurso ? <em className={styles.enCurso}>en curso</em> : fmtHora(j.ultimaSalida)}</td>
+                      <td><strong>{fmtMin(j.minutos)}</strong></td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className={styles.informeTotalFila}>
+                    <td colSpan={3}><strong>Total {m.label}</strong></td>
+                    <td>
+                      <strong className={m.diferencia > 0 ? styles.excessText : styles.deficitText}>
+                        {fmtH(m.trabajadas)}
+                      </strong>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function AdminFichajesPage() {
   const { authFetch } = useAuth();
   const [vista, setVista] = useState('jornadas');
   const [jornadas, setJornadas] = useState([]);
   const [fichajes, setFichajes] = useState([]);
+  const [informe, setInforme] = useState([]);
   const [empleados, setEmpleados] = useState([]);
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(1);
@@ -112,8 +208,8 @@ export default function AdminFichajesPage() {
   const LIMITE = 50;
 
   const hoy = new Date().toISOString().split('T')[0];
-  const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
-  const [filtros, setFiltros] = useState({ empleado_id: '', desde: hace30, hasta: hoy });
+  const inicioAnio = `${new Date().getFullYear()}-01-01`;
+  const [filtros, setFiltros] = useState({ empleado_id: '', desde: inicioAnio, hasta: hoy });
 
   useEffect(() => {
     authFetch('/api/empleados').then(r => r.json()).then(setEmpleados);
@@ -144,10 +240,23 @@ export default function AdminFichajesPage() {
     setCargando(false);
   }, [authFetch, pagina, filtros]);
 
+  const cargarInforme = useCallback(async () => {
+    setCargando(true);
+    const params = new URLSearchParams();
+    if (filtros.empleado_id) params.append('empleado_id', filtros.empleado_id);
+    if (filtros.desde) params.append('desde', filtros.desde);
+    if (filtros.hasta) params.append('hasta', filtros.hasta);
+    const res = await authFetch(`/api/horas/admin/informe?${params}`);
+    const data = await res.json();
+    setInforme(Array.isArray(data) ? data : []);
+    setCargando(false);
+  }, [authFetch, filtros]);
+
   useEffect(() => {
     if (vista === 'jornadas') cargarJornadas();
-    else cargarDetalle();
-  }, [vista, cargarJornadas, cargarDetalle]);
+    else if (vista === 'detalle') cargarDetalle();
+    else cargarInforme();
+  }, [vista, cargarJornadas, cargarDetalle, cargarInforme]);
 
   const handleEliminarFichaje = async (id) => {
     if (!window.confirm('¿Eliminar este fichaje?')) return;
@@ -190,14 +299,27 @@ export default function AdminFichajesPage() {
     if (filtros.desde) params.append('desde', filtros.desde);
     if (filtros.hasta) params.append('hasta', filtros.hasta);
     const token = localStorage.getItem('fichajes_token');
-    fetch(`${API_URL}/api/fichajes/admin/exportar?${params}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.blob())
-      .then(blob => {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `fichajes_${filtros.desde}_${filtros.hasta}.csv`;
-        a.click();
-      });
+
+    if (vista === 'informe') {
+      params.append('formato', 'csv');
+      fetch(`${API_URL}/api/horas/admin/informe?${params}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.blob())
+        .then(blob => {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `informe_${filtros.desde}_${filtros.hasta}.csv`;
+          a.click();
+        });
+    } else {
+      fetch(`${API_URL}/api/fichajes/admin/exportar?${params}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.blob())
+        .then(blob => {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `fichajes_${filtros.desde}_${filtros.hasta}.csv`;
+          a.click();
+        });
+    }
   };
 
   const totalHorasJornadas = jornadas.reduce((s, j) => s + j.minutosTrabajados, 0);
@@ -211,7 +333,7 @@ export default function AdminFichajesPage() {
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
-          Exportar CSV
+          {vista === 'informe' ? 'Descargar informe CSV' : 'Exportar CSV'}
         </button>
       </div>
 
@@ -227,7 +349,12 @@ export default function AdminFichajesPage() {
         <span className={styles.filtroSep}>→</span>
         <input type="date" className={styles.filtroInput} value={filtros.hasta}
           onChange={e => setFiltros(f => ({ ...f, hasta: e.target.value }))} />
-        <button className={styles.btnFiltrar} onClick={() => { setPagina(1); vista === 'jornadas' ? cargarJornadas() : cargarDetalle(); }}>
+        <button className={styles.btnFiltrar} onClick={() => {
+          setPagina(1);
+          if (vista === 'jornadas') cargarJornadas();
+          else if (vista === 'detalle') cargarDetalle();
+          else cargarInforme();
+        }}>
           Buscar
         </button>
       </div>
@@ -240,10 +367,15 @@ export default function AdminFichajesPage() {
         <button className={vista === 'detalle' ? styles.vistaTabActive : styles.vistaTab} onClick={() => setVista('detalle')}>
           Detalle de fichajes
         </button>
+        <button className={vista === 'informe' ? styles.vistaTabActive : styles.vistaTab} onClick={() => setVista('informe')}>
+          📊 Informe mensual
+        </button>
       </div>
 
       {cargando ? (
         <div className={styles.loading}>Cargando...</div>
+      ) : vista === 'informe' ? (
+        <InformeMensual informe={informe} />
       ) : vista === 'jornadas' ? (
         <>
           {jornadas.length > 0 && (

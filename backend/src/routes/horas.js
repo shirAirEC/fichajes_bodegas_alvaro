@@ -637,4 +637,166 @@ router.put('/admin/config', authMiddleware, adminMiddleware, async (req, res) =>
   }
 });
 
+// ─── INFORME HISTÓRICO ────────────────────────────────────────────────────────
+
+const MESES_ES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
+  'Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function fmtMinutos(m) {
+  const h = Math.floor(Math.abs(m) / 60);
+  const mm = Math.abs(m) % 60;
+  return mm > 0 ? `${h}h ${mm}m` : `${h}h`;
+}
+function fmtDiferencia(h) {
+  const abs = Math.abs(h);
+  const hh = Math.floor(abs);
+  const mm = Math.round((abs - hh) * 60);
+  const s = h < 0 ? '-' : '+';
+  return mm > 0 ? `${s}${hh}h ${mm}m` : `${s}${hh}h`;
+}
+function fmtHoraTs(ts) {
+  if (!ts) return '';
+  return new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Atlantic/Canary' });
+}
+
+// GET /api/horas/admin/informe?empleado_id=&desde=&hasta=&formato=csv
+router.get('/admin/informe', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { empleado_id, desde, hasta, formato } = req.query;
+
+    const hoyStr = new Date().toISOString().split('T')[0];
+    const primerMes = `${new Date().getFullYear()}-01-01`;
+    const fechaDesde = desde || primerMes;
+    const fechaHasta = hasta || hoyStr;
+
+    // Empleados a incluir
+    const { rows: empleados } = empleado_id
+      ? await pool.query(
+          'SELECT id, nombre, apellidos, departamento, fecha_alta FROM empleados WHERE id = $1',
+          [empleado_id]
+        )
+      : await pool.query(
+          "SELECT id, nombre, apellidos, departamento, fecha_alta FROM empleados WHERE activo=1 AND rol='empleado' ORDER BY apellidos"
+        );
+
+    const informe = await Promise.all(empleados.map(async emp => {
+      // Fichajes del periodo
+      const { rows: fichajes } = await pool.query(
+        `SELECT tipo, timestamp, es_descanso
+         FROM fichajes
+         WHERE empleado_id = $1
+           AND timestamp::date >= $2::date
+           AND timestamp::date <= $3::date
+         ORDER BY timestamp ASC`,
+        [emp.id, fechaDesde, fechaHasta]
+      );
+
+      // Agrupar por fecha (local Canarias)
+      const porFecha = {};
+      for (const f of fichajes) {
+        const fecha = new Date(f.timestamp)
+          .toLocaleDateString('es-ES', { timeZone: 'Atlantic/Canary', year: 'numeric', month: '2-digit', day: '2-digit' })
+          .split('/').reverse().join('-'); // DD/MM/YYYY → YYYY-MM-DD
+        if (!porFecha[fecha]) porFecha[fecha] = [];
+        porFecha[fecha].push(f);
+      }
+
+      // Calcular minutos por jornada
+      const jornadas = Object.entries(porFecha).map(([fecha, fs]) => {
+        let entrada = null;
+        let minutos = 0;
+        let descansos = 0;
+        let primeraEntrada = null;
+        let ultimaSalida = null;
+        for (const f of fs) {
+          if (f.tipo === 'entrada') {
+            const t = new Date(f.timestamp);
+            if (!primeraEntrada) primeraEntrada = f.timestamp;
+            entrada = t;
+          } else if (f.tipo === 'salida' && entrada) {
+            minutos += (new Date(f.timestamp) - entrada) / 60000;
+            ultimaSalida = f.timestamp;
+            entrada = null;
+            if (f.es_descanso) descansos++;
+          }
+        }
+        minutos += descansos * 30;
+        return { fecha, minutos: Math.round(minutos), primeraEntrada, ultimaSalida, enCurso: entrada !== null };
+      }).sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+      // Agrupar por mes
+      const porMes = {};
+      for (const j of jornadas) {
+        const [anio, mes] = j.fecha.split('-').map(Number);
+        const key = `${anio}-${String(mes).padStart(2, '0')}`;
+        if (!porMes[key]) porMes[key] = { anio, mes, jornadas: [] };
+        porMes[key].jornadas.push(j);
+      }
+
+      const meses = await Promise.all(
+        Object.values(porMes).sort((a, b) => a.anio - b.anio || a.mes - b.mes).map(async m => {
+          const objetivo = await getObjetivoMes(emp.id, m.anio, m.mes);
+          const minutosTotal = m.jornadas.reduce((s, j) => s + j.minutos, 0);
+          const trabajadas = Math.round(minutosTotal / 60 * 100) / 100;
+          return {
+            anio: m.anio, mes: m.mes,
+            label: `${MESES_ES[m.mes]} ${m.anio}`,
+            objetivo: Math.round(objetivo * 100) / 100,
+            trabajadas,
+            diferencia: Math.round((trabajadas - objetivo) * 100) / 100,
+            jornadas: m.jornadas
+          };
+        })
+      );
+
+      return { id: emp.id, nombre: emp.nombre, apellidos: emp.apellidos, departamento: emp.departamento, meses };
+    }));
+
+    if (formato === 'csv') {
+      const cabecera = 'Empleado;Departamento;Mes;Fecha;Día semana;Entrada;Salida;Horas trabajadas;Objetivo mes (h);Diferencia mes\n';
+      const filas = [];
+      for (const emp of informe) {
+        for (const m of emp.meses) {
+          for (const j of m.jornadas) {
+            const diasES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+            const diaSem = diasES[new Date(j.fecha + 'T12:00:00').getDay()];
+            const fechaES = new Date(j.fecha + 'T12:00:00').toLocaleDateString('es-ES');
+            filas.push([
+              `${emp.nombre} ${emp.apellidos}`,
+              emp.departamento || '',
+              m.label,
+              fechaES,
+              diaSem,
+              fmtHoraTs(j.primeraEntrada),
+              j.enCurso ? 'En curso' : fmtHoraTs(j.ultimaSalida),
+              fmtMinutos(j.minutos),
+              m.objetivo,
+              fmtDiferencia(m.diferencia)
+            ].join(';'));
+          }
+          // Fila resumen del mes
+          filas.push([
+            `${emp.nombre} ${emp.apellidos}`,
+            emp.departamento || '',
+            m.label,
+            'TOTAL MES', '', '', '',
+            fmtMinutos(m.trabajadas * 60),
+            m.objetivo,
+            fmtDiferencia(m.diferencia)
+          ].join(';'));
+          filas.push(''); // línea vacía entre meses
+        }
+      }
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="informe_${fechaDesde}_${fechaHasta}.csv"`);
+      return res.send('\uFEFF' + cabecera + filas.join('\n'));
+    }
+
+    res.json(informe);
+  } catch (err) {
+    console.error('informe error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 module.exports = router;
