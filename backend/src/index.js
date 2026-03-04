@@ -30,6 +30,8 @@ const origenesPermitidos = [
   'https://localhost',
   'capacitor://localhost',
   'http://localhost',
+  // Vercel producción
+  'https://fichajes-bodegas-alvaro.vercel.app',
   // Vercel develop preview
   'https://fichajes-bodegas-alvaro-git-develop-shirairs-projects.vercel.app',
 ];
@@ -40,6 +42,8 @@ if (process.env.FRONTEND_URL) {
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || process.env.NODE_ENV !== 'production') return callback(null, true);
+    // Permitir cualquier subdominio de vercel.app (previews dinámicos)
+    if (origin && origin.endsWith('.vercel.app')) return callback(null, true);
     if (origenesPermitidos.includes(origin)) return callback(null, true);
     callback(new Error(`CORS bloqueado: ${origin}`));
   },

@@ -1,6 +1,18 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/:path*",
+      "has": [{ "type": "host", "value": ".*-git-develop-.*\\.vercel\\.app" }],
+      "destination": "https://fichajesbodegasalvaro-developed.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://fichajesbodegasalvaro-production.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
