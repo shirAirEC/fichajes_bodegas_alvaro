@@ -309,7 +309,11 @@ export default function FicharPage() {
                     </span>
                     <div className={styles.tiRight}>
                       <span className={styles.tiHora}>{formatTimestamp(f.timestamp)}</span>
-                      {f.es_descanso && <span className={styles.tiDescansoBadge}>+30 min</span>}
+                      {f.es_descanso && (
+                      <span className={styles.tiDescansoBadge}>
+                        +{(() => { const m = f.notas?.match(/(\d+)\s*min/); return m ? m[1] : descansoMinutos; })()} min
+                      </span>
+                    )}
                     </div>
                   </div>
                 </div>
