@@ -44,9 +44,17 @@ router.post('/restore', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Truncar en orden inverso para respetar FK
+    // Truncar en orden inverso usando savepoints para no abortar la transacción si una tabla no existe
+    let tspIdx = 0;
     for (const tabla of [...TABLAS].reverse()) {
-      try { await client.query(`TRUNCATE TABLE ${tabla} CASCADE`); } catch (e) {}
+      const tsp = `tsp${tspIdx++}`;
+      try {
+        await client.query(`SAVEPOINT ${tsp}`);
+        await client.query(`TRUNCATE TABLE ${tabla} CASCADE`);
+        await client.query(`RELEASE SAVEPOINT ${tsp}`);
+      } catch (e) {
+        await client.query(`ROLLBACK TO SAVEPOINT ${tsp}`);
+      }
     }
 
     const errores = [];
