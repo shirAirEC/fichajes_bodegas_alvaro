@@ -1,184 +1,347 @@
 .page {
-  max-width: 900px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 1.25rem 1.5rem 3rem;
 }
 
+/* ─── Cabecera ─────────────────────────────────────────── */
 .header {
   display: flex;
-  align-items: baseline;
-  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 1.5rem;
+  gap: 1rem;
   flex-wrap: wrap;
 }
 
-.titulo {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #1a1a1a;
-  margin: 0;
-}
-
-.rango {
-  font-size: 0.9rem;
-  color: #6b7280;
-}
-
-.cargando { text-align: center; color: #6b7280; padding: 2rem; }
-
-.vacio {
-  text-align: center;
-  color: #6b7280;
-  padding: 3rem;
-  font-size: 1rem;
-}
-
-.grupos {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-}
-
-/* ─── Bloque día ─────────────────────────────────────── */
-.diaBloque { display: flex; flex-direction: column; gap: 0.4rem; }
-
-.diaHeader {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #1a1a1a;
-  margin: 0;
-  padding-bottom: 0.4rem;
-  border-bottom: 2px solid #8b1a1a;
-  text-transform: capitalize;
-}
-
-/* ─── Tabla ─────────────────────────────────────────── */
-.tabla {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.thead {
-  display: grid;
-  grid-template-columns: 70px 1fr 60px 130px 1fr;
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
-  padding: 0.5rem 0.75rem;
-  gap: 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: #9ca3af;
-  letter-spacing: 0.06em;
-}
-
-.filaWrapper {
-  border-bottom: 1px solid #f3f4f6;
-}
-.filaWrapper:last-child { border-bottom: none; }
-.filaWrapper:hover { background: #f9fafb; }
-
-.fila {
-  display: grid;
-  grid-template-columns: 70px 1fr 60px 130px 1fr;
-  gap: 0.75rem;
-  padding: 0.7rem 0.75rem 0.4rem;
-  align-items: start;
-}
-
-.filaCancelada {
-  opacity: 0.45;
-}
-.filaCancelada .fila {
-  text-decoration: line-through;
-}
-
-@keyframes resaltarFila {
-  0%   { background: #fefce8; }
-  60%  { background: #fefce8; }
-  100% { background: transparent; }
-}
-.filaActualizada { animation: resaltarFila 5s ease-out forwards; }
-
-.tdHora {
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: #1a1a1a;
-  padding-top: 0.1rem;
-}
-
-.tdNombre {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #111827;
-}
-
-.tdPax {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding-top: 0.1rem;
-}
-
-.paxNum {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #374151;
-}
-
-.tdEstado { padding-top: 0.1rem; }
-
-.tdNombre {
+.headerLeft {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+}
+
+.titulo {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #111827;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.rango {
+  font-size: 0.88rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.reloj {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #8b1a1a;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* ─── Avisos urgentes ──────────────────────────────────── */
+.avisosContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.avisoCard {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: linear-gradient(135deg, #fff7ed, #fff3e0);
+  border: 2.5px solid #f97316;
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  animation: pulseBorder 2s ease-in-out infinite;
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.15);
+}
+
+@keyframes pulseBorder {
+  0%, 100% { border-color: #f97316; box-shadow: 0 4px 16px rgba(249,115,22,0.15); }
+  50%       { border-color: #fb923c; box-shadow: 0 4px 24px rgba(249,115,22,0.3); }
+}
+
+.avisoIcono {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.avisoContenido {
+  flex: 1;
+  min-width: 0;
+}
+
+.avisoTitulo {
+  font-weight: 800;
+  font-size: 1rem;
+  color: #9a3412;
+  margin-bottom: 0.2rem;
+}
+
+.avisoMensaje {
+  font-size: 0.92rem;
+  color: #7c2d12;
+  line-height: 1.45;
+}
+
+.btnConfirmar {
+  flex-shrink: 0;
+  background: #f97316;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 1.2rem;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.btnConfirmar:hover:not(:disabled) {
+  background: #ea580c;
+  transform: scale(1.02);
+}
+.btnConfirmar:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ─── Estados ──────────────────────────────────────────── */
+.cargando { text-align: center; color: #9ca3af; padding: 2rem; font-size: 1rem; }
+
+.vacio {
+  text-align: center;
+  color: #9ca3af;
+  padding: 4rem 2rem;
+  font-size: 1.1rem;
+}
+
+/* ─── Grupos por día ───────────────────────────────────── */
+.grupos {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.diaBloque {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.diaHeader {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 2.5px solid #8b1a1a;
+  text-transform: capitalize;
+  letter-spacing: 0.01em;
+}
+
+/* ─── Cards de reserva ─────────────────────────────────── */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.card {
+  display: flex;
+  align-items: stretch;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.15s;
+}
+
+.card:hover {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.cardCancelada {
+  opacity: 0.45;
+}
+
+@keyframes resaltarCard {
+  0%   { background: #fefce8; border-color: #fbbf24; box-shadow: 0 0 0 2px #fde68a; }
+  70%  { background: #fefce8; border-color: #fbbf24; }
+  100% { background: #ffffff; border-color: #e5e7eb; box-shadow: none; }
+}
+
+.cardActualizada {
+  animation: resaltarCard 5s ease-out forwards;
+}
+
+/* Banda lateral de hora */
+.cardHora {
+  width: 72px;
+  flex-shrink: 0;
+  background: #8b1a1a;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  padding: 0.75rem 0.5rem;
+}
+
+/* Cuerpo de la card */
+.cardCuerpo {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.cardTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.cardIdentidad {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.cardNombre {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.3;
 }
 
 .tipoServicio {
   font-size: 0.72rem;
   background: #eef2ff;
   color: #4338ca;
-  border-radius: 10px;
-  padding: 0.1rem 0.4rem;
+  border-radius: 20px;
+  padding: 0.15rem 0.5rem;
   font-weight: 600;
   align-self: flex-start;
+  white-space: nowrap;
 }
 
-.necesidadesPills {
+.cardMeta {
   display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.paxBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #374151;
+  background: #f3f4f6;
+  border-radius: 20px;
+  padding: 0.2rem 0.6rem;
+}
+
+/* ─── Guía (sección destacada) ─────────────────────────── */
+.guiaBloque {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 0.35rem 0.65rem;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.guiaBloque svg {
+  color: #16a34a;
+  flex-shrink: 0;
+}
+
+.guiaLabel {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #15803d;
+  flex-shrink: 0;
+}
+
+.guiaNombre {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #14532d;
+}
+
+/* ─── Badges de estado ─────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.65rem;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.confirmado   { background: #dcfce7; color: #15803d; }
+.pendiente    { background: #fff7ed; color: #c2410c; }
+.cancelado    { background: #f3f4f6; color: #6b7280; }
+.sinConfirmar { background: #eef2ff; color: #4338ca; }
+
+/* ─── Necesidades ──────────────────────────────────────── */
+.necesidades {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
 .necesidadPill {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   background: #fef3c7;
   color: #92400e;
-  border-radius: 10px;
-  padding: 0.1rem 0.4rem;
+  border-radius: 20px;
+  padding: 0.15rem 0.5rem;
   font-weight: 600;
   border: 1px solid #fde68a;
 }
 
-.tdNotas {
-  font-size: 0.85rem;
+/* ─── Notas ────────────────────────────────────────────── */
+.notas {
+  font-size: 0.84rem;
   color: #6b7280;
   line-height: 1.5;
   white-space: pre-wrap;
 }
 
-/* Bloque de menú bajo la fila */
+/* ─── Menú ─────────────────────────────────────────────── */
 .menuBloque {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
-  padding: 0.4rem 0.75rem 0.65rem 0.75rem;
+  padding: 0.4rem 0.65rem;
   background: #fffbf0;
-  border-top: 1px dashed #fde68a;
-  margin: 0 0.1rem;
+  border: 1px dashed #fde68a;
+  border-radius: 8px;
+  margin-top: 0.1rem;
 }
 
 .menuBloqueIcon {
@@ -202,130 +365,23 @@
 .menuCat strong {
   color: #8b1a1a;
   text-transform: uppercase;
-  font-size: 0.75rem;
+  font-size: 0.73rem;
   letter-spacing: 0.04em;
 }
 
-.menuCat span {
-  color: #4b5563;
-}
+.menuCat span { color: #4b5563; }
 
-/* ─── Badges ─────────────────────────────────────────── */
-.badge {
-  display: inline-block;
-  padding: 0.2rem 0.6rem;
-  border-radius: 20px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-.confirmado   { background: #dcfce7; color: #15803d; }
-.pendiente    { background: #fff7ed; color: #c2410c; }
-.cancelado    { background: #f3f4f6; color: #6b7280; }
-.sinConfirmar { background: #eef2ff; color: #4338ca; }
-
-/* ─── Guía y nombre mejorado ────────────────────── */
-.nombrePrincipal {
-  display: block;
-  font-weight: 600;
-  font-size: 0.97rem;
-  color: #111827;
-}
-
-.guiaInfo {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.78rem;
-  color: #6366f1;
-  font-weight: 500;
-  margin-top: 0.2rem;
-  background: #eef2ff;
-  border-radius: 4px;
-  padding: 0.15rem 0.45rem;
-  width: fit-content;
-}
-
-/* ─── Avisos admin ───────────────────────────────────── */
-.avisosContainer {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.avisoCard {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: #fff7ed;
-  border: 2px solid #f97316;
-  border-radius: 12px;
-  padding: 1rem 1.25rem;
-  animation: pulseBorder 2s ease-in-out infinite;
-}
-
-@keyframes pulseBorder {
-  0%, 100% { border-color: #f97316; }
-  50%       { border-color: #fdba74; }
-}
-
-.avisoIcono {
-  font-size: 1.75rem;
-  flex-shrink: 0;
-}
-
-.avisoContenido {
-  flex: 1;
-  min-width: 0;
-}
-
-.avisoTitulo {
-  font-weight: 700;
-  font-size: 1rem;
-  color: #9a3412;
-  margin-bottom: 0.25rem;
-}
-
-.avisoMensaje {
-  font-size: 0.9rem;
-  color: #7c2d12;
-  line-height: 1.4;
-}
-
-.btnConfirmar {
-  flex-shrink: 0;
-  background: #f97316;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 0.6rem 1.1rem;
-  font-weight: 700;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.btnConfirmar:hover:not(:disabled) { background: #ea580c; }
-.btnConfirmar:disabled { opacity: 0.6; cursor: not-allowed; }
-
-/* ─── Responsive ─────────────────────────────────────── */
-@media (max-width: 768px) {
-  .thead,
-  .fila {
-    grid-template-columns: 60px 1fr 45px 110px;
+/* ─── Responsive ────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .cardHora {
+    width: 58px;
+    font-size: 1rem;
   }
-  .thNotas, .tdNotas { display: none; }
-}
 
-@media (max-width: 500px) {
-  .thead,
-  .fila {
-    grid-template-columns: 60px 1fr 45px;
-  }
-  .thEstado, .tdEstado,
-  .thNotas, .tdNotas { display: none; }
+  .cardNombre { font-size: 0.97rem; }
+
+  .reloj { font-size: 1.5rem; }
+
+  .avisoCard { flex-wrap: wrap; }
+  .btnConfirmar { width: 100%; text-align: center; }
 }

@@ -13,7 +13,7 @@ router.post('/token', verificarToken, async (req, res) => {
       `INSERT INTO fcm_tokens (empleado_id, token, plataforma, updated_at)
        VALUES ($1, $2, $3, NOW())
        ON CONFLICT (empleado_id) DO UPDATE SET token = $2, plataforma = $3, updated_at = NOW()`,
-      [req.usuario.id, token, plataforma]
+      [req.user.id, token, plataforma]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -34,7 +34,7 @@ router.get('/', verificarToken, async (req, res) => {
        FROM avisos a
        WHERE a.activo = TRUE
        ORDER BY a.created_at DESC`,
-      [req.usuario.id]
+      [req.user.id]
     );
     res.json(rows);
   } catch (err) {
@@ -45,7 +45,7 @@ router.get('/', verificarToken, async (req, res) => {
 // ── Confirmar que el empleado ha visto un aviso ───────────────────────────────
 router.post('/:id/visto', verificarToken, async (req, res) => {
   const avisoId = parseInt(req.params.id);
-  const empleadoId = req.usuario.id;
+  const empleadoId = req.user.id;
   try {
     await pool.query(
       `INSERT INTO avisos_visto (aviso_id, empleado_id) VALUES ($1, $2)
@@ -95,7 +95,7 @@ router.post('/', verificarToken, verificarAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `INSERT INTO avisos (admin_id, titulo, mensaje) VALUES ($1, $2, $3) RETURNING *`,
-      [req.usuario.id, titulo, mensaje]
+      [req.user.id, titulo, mensaje]
     );
     const aviso = rows[0];
 

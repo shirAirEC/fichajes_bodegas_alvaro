@@ -37,6 +37,15 @@ function agruparPorFecha(reservas) {
   return Object.entries(mapa).sort(([a], [b]) => a.localeCompare(b));
 }
 
+function useReloj() {
+  const [hora, setHora] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setHora(new Date()), 30000);
+    return () => clearInterval(t);
+  }, []);
+  return hora;
+}
+
 export default function PlanPage() {
   const { authFetch } = useAuth();
   const [reservas, setReservas] = useState([]);
@@ -46,8 +55,8 @@ export default function PlanPage() {
   const [confirmando, setConfirmando] = useState(null);
   const lastSeenRef = useRef({});
   const wakeLockRef = useRef(null);
+  const horaActual = useReloj();
 
-  // Registrar token FCM para push notifications
   usePushNotifications(authFetch);
 
   const ahora = new Date();
@@ -107,7 +116,6 @@ export default function PlanPage() {
     return () => clearInterval(interval);
   }, [cargar, cargarAvisos]);
 
-  // Wake Lock: evitar que la pantalla se apague mientras se ve la planificación
   useEffect(() => {
     async function activarWakeLock() {
       if (!('wakeLock' in navigator)) return;
@@ -128,16 +136,23 @@ export default function PlanPage() {
 
   return (
     <div className={styles.page}>
+
+      {/* Cabecera */}
       <div className={styles.header}>
-        <h1 className={styles.titulo}>Planificación</h1>
-        <span className={styles.rango}>
-          {new Date(hoy + 'T00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
-          {' — '}
-          {new Date(hasta + 'T00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
-        </span>
+        <div className={styles.headerLeft}>
+          <h1 className={styles.titulo}>Planificación</h1>
+          <span className={styles.rango}>
+            {new Date(hoy + 'T00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+            {' — '}
+            {new Date(hasta + 'T00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </span>
+        </div>
+        <div className={styles.reloj}>
+          {horaActual.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+        </div>
       </div>
 
-      {/* Avisos del administrador */}
+      {/* Avisos pendientes de confirmar */}
       {avisos.length > 0 && (
         <div className={styles.avisosContainer}>
           {avisos.map(aviso => (
@@ -152,7 +167,7 @@ export default function PlanPage() {
                 onClick={() => confirmarAviso(aviso.id)}
                 disabled={confirmando === aviso.id}
               >
-                {confirmando === aviso.id ? '...' : 'Visto ✓'}
+                {confirmando === aviso.id ? '...' : '✓ He visto el cambio'}
               </button>
             </div>
           ))}
@@ -165,77 +180,99 @@ export default function PlanPage() {
         <div className={styles.vacio}>No hay reservas programadas para los próximos días.</div>
       )}
 
+      {/* Grupos por día */}
       <div className={styles.grupos}>
         {grupos.map(([fecha, filas]) => (
           <section key={fecha} className={styles.diaBloque}>
             <h2 className={styles.diaHeader}>{formatFechaHeader(fecha)}</h2>
-            <div className={styles.tabla}>
-              <div className={styles.thead}>
-                <span className={styles.thHora}>Hora</span>
-                <span className={styles.thNombre}>Nombre / Grupo</span>
-                <span className={styles.thPax}>Pax</span>
-                <span className={styles.thEstado}>Estado</span>
-                <span className={styles.thNotas}>Notas</span>
-              </div>
+            <div className={styles.cards}>
               {filas.map(r => {
                 const necesidades = Array.isArray(r.necesidades_especiales) ? r.necesidades_especiales : [];
                 const tieneMenu = Array.isArray(r.menu) && r.menu.length > 0;
+                const estadoInfo = ESTADO_INFO[r.estado] ?? { label: r.estado, cls: 'sinConfirmar' };
                 return (
-                <div
-                  key={r.id}
-                  className={[
-                    styles.filaWrapper,
-                    r.estado === 'cancelado' ? styles.filaCancelada : '',
-                    filasCambiadas.has(r.id) ? styles.filaActualizada : '',
-                  ].join(' ')}
-                >
-                  <div className={styles.fila}>
-                    <span className={styles.tdHora}>{formatHora(r.hora) || '—'}</span>
-                    <span className={styles.tdNombre}>
-                      <span className={styles.nombrePrincipal}>{r.nombre}</span>
-                      {r.tipo_servicio && <span className={styles.tipoServicio}>{r.tipo_servicio}</span>}
+                  <div
+                    key={r.id}
+                    className={[
+                      styles.card,
+                      r.estado === 'cancelado' ? styles.cardCancelada : '',
+                      filasCambiadas.has(r.id) ? styles.cardActualizada : '',
+                    ].join(' ')}
+                  >
+                    {/* Banda de hora */}
+                    <div className={styles.cardHora}>
+                      {formatHora(r.hora) || '—'}
+                    </div>
+
+                    {/* Cuerpo principal */}
+                    <div className={styles.cardCuerpo}>
+                      <div className={styles.cardTop}>
+                        <div className={styles.cardIdentidad}>
+                          <span className={styles.cardNombre}>{r.nombre}</span>
+                          {r.tipo_servicio && (
+                            <span className={styles.tipoServicio}>{r.tipo_servicio}</span>
+                          )}
+                        </div>
+                        <div className={styles.cardMeta}>
+                          {r.pax && (
+                            <span className={styles.paxBadge}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                              </svg>
+                              {r.pax} pax
+                            </span>
+                          )}
+                          <span className={`${styles.badge} ${styles[estadoInfo.cls]}`}>
+                            {estadoInfo.label}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Guía — sección destacada */}
                       {r.guia && (
-                        <span className={styles.guiaInfo}>
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                        <div className={styles.guiaBloque}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
                           </svg>
-                          {r.guia}
-                        </span>
+                          <span className={styles.guiaLabel}>Guía:</span>
+                          <span className={styles.guiaNombre}>{r.guia}</span>
+                        </div>
                       )}
-                    </span>
-                    <span className={styles.tdPax}>
-                      <span className={styles.paxNum}>{r.pax ?? '—'}</span>
+
+                      {/* Necesidades especiales */}
                       {necesidades.length > 0 && (
-                        <span className={styles.necesidadesPills}>
+                        <div className={styles.necesidades}>
                           {necesidades.map((n, i) => (
                             <span key={i} className={styles.necesidadPill}>
                               {n.cantidad}× {n.tipo}
                             </span>
                           ))}
-                        </span>
+                        </div>
                       )}
-                    </span>
-                    <span className={styles.tdEstado}>
-                      <span className={`${styles.badge} ${styles[ESTADO_INFO[r.estado]?.cls]}`}>
-                        {ESTADO_INFO[r.estado]?.label ?? r.estado}
-                      </span>
-                    </span>
-                    <span className={styles.tdNotas}>{r.notas || '—'}</span>
-                  </div>
-                  {tieneMenu && (
-                    <div className={styles.menuBloque}>
-                      <span className={styles.menuBloqueIcon}>🍽</span>
-                      <div className={styles.menuCategorias}>
-                        {r.menu.map((cat, ci) => (
-                          <div key={ci} className={styles.menuCat}>
-                            <strong>{cat.categoria}:</strong>{' '}
-                            <span>{cat.platos.join(' · ')}</span>
+
+                      {/* Notas */}
+                      {r.notas && (
+                        <div className={styles.notas}>{r.notas}</div>
+                      )}
+
+                      {/* Menú */}
+                      {tieneMenu && (
+                        <div className={styles.menuBloque}>
+                          <span className={styles.menuBloqueIcon}>🍽</span>
+                          <div className={styles.menuCategorias}>
+                            {r.menu.map((cat, ci) => (
+                              <div key={ci} className={styles.menuCat}>
+                                <strong>{cat.categoria}:</strong>{' '}
+                                <span>{cat.platos.join(' · ')}</span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </div>
                 );
               })}
             </div>
