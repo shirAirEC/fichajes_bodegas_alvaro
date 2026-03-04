@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './AdminFichajesPage.module.css';
+import { getApiUrl } from '../../lib/apiUrl';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = getApiUrl();
 
 
 // ─── Generación de PDF del informe ───────────────────────────────────────────

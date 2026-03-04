@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import styles from './TVPage.module.css';
+import { getApiUrl } from '../lib/apiUrl';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = getApiUrl();
 
 // Devuelve true si updated_at es de las últimas N horas
 function editadoReciente(updated_at, horas = 8) {

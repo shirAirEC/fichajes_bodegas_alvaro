@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { getApiUrl } from '../lib/apiUrl';
 
 const AuthContext = createContext(null);
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = getApiUrl();
 
 // App nativa Android (Capacitor)
 function esAppNativa() {
