@@ -126,16 +126,40 @@ router.get('/estado', authMiddleware, async (req, res) => {
     const yaDescanso = descHoy.length > 0;
     const descansoHoy = descHoy[0] || null;
 
-    res.json({ dentro, enDescanso, ultimoFichaje: ultimo, proximoTipo: dentro ? 'salida' : 'entrada', yaDescanso, descansoHoy });
+    // Config descanso
+    const { rows: cfgDesc } = await pool.query(
+      "SELECT clave, valor FROM configuracion WHERE clave IN ('descanso_activo','descanso_minutos')"
+    );
+    const cfgD = Object.fromEntries(cfgDesc.map(r => [r.clave, r.valor]));
+
+    res.json({
+      dentro, enDescanso, ultimoFichaje: ultimo,
+      proximoTipo: dentro ? 'salida' : 'entrada',
+      yaDescanso, descansoHoy,
+      descansoActivo: cfgD.descanso_activo !== '0',
+      descansoMinutos: parseInt(cfgD.descanso_minutos || '30')
+    });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-// POST /api/fichajes/descanso — iniciar pausa de 30 min (registra salida con es_descanso=true)
+// POST /api/fichajes/descanso — iniciar pausa (registra salida con es_descanso=true)
 router.post('/descanso', authMiddleware, async (req, res) => {
   try {
     const empleadoId = req.user.id;
+
+    // Verificar config descanso
+    const { rows: cfgRows } = await pool.query(
+      "SELECT clave, valor FROM configuracion WHERE clave IN ('ip_activo','ip_permitidas','descanso_activo','descanso_minutos')"
+    );
+    const cfg = Object.fromEntries(cfgRows.map(r => [r.clave, r.valor]));
+
+    if (cfg.descanso_activo === '0') {
+      return res.status(403).json({ error: 'El descanso no está disponible en este momento.' });
+    }
+
+    const descansoMinutos = parseInt(cfg.descanso_minutos || '30');
 
     // Solo puede iniciar descanso si está dentro (última acción es entrada)
     const { rows: lastRows } = await pool.query(
@@ -155,12 +179,6 @@ router.post('/descanso', authMiddleware, async (req, res) => {
     if (descHoy.length > 0) {
       return res.status(400).json({ error: 'Ya has utilizado el descanso de hoy. Solo se permite un descanso por jornada.' });
     }
-
-    // Validar red WiFi si está activa
-    const { rows: cfgRows } = await pool.query(
-      "SELECT clave, valor FROM configuracion WHERE clave IN ('ip_activo','ip_permitidas')"
-    );
-    const cfg = Object.fromEntries(cfgRows.map(r => [r.clave, r.valor]));
     if (cfg.ip_activo === '1') {
       const { rows: empRows } = await pool.query(
         'SELECT sin_restriccion_ip FROM empleados WHERE id = $1', [empleadoId]
@@ -178,10 +196,10 @@ router.post('/descanso', authMiddleware, async (req, res) => {
     }
 
     const { rows } = await pool.query(
-      `INSERT INTO fichajes (empleado_id, tipo, notas, es_descanso) VALUES ($1, 'salida', 'Descanso', TRUE) RETURNING *`,
-      [empleadoId]
+      `INSERT INTO fichajes (empleado_id, tipo, notas, es_descanso) VALUES ($1, 'salida', $2, TRUE) RETURNING *`,
+      [empleadoId, `Descanso ${descansoMinutos} min`]
     );
-    res.status(201).json({ fichaje: rows[0] });
+    res.status(201).json({ fichaje: rows[0], descansoMinutos });
   } catch (err) {
     console.error('Descanso error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -489,18 +507,19 @@ function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
 function calcularMinutosTrabajados(fichajes) {
   let minutos = 0;
   let entrada = null;
-  let descansos = 0;
   for (const f of fichajes) {
     if (f.tipo === 'entrada') {
       entrada = new Date(f.timestamp);
     } else if (f.tipo === 'salida' && entrada) {
       minutos += (new Date(f.timestamp) - entrada) / 60000;
       entrada = null;
-      if (f.es_descanso) descansos++;
+      if (f.es_descanso) {
+        // Leer duración del descanso desde notas ("Descanso 30 min" o "Descanso 15 min")
+        const match = (f.notas || '').match(/(\d+)\s*min/);
+        minutos += match ? parseInt(match[1]) : 30;
+      }
     }
   }
-  // Cada descanso suma 30 min de tiempo efectivo pagado
-  minutos += descansos * 30;
   return Math.round(minutos);
 }
 

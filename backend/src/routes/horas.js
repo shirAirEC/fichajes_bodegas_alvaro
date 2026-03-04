@@ -10,18 +10,19 @@ const router = express.Router();
 function calcularHorasDeFichajes(fichajes) {
   let minutos = 0;
   let entrada = null;
-  let descansos = 0;
   for (const f of fichajes) {
     if (f.tipo === 'entrada') {
       entrada = new Date(f.timestamp);
     } else if (f.tipo === 'salida' && entrada) {
       minutos += (new Date(f.timestamp) - entrada) / 60000;
       entrada = null;
-      if (f.es_descanso) descansos++;
+      if (f.es_descanso) {
+        // Leer duración del descanso desde notas ("Descanso 30 min" o "Descanso 15 min")
+        const match = (f.notas || '').match(/(\d+)\s*min/);
+        minutos += match ? parseInt(match[1]) : 30;
+      }
     }
   }
-  // Cada descanso acredita 30 min de tiempo efectivo pagado
-  minutos += descansos * 30;
   return Math.round(minutos) / 60;
 }
 

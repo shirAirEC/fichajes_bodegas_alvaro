@@ -124,6 +124,53 @@ export default function AdminConfigPage() {
           </div>
         </div>
 
+        {/* Descanso */}
+        <div className={styles.seccion}>
+          <div className={styles.seccionHeader}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+            </svg>
+            <h2>Descanso</h2>
+          </div>
+          <div className={styles.toggleRow}>
+            <div>
+              <span className={styles.toggleLabel}>Botón de descanso activo</span>
+              <p className={styles.toggleDesc}>
+                Si está activo, los empleados verán el botón de descanso en la pantalla de fichaje.
+              </p>
+            </div>
+            <label className={styles.switch}>
+              <input
+                type="checkbox"
+                checked={form.descanso_activo !== '0'}
+                onChange={e => setForm(f => ({ ...f, descanso_activo: e.target.checked ? '1' : '0' }))}
+              />
+              <span className={styles.switchSlider}></span>
+            </label>
+          </div>
+          {form.descanso_activo !== '0' && (
+            <div className={styles.formGrid}>
+              <div className={styles.field}>
+                <label>Duración del descanso</label>
+                <div className={styles.radioGroup}>
+                  {['15', '30'].map(min => (
+                    <label key={min} className={styles.radioLabel}>
+                      <input
+                        type="radio"
+                        name="descanso_minutos"
+                        value={min}
+                        checked={(form.descanso_minutos ?? '30') === min}
+                        onChange={() => setForm(f => ({ ...f, descanso_minutos: min }))}
+                      />
+                      {min} minutos
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Restricción por red WiFi */}
         <div className={styles.seccion}>
           <div className={styles.seccionHeader}>

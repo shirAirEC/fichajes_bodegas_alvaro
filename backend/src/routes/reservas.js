@@ -5,7 +5,7 @@ const { enviarPushMultiple } = require('../firebase');
 
 const router = express.Router();
 
-// Crea un aviso automático y envía push a todos los empleados activos
+// Crea un aviso automático y envía push solo al usuario de planificación
 async function notificarCambioPlanificacion(adminId, titulo, mensaje) {
   try {
     const { rows } = await pool.query(
@@ -14,10 +14,13 @@ async function notificarCambioPlanificacion(adminId, titulo, mensaje) {
     );
     const avisoId = rows[0].id;
 
+    // Solo notificar al usuario de planificación (nombre contiene "Planificaci")
     const { rows: tokens } = await pool.query(
       `SELECT f.token FROM fcm_tokens f
        JOIN empleados e ON e.id = f.empleado_id
-       WHERE e.activo = 1 AND e.rol = 'empleado'`
+       WHERE e.activo = 1
+         AND (LOWER(e.nombre || ' ' || e.apellidos) LIKE '%planificaci%'
+              OR LOWER(e.nombre || ' ' || e.apellidos) LIKE '%planificacion%')`
     );
     if (tokens.length) {
       await enviarPushMultiple(

@@ -270,6 +270,8 @@ async function initializeDatabase() {
     ['ip_activo',             '0',           'Activar restricción de fichaje por red WiFi (1=sí, 0=no)'],
     ['ip_permitidas',         '',            'IPs públicas permitidas para fichar (separadas por comas)'],
     ['gracia_minutos',        '5',           'Minutos de gracia al fichar para redondear a la hora exacta'],
+    ['descanso_activo',       '1',           'Activar botón de descanso para empleados (1=sí, 0=no)'],
+    ['descanso_minutos',      '30',          'Duración del descanso en minutos (15 o 30)'],
     ['tv_token',              crypto.randomBytes(8).toString('hex'), 'Token de acceso para la pantalla TV de planificación'],
   ];
   for (const [clave, valor, descripcion] of defaults) {

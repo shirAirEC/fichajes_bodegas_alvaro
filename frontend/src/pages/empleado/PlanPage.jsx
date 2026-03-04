@@ -192,8 +192,16 @@ export default function PlanPage() {
                   <div className={styles.fila}>
                     <span className={styles.tdHora}>{formatHora(r.hora) || '—'}</span>
                     <span className={styles.tdNombre}>
-                      {r.nombre}
+                      <span className={styles.nombrePrincipal}>{r.nombre}</span>
                       {r.tipo_servicio && <span className={styles.tipoServicio}>{r.tipo_servicio}</span>}
+                      {r.guia && (
+                        <span className={styles.guiaInfo}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                          </svg>
+                          {r.guia}
+                        </span>
+                      )}
                     </span>
                     <span className={styles.tdPax}>
                       <span className={styles.paxNum}>{r.pax ?? '—'}</span>

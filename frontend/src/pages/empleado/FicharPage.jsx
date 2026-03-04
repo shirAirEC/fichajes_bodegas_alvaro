@@ -126,7 +126,8 @@ export default function FicharPage() {
         }
         return;
       }
-      setMensaje({ tipo: 'success', texto: `Descanso iniciado a las ${formatTimestamp(data.fichaje.timestamp)} · Se acreditarán 30 min de tiempo efectivo` });
+      const mins = data.descansoMinutos ?? 30;
+      setMensaje({ tipo: 'success', texto: `Descanso iniciado a las ${formatTimestamp(data.fichaje.timestamp)} · Se acreditarán ${mins} min de tiempo efectivo` });
       await cargarEstado();
     } catch (err) {
       setMensaje({ tipo: 'error', texto: err.message || 'Error al registrar descanso' });
@@ -137,7 +138,7 @@ export default function FicharPage() {
   };
 
   const handleRevertirDescanso = async () => {
-    if (!window.confirm('¿Revertir el descanso? Se eliminará el registro y no se acreditarán los 30 minutos.')) return;
+    if (!window.confirm(`¿Revertir el descanso? Se eliminará el registro y no se acreditarán los ${descansoMinutos} minutos.`)) return;
     setDescansando(true);
     setMensaje(null);
     try {
@@ -159,6 +160,8 @@ export default function FicharPage() {
   const esDentro = estado?.dentro;
   const enDescanso = estado?.enDescanso;
   const yaDescanso = estado?.yaDescanso;
+  const descansoActivo = estado?.descansoActivo !== false;
+  const descansoMinutos = estado?.descansoMinutos ?? 30;
   const hayNotificaciones = notificaciones?.length > 0;
   const proximoTipo = estado?.proximoTipo;
   const redActiva = config?.ip_activo === '1';
@@ -210,7 +213,7 @@ export default function FicharPage() {
         {enDescanso && (
           <div className={styles.descansoInfo}>
             ☕ Estás en descanso. Cuando vuelvas, pulsa <strong>Registrar Entrada</strong>.
-            <span className={styles.descansoCredito}>+30 min acreditados automáticamente</span>
+            <span className={styles.descansoCredito}>+{descansoMinutos} min acreditados automáticamente</span>
           </div>
         )}
 
@@ -237,7 +240,7 @@ export default function FicharPage() {
           )}
         </button>
 
-        {esDentro && !yaDescanso && (
+        {esDentro && !yaDescanso && descansoActivo && (
           <button
             className={styles.btnDescanso}
             onClick={handleDescanso}
@@ -246,7 +249,7 @@ export default function FicharPage() {
             {descansando ? (
               <><span className={styles.spinner}></span>Registrando descanso...</>
             ) : (
-              <>☕ Iniciar descanso (30 min)</>
+              <>☕ Iniciar descanso ({descansoMinutos} min)</>
             )}
           </button>
         )}
