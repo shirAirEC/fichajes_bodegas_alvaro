@@ -30,6 +30,8 @@ const origenesPermitidos = [
   'https://localhost',
   'capacitor://localhost',
   'http://localhost',
+  // Vercel develop preview
+  'https://fichajes-bodegas-alvaro-git-develop-shirairs-projects.vercel.app',
 ];
 if (process.env.FRONTEND_URL) {
   process.env.FRONTEND_URL.split(',').forEach(u => origenesPermitidos.push(u.trim()));
