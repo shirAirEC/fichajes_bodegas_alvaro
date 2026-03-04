@@ -91,16 +91,23 @@ router.post('/restore', authMiddleware, adminMiddleware, async (req, res) => {
       } catch (e) {}
     }
 
+    // Verificar ANTES del commit (dentro de la transacción del client)
+    const preCommit = (await client.query('SELECT COUNT(*) as n FROM empleados')).rows[0].n;
+
     await client.query('COMMIT');
 
-    // Verificación post-commit
-    const postCheck = {};
-    for (const tabla of ['empleados', 'fichajes', 'reservas']) {
-      const r = await pool.query(`SELECT COUNT(*) as n FROM ${tabla}`);
-      postCheck[tabla] = parseInt(r.rows[0].n);
-    }
+    // Verificar DESPUÉS del commit (nueva conexión del pool)
+    const postCommit = (await pool.query('SELECT COUNT(*) as n FROM empleados')).rows[0].n;
 
-    res.json({ ok: true, resumen, errores: errores.slice(0, 30), postCommitCount: postCheck });
+    // Verificar con conexión dedicada
+    const c2 = await pool.connect();
+    const postCommit2 = (await c2.query('SELECT COUNT(*) as n FROM empleados')).rows[0].n;
+    c2.release();
+
+    res.json({
+      ok: true, resumen, errores: errores.slice(0, 30),
+      debug: { preCommit, postCommit, postCommit2 }
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
