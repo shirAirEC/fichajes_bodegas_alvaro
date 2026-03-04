@@ -83,7 +83,15 @@ router.post('/restore', authMiddleware, adminMiddleware, async (req, res) => {
     }
 
     await client.query('COMMIT');
-    res.json({ ok: true, resumen, errores: errores.slice(0, 30) });
+
+    // Verificación post-commit
+    const postCheck = {};
+    for (const tabla of ['empleados', 'fichajes', 'reservas']) {
+      const r = await pool.query(`SELECT COUNT(*) as n FROM ${tabla}`);
+      postCheck[tabla] = parseInt(r.rows[0].n);
+    }
+
+    res.json({ ok: true, resumen, errores: errores.slice(0, 30), postCommitCount: postCheck });
   } catch (err) {
     await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
