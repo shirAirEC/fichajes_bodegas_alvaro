@@ -153,4 +153,16 @@ router.patch('/:id/desactivar', verificarToken, verificarAdmin, async (req, res)
   }
 });
 
+// ── Admin: limpiar TODOS los avisos y confirmaciones ─────────────────────────
+router.delete('/limpiar', verificarToken, verificarAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM avisos_visto');
+    const { rowCount } = await pool.query('DELETE FROM avisos');
+    res.json({ ok: true, eliminados: rowCount });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
 module.exports = router;

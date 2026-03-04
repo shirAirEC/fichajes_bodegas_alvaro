@@ -1,8 +1,11 @@
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 
 export function usePushNotifications(authFetch) {
+  const navigate = useNavigate();
+
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
@@ -29,14 +32,12 @@ export function usePushNotifications(authFetch) {
           console.error('Error registro push:', err);
         });
 
-        // Notificación recibida en primer plano: mostrar alerta nativa
-        PushNotifications.addListener('pushNotificationReceived', notification => {
-          console.log('Push recibida:', notification);
-        });
+        // Notificación recibida en primer plano: no hacer nada especial
+        PushNotifications.addListener('pushNotificationReceived', () => {});
 
-        // Usuario toca la notificación
-        PushNotifications.addListener('pushNotificationActionPerformed', action => {
-          console.log('Push accionada:', action);
+        // Usuario toca la notificación → navegar directamente a Planificación
+        PushNotifications.addListener('pushNotificationActionPerformed', () => {
+          navigate('/plan');
         });
       } catch (err) {
         console.error('Error inicializando push notifications:', err);
@@ -48,5 +49,5 @@ export function usePushNotifications(authFetch) {
     return () => {
       PushNotifications.removeAllListeners();
     };
-  }, [authFetch]);
+  }, [authFetch, navigate]);
 }

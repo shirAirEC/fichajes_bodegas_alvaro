@@ -171,6 +171,7 @@ function NecesidadesEditor({ necesidades = [], onChange }) {
 function PanelAvisos({ authFetch }) {
   const [avisos, setAvisos] = useState([]);
   const [expandir, setExpandir] = useState(false);
+  const [limpiando, setLimpiando] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -182,21 +183,41 @@ function PanelAvisos({ authFetch }) {
 
   useEffect(() => { cargar(); }, [cargar]);
 
+  const limpiarTodo = async () => {
+    if (!window.confirm('¿Eliminar TODOS los avisos y confirmaciones? Esta acción no se puede deshacer.')) return;
+    setLimpiando(true);
+    try {
+      await authFetch('/api/avisos/limpiar', { method: 'DELETE' });
+      setAvisos([]);
+    } catch {
+      alert('Error al limpiar avisos');
+    } finally {
+      setLimpiando(false);
+    }
+  };
+
   const pendientes = avisos.filter(a => (a.total_visto ?? 0) < (a.total_empleados ?? 1));
 
   return (
     <div className={styles.panelAvisos}>
-      <button className={styles.btnAvisosToggle} onClick={() => setExpandir(v => !v)}>
-        👁 Confirmaciones de cambios {pendientes.length > 0 && (
-          <span className={styles.badgeAvisos}>{pendientes.length} pendiente{pendientes.length !== 1 ? 's' : ''}</span>
+      <div className={styles.panelAvisosHeader}>
+        <button className={styles.btnAvisosToggle} onClick={() => setExpandir(v => !v)}>
+          👁 Confirmaciones de cambios {pendientes.length > 0 && (
+            <span className={styles.badgeAvisos}>{pendientes.length} pendiente{pendientes.length !== 1 ? 's' : ''}</span>
+          )}
+          <span className={styles.chevron}>{expandir ? '▲' : '▼'}</span>
+        </button>
+        {avisos.length > 0 && (
+          <button className={styles.btnLimpiarAvisos} onClick={limpiarTodo} disabled={limpiando} title="Eliminar todos los avisos">
+            {limpiando ? '...' : '🗑 Limpiar'}
+          </button>
         )}
-        <span className={styles.chevron}>{expandir ? '▲' : '▼'}</span>
-      </button>
+      </div>
 
       {expandir && (
         <div className={styles.avisosPanel}>
           {avisos.length === 0 && (
-            <p className={styles.avisoVacio}>Todos los empleados han confirmado los cambios.</p>
+            <p className={styles.avisoVacio}>No hay avisos registrados.</p>
           )}
           {avisos.map(a => (
             <div key={a.id} className={styles.avisoItem}>

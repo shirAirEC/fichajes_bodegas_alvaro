@@ -750,8 +750,14 @@
   overflow: hidden;
 }
 
+.panelAvisosHeader {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
 .btnAvisosToggle {
-  width: 100%;
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -766,6 +772,21 @@
 }
 
 .btnAvisosToggle:hover { background: #ffedd5; }
+
+.btnLimpiarAvisos {
+  background: #fee2e2;
+  border: none;
+  border-left: 1px solid #fed7aa;
+  padding: 0.85rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #b91c1c;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.btnLimpiarAvisos:hover { background: #fecaca; }
+.btnLimpiarAvisos:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .badgeAvisos {
   background: #f97316;
