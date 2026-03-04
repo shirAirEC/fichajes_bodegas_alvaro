@@ -39,10 +39,11 @@ router.get('/dump', authMiddleware, adminMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/migracion/restore  — recibe JSON y restaura tablas (solo en dev)
+// POST /api/migracion/restore  — recibe JSON y restaura tablas (solo en entorno developed)
 router.post('/restore', authMiddleware, adminMiddleware, async (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(403).json({ error: 'Solo disponible en development' });
+  const entorno = process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_ENVIRONMENT || '';
+  if (entorno === 'production') {
+    return res.status(403).json({ error: 'Solo disponible en developed' });
   }
 
   const { dump } = req.body;
