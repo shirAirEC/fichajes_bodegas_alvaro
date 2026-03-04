@@ -18,7 +18,6 @@ const horariosRoutes = require('./routes/horarios');
 const reservasRoutes = require('./routes/reservas');
 const vacacionesRoutes = require('./routes/vacaciones');
 const avisosRoutes = require('./routes/avisos');
-const migracionRoutes = require('./routes/migracion');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -67,7 +66,6 @@ app.use('/api/horarios', horariosRoutes);
 app.use('/api/reservas', reservasRoutes);
 app.use('/api/vacaciones', vacacionesRoutes);
 app.use('/api/avisos', avisosRoutes);
-app.use('/api/migracion', migracionRoutes);
 
 app.use('/api/*', (req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
 
