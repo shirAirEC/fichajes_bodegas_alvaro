@@ -66,6 +66,7 @@ router.post('/restore', authMiddleware, adminMiddleware, async (req, res) => {
     // Insertar datos
     const errores = [];
     const resumen = {};
+    let spIndex = 0;
 
     for (const tabla of TABLAS) {
       const filas = dump[tabla];
@@ -76,15 +77,25 @@ router.post('/restore', authMiddleware, adminMiddleware, async (req, res) => {
       let insertados = 0;
 
       for (const fila of filas) {
+        const sp = `sp${spIndex++}`;
         const valores = columnas.map((_, i) => `$${i + 1}`).join(', ');
-        const datos = columnas.map(c => fila[c]);
+        // Serializar objetos/arrays a JSON string para columnas JSONB
+        const datos = columnas.map(c => {
+          const v = fila[c];
+          if (v !== null && typeof v === 'object' && !Array.isArray(v)) return JSON.stringify(v);
+          if (Array.isArray(v)) return JSON.stringify(v);
+          return v;
+        });
         try {
+          await client.query(`SAVEPOINT ${sp}`);
           const r = await client.query(
             `INSERT INTO ${tabla} (${colNames}) VALUES (${valores}) ON CONFLICT DO NOTHING`,
             datos
           );
+          await client.query(`RELEASE SAVEPOINT ${sp}`);
           if (r.rowCount > 0) insertados++;
         } catch (e) {
+          await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
           errores.push(`${tabla}[id=${fila.id}]: ${e.message}`);
         }
       }
