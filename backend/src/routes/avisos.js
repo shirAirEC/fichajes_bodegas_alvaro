@@ -22,7 +22,8 @@ router.post('/token', verificarToken, async (req, res) => {
   }
 });
 
-// ── Listar avisos activos (empleado ve los suyos pendientes) ──────────────────
+// ── Listar avisos activos visibles para el usuario actual ─────────────────────
+// Solo ve el aviso si: destinatario_id IS NULL (global) O destinatario_id = su ID
 router.get('/', verificarToken, async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -33,6 +34,7 @@ router.get('/', verificarToken, async (req, res) => {
               ) AS visto
        FROM avisos a
        WHERE a.activo = TRUE
+         AND (a.destinatario_id IS NULL OR a.destinatario_id = $1)
        ORDER BY a.created_at DESC`,
       [req.user.id]
     );
@@ -126,8 +128,13 @@ router.get('/admin', verificarToken, verificarAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT a.id, a.titulo, a.mensaje, a.activo, a.created_at,
+              a.destinatario_id,
               COUNT(DISTINCT v.empleado_id) AS total_visto,
-              (SELECT COUNT(*) FROM empleados WHERE activo = 1 AND rol = 'empleado') AS total_empleados,
+              -- Si tiene destinatario específico → total esperado = 1; si es global → todos los empleados activos
+              CASE
+                WHEN a.destinatario_id IS NOT NULL THEN 1
+                ELSE (SELECT COUNT(*) FROM empleados WHERE activo = 1 AND rol = 'empleado')
+              END AS total_empleados,
               JSON_AGG(
                 JSON_BUILD_OBJECT('nombre', e.nombre, 'apellidos', e.apellidos, 'visto_at', v.visto_at)
               ) FILTER (WHERE v.id IS NOT NULL) AS vistos

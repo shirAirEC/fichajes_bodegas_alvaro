@@ -5,26 +5,33 @@ const { enviarPushMultiple } = require('../firebase');
 
 const router = express.Router();
 
-// Crea un aviso automático y envía push solo al usuario de planificación
+// Crea un aviso y envía push SOLO al usuario de Planificación
 async function notificarCambioPlanificacion(adminId, titulo, mensaje) {
   try {
+    // Buscar el usuario de Planificación (y su token FCM si lo tiene)
+    const { rows: planUsers } = await pool.query(
+      `SELECT e.id, f.token
+       FROM empleados e
+       LEFT JOIN fcm_tokens f ON f.empleado_id = e.id
+       WHERE e.activo = 1
+         AND (LOWER(e.nombre || ' ' || e.apellidos) LIKE '%planificaci%'
+              OR LOWER(e.nombre || ' ' || e.apellidos) LIKE '%planificacion%')
+       LIMIT 1`
+    );
+    const planUser = planUsers[0] || null;
+
+    // Crear aviso con destinatario_id específico → solo ese usuario lo ve y confirma
     const { rows } = await pool.query(
-      `INSERT INTO avisos (admin_id, titulo, mensaje) VALUES ($1, $2, $3) RETURNING id`,
-      [adminId, titulo, mensaje]
+      `INSERT INTO avisos (admin_id, titulo, mensaje, destinatario_id)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [adminId, titulo, mensaje, planUser?.id ?? null]
     );
     const avisoId = rows[0].id;
 
-    // Solo notificar al usuario de planificación (nombre contiene "Planificaci")
-    const { rows: tokens } = await pool.query(
-      `SELECT f.token FROM fcm_tokens f
-       JOIN empleados e ON e.id = f.empleado_id
-       WHERE e.activo = 1
-         AND (LOWER(e.nombre || ' ' || e.apellidos) LIKE '%planificaci%'
-              OR LOWER(e.nombre || ' ' || e.apellidos) LIKE '%planificacion%')`
-    );
-    if (tokens.length) {
+    // Enviar push solo si ese usuario tiene token registrado
+    if (planUser?.token) {
       await enviarPushMultiple(
-        tokens.map(t => t.token),
+        [planUser.token],
         titulo,
         mensaje,
         { tipo: 'cambio_planificacion', aviso_id: String(avisoId) }

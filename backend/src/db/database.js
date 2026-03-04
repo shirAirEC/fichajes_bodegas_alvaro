@@ -233,6 +233,11 @@ async function initializeDatabase() {
     )
   `);
 
+  // Migración: destinatario específico para un aviso (NULL = todos)
+  await pool.query(`
+    ALTER TABLE avisos ADD COLUMN IF NOT EXISTS destinatario_id INTEGER REFERENCES empleados(id)
+  `);
+
   // Registro de empleados que han confirmado ver el aviso
   await pool.query(`
     CREATE TABLE IF NOT EXISTS avisos_visto (
