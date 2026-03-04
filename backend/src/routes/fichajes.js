@@ -126,18 +126,32 @@ router.get('/estado', authMiddleware, async (req, res) => {
     const yaDescanso = descHoy.length > 0;
     const descansoHoy = descHoy[0] || null;
 
-    // Config descanso
+    // Config descanso: global + por empleado
     const { rows: cfgDesc } = await pool.query(
       "SELECT clave, valor FROM configuracion WHERE clave IN ('descanso_activo','descanso_minutos')"
     );
     const cfgD = Object.fromEntries(cfgDesc.map(r => [r.clave, r.valor]));
+    const { rows: empDesc } = await pool.query(
+      'SELECT descanso_activo, descanso_minutos FROM empleados WHERE id = $1',
+      [req.user.id]
+    );
+    const empCfg = empDesc[0] || {};
+
+    // Global OFF → nadie; si tiene config propia úsala; si no, hereda global
+    const globalActivo = cfgD.descanso_activo !== '0';
+    const descansoActivo = !globalActivo
+      ? false
+      : (empCfg.descanso_activo === null || empCfg.descanso_activo === undefined)
+        ? true
+        : empCfg.descanso_activo;
+    const descansoMinutos = empCfg.descanso_minutos ?? parseInt(cfgD.descanso_minutos || '30');
 
     res.json({
       dentro, enDescanso, ultimoFichaje: ultimo,
       proximoTipo: dentro ? 'salida' : 'entrada',
       yaDescanso, descansoHoy,
-      descansoActivo: cfgD.descanso_activo !== '0',
-      descansoMinutos: parseInt(cfgD.descanso_minutos || '30')
+      descansoActivo,
+      descansoMinutos
     });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -149,17 +163,30 @@ router.post('/descanso', authMiddleware, async (req, res) => {
   try {
     const empleadoId = req.user.id;
 
-    // Verificar config descanso
+    // Verificar config descanso (global + por empleado)
     const { rows: cfgRows } = await pool.query(
       "SELECT clave, valor FROM configuracion WHERE clave IN ('ip_activo','ip_permitidas','descanso_activo','descanso_minutos')"
     );
     const cfg = Object.fromEntries(cfgRows.map(r => [r.clave, r.valor]));
+    const { rows: empCfgRows } = await pool.query(
+      'SELECT sin_restriccion_ip, descanso_activo, descanso_minutos FROM empleados WHERE id = $1',
+      [empleadoId]
+    );
+    const empCfg = empCfgRows[0] || {};
 
-    if (cfg.descanso_activo === '0') {
-      return res.status(403).json({ error: 'El descanso no está disponible en este momento.' });
+    // Global OFF → nadie; si empleado tiene su propia config úsala; si no, hereda global
+    const globalActivo = cfg.descanso_activo !== '0';
+    const descansoPermitido = !globalActivo
+      ? false
+      : (empCfg.descanso_activo === null || empCfg.descanso_activo === undefined)
+        ? true
+        : empCfg.descanso_activo;
+
+    if (!descansoPermitido) {
+      return res.status(403).json({ error: 'El descanso no está disponible para tu cuenta.' });
     }
 
-    const descansoMinutos = parseInt(cfg.descanso_minutos || '30');
+    const descansoMinutos = empCfg.descanso_minutos ?? parseInt(cfg.descanso_minutos || '30');
 
     // Solo puede iniciar descanso si está dentro (última acción es entrada)
     const { rows: lastRows } = await pool.query(
@@ -180,10 +207,7 @@ router.post('/descanso', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Ya has utilizado el descanso de hoy. Solo se permite un descanso por jornada.' });
     }
     if (cfg.ip_activo === '1') {
-      const { rows: empRows } = await pool.query(
-        'SELECT sin_restriccion_ip FROM empleados WHERE id = $1', [empleadoId]
-      );
-      if (!empRows[0]?.sin_restriccion_ip) {
+      if (!empCfg.sin_restriccion_ip) {
         const ipCliente = getClientIP(req);
         const ipsPermitidas = (cfg.ip_permitidas || '').split(',').map(ip => ip.trim()).filter(Boolean);
         if (ipsPermitidas.length > 0 && !ipsPermitidas.includes(ipCliente)) {

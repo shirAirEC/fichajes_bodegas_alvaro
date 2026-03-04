@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './AdminEmpleadosPage.module.css';
 
-const MODAL_VACIO = { nombre: '', apellidos: '', email: '', password: '', rol: 'empleado', departamento: '' };
+const MODAL_VACIO = { nombre: '', apellidos: '', email: '', password: '', rol: 'empleado', departamento: '', descanso_activo: null, descanso_minutos: null };
 
 export default function AdminEmpleadosPage() {
   const { authFetch, user } = useAuth();
@@ -164,20 +164,78 @@ export default function AdminEmpleadosPage() {
                 </div>
               </div>
               {form.rol === 'empleado' && (
-                <div className={styles.exencionRow}>
-                  <div>
-                    <span className={styles.exencionLabel}>Exención de restricción por red WiFi</span>
-                    <p className={styles.exencionDesc}>Permite a este empleado fichar desde cualquier red (teletrabajo, trabajo en exterior).</p>
+                <>
+                  <div className={styles.exencionRow}>
+                    <div>
+                      <span className={styles.exencionLabel}>Exención de restricción por red WiFi</span>
+                      <p className={styles.exencionDesc}>Permite a este empleado fichar desde cualquier red (teletrabajo, trabajo en exterior).</p>
+                    </div>
+                    <label className={styles.switchSmall}>
+                      <input
+                        type="checkbox"
+                        checked={!!form.sin_restriccion_ip}
+                        onChange={e => setForm(f => ({ ...f, sin_restriccion_ip: e.target.checked ? 1 : 0 }))}
+                      />
+                      <span className={styles.switchSliderSmall}></span>
+                    </label>
                   </div>
-                  <label className={styles.switchSmall}>
-                    <input
-                      type="checkbox"
-                      checked={!!form.sin_restriccion_ip}
-                      onChange={e => setForm(f => ({ ...f, sin_restriccion_ip: e.target.checked ? 1 : 0 }))}
-                    />
-                    <span className={styles.switchSliderSmall}></span>
-                  </label>
-                </div>
+
+                  <div className={styles.descansoSection}>
+                    <div className={styles.descansoSectionHeader}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/>
+                        <line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+                      </svg>
+                      <span>Configuración de descanso</span>
+                    </div>
+
+                    <div className={styles.exencionRow}>
+                      <div>
+                        <span className={styles.exencionLabel}>Descanso</span>
+                        <p className={styles.exencionDesc}>
+                          {form.descanso_activo === null
+                            ? 'Usa la configuración global del sistema.'
+                            : form.descanso_activo
+                              ? 'Descanso activado para este empleado.'
+                              : 'Sin descanso (aunque esté activo globalmente).'}
+                        </p>
+                      </div>
+                      <select
+                        className={styles.selectDescanso}
+                        value={form.descanso_activo === null ? 'heredar' : form.descanso_activo ? 'si' : 'no'}
+                        onChange={e => {
+                          const v = e.target.value;
+                          setForm(f => ({ ...f, descanso_activo: v === 'heredar' ? null : v === 'si' }));
+                        }}
+                      >
+                        <option value="heredar">Heredar configuración global</option>
+                        <option value="si">Activado</option>
+                        <option value="no">Desactivado</option>
+                      </select>
+                    </div>
+
+                    {form.descanso_activo !== false && (
+                      <div className={styles.exencionRow}>
+                        <div>
+                          <span className={styles.exencionLabel}>Duración del descanso</span>
+                          <p className={styles.exencionDesc}>Minutos acreditados al tomar el descanso.</p>
+                        </div>
+                        <select
+                          className={styles.selectDescanso}
+                          value={form.descanso_minutos === null ? 'heredar' : String(form.descanso_minutos)}
+                          onChange={e => {
+                            const v = e.target.value;
+                            setForm(f => ({ ...f, descanso_minutos: v === 'heredar' ? null : parseInt(v) }));
+                          }}
+                        >
+                          <option value="heredar">Heredar configuración global</option>
+                          <option value="15">15 minutos</option>
+                          <option value="30">30 minutos</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
               <div className={styles.modalFooter}>
                 <button type="button" className={styles.btnCancelar} onClick={() => setModalOpen(false)}>Cancelar</button>

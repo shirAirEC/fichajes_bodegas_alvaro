@@ -36,6 +36,14 @@ async function initializeDatabase() {
     ALTER TABLE empleados ADD COLUMN IF NOT EXISTS sin_restriccion_ip INTEGER NOT NULL DEFAULT 0
   `);
 
+  // Migración: configuración de descanso por empleado
+  await pool.query(`
+    ALTER TABLE empleados ADD COLUMN IF NOT EXISTS descanso_activo BOOLEAN DEFAULT NULL
+  `);
+  await pool.query(`
+    ALTER TABLE empleados ADD COLUMN IF NOT EXISTS descanso_minutos INTEGER DEFAULT NULL
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS fichajes (
       id SERIAL PRIMARY KEY,

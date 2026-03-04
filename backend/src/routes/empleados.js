@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, nombre, apellidos, email, rol, departamento, activo, sin_restriccion_ip, fecha_alta FROM empleados ORDER BY apellidos, nombre'
+      'SELECT id, nombre, apellidos, email, rol, departamento, activo, sin_restriccion_ip, descanso_activo, descanso_minutos, fecha_alta FROM empleados ORDER BY apellidos, nombre'
     );
     res.json(rows);
   } catch (err) {
@@ -61,7 +61,7 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
 router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const { nombre, apellidos, email, rol, departamento, activo, password, sin_restriccion_ip } = req.body;
+    const { nombre, apellidos, email, rol, departamento, activo, password, sin_restriccion_ip, descanso_activo, descanso_minutos } = req.body;
 
     const { rows: emp } = await pool.query('SELECT * FROM empleados WHERE id = $1', [id]);
     if (!emp[0]) return res.status(404).json({ error: 'Empleado no encontrado' });
@@ -80,6 +80,8 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
     if (departamento !== undefined){ campos.push(`departamento = $${idx++}`);valores.push(departamento.trim()); }
     if (activo !== undefined)           { campos.push(`activo = $${idx++}`);              valores.push(activo ? 1 : 0); }
     if (sin_restriccion_ip !== undefined){ campos.push(`sin_restriccion_ip = $${idx++}`); valores.push(sin_restriccion_ip ? 1 : 0); }
+    if (descanso_activo !== undefined)   { campos.push(`descanso_activo = $${idx++}`);    valores.push(descanso_activo); }
+    if (descanso_minutos !== undefined)  { campos.push(`descanso_minutos = $${idx++}`);   valores.push(descanso_minutos); }
     if (password) {
       if (!password) return res.status(400).json({ error: 'La contraseña no puede estar vacía' });
       if (await passwordYaExiste(password, id)) {
@@ -94,7 +96,7 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
     valores.push(id);
     const { rows } = await pool.query(
       `UPDATE empleados SET ${campos.join(', ')} WHERE id = $${idx}
-       RETURNING id, nombre, apellidos, email, rol, departamento, activo, sin_restriccion_ip`,
+       RETURNING id, nombre, apellidos, email, rol, departamento, activo, sin_restriccion_ip, descanso_activo, descanso_minutos`,
       valores
     );
     res.json(rows[0]);

@@ -310,6 +310,38 @@
 .switchSmall input:checked + .switchSliderSmall { background: var(--color-primary); }
 .switchSmall input:checked + .switchSliderSmall::before { transform: translateX(18px); }
 
+.descansoSection {
+  margin: 0.5rem 0;
+  border: 1px solid #d1d5db;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.descansoSectionHeader {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.82rem; font-weight: 600; color: #374151;
+}
+.descansoSection .exencionRow {
+  background: white; border: none; border-bottom: 1px solid #f3f4f6;
+  border-radius: 0; margin: 0;
+}
+.descansoSection .exencionRow:last-child { border-bottom: none; }
+
+.selectDescanso {
+  flex-shrink: 0;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  background: white;
+  color: #1f2937;
+  cursor: pointer;
+  min-width: 180px;
+}
+.selectDescanso:focus { outline: none; border-color: var(--color-primary); }
+
 @media (max-width: 480px) {
   .formGrid { grid-template-columns: 1fr; }
 }
