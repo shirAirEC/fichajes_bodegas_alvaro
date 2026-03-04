@@ -40,27 +40,20 @@ router.post('/restore', authMiddleware, adminMiddleware, async (req, res) => {
   const { dump } = req.body;
   if (!dump) return res.status(400).json({ error: 'Falta dump' });
 
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
+  const errores = [];
+  const resumen = {};
 
-    // Truncar en orden inverso usando savepoints para no abortar la transacción si una tabla no existe
-    let tspIdx = 0;
+  try {
+    // Borrar datos en orden inverso (sin transacción global para evitar aborts)
     for (const tabla of [...TABLAS].reverse()) {
-      const tsp = `tsp${tspIdx++}`;
       try {
-        await client.query(`SAVEPOINT ${tsp}`);
-        await client.query(`TRUNCATE TABLE ${tabla} CASCADE`);
-        await client.query(`RELEASE SAVEPOINT ${tsp}`);
+        await pool.query(`DELETE FROM ${tabla}`);
       } catch (e) {
-        await client.query(`ROLLBACK TO SAVEPOINT ${tsp}`);
+        errores.push(`DELETE ${tabla}: ${e.message}`);
       }
     }
 
-    const errores = [];
-    const resumen = {};
-    let spIndex = 0;
-
+    // Insertar datos tabla a tabla
     for (const tabla of TABLAS) {
       const filas = dump[tabla];
       if (!filas || filas.length === 0) { resumen[tabla] = 0; continue; }
@@ -70,7 +63,6 @@ router.post('/restore', authMiddleware, adminMiddleware, async (req, res) => {
       let insertados = 0;
 
       for (const fila of filas) {
-        const sp = `sp${spIndex++}`;
         const valores = columnas.map((_, i) => `$${i + 1}`).join(', ');
         const datos = columnas.map(c => {
           const v = fila[c];
@@ -78,15 +70,12 @@ router.post('/restore', authMiddleware, adminMiddleware, async (req, res) => {
           return v;
         });
         try {
-          await client.query(`SAVEPOINT ${sp}`);
-          const r = await client.query(
+          const r = await pool.query(
             `INSERT INTO ${tabla} (${colNames}) VALUES (${valores}) ON CONFLICT DO NOTHING`, datos
           );
-          await client.query(`RELEASE SAVEPOINT ${sp}`);
           if (r.rowCount > 0) insertados++;
         } catch (e) {
-          await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
-          errores.push(`${tabla}[id=${fila.id}]: ${e.message}`);
+          errores.push(`INSERT ${tabla}[id=${fila.id}]: ${e.message}`);
         }
       }
       resumen[tabla] = `${insertados}/${filas.length}`;
@@ -95,32 +84,15 @@ router.post('/restore', authMiddleware, adminMiddleware, async (req, res) => {
     // Actualizar secuencias
     for (const tabla of TABLAS) {
       try {
-        await client.query(`SELECT setval(pg_get_serial_sequence('${tabla}','id'), COALESCE((SELECT MAX(id) FROM ${tabla}),0)+1, false)`);
+        await pool.query(`SELECT setval(pg_get_serial_sequence('${tabla}','id'), COALESCE((SELECT MAX(id) FROM ${tabla}),0)+1, false)`);
       } catch (e) {}
     }
 
-    // Verificar ANTES del commit (dentro de la transacción del client)
-    const preCommit = (await client.query('SELECT COUNT(*) as n FROM empleados')).rows[0].n;
+    const finalCount = (await pool.query('SELECT COUNT(*) as n FROM empleados')).rows[0].n;
+    res.json({ ok: true, resumen, errores: errores.slice(0, 30), finalEmpleados: finalCount });
 
-    await client.query('COMMIT');
-
-    // Verificar DESPUÉS del commit (nueva conexión del pool)
-    const postCommit = (await pool.query('SELECT COUNT(*) as n FROM empleados')).rows[0].n;
-
-    // Verificar con conexión dedicada
-    const c2 = await pool.connect();
-    const postCommit2 = (await c2.query('SELECT COUNT(*) as n FROM empleados')).rows[0].n;
-    c2.release();
-
-    res.json({
-      ok: true, resumen, errores: errores.slice(0, 30),
-      debug: { preCommit, postCommit, postCommit2 }
-    });
   } catch (err) {
-    await client.query('ROLLBACK');
-    res.status(500).json({ error: err.message });
-  } finally {
-    client.release();
+    res.status(500).json({ error: err.message, errores });
   }
 });
 
