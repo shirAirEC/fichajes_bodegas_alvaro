@@ -9,6 +9,15 @@ const TABLAS = [
   'reservas', 'vacaciones', 'fcm_tokens', 'avisos', 'avisos_visto',
 ];
 
+// GET /api/migracion/info — diagnóstico de conexión
+router.get('/info', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const r = await pool.query("SELECT current_database(), inet_server_addr(), COUNT(*) as empleados FROM empleados");
+    const dbUrl = (process.env.DATABASE_URL || '').replace(/:([^:@]+)@/, ':***@');
+    res.json({ dbUrl, dbInfo: r.rows[0] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/migracion/dump
 router.get('/dump', authMiddleware, adminMiddleware, async (req, res) => {
   try {
