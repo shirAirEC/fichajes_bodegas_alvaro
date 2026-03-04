@@ -64,25 +64,31 @@ router.post('/restore', authMiddleware, adminMiddleware, async (req, res) => {
     }
 
     // Insertar datos
+    const errores = [];
+    const resumen = {};
+
     for (const tabla of TABLAS) {
       const filas = dump[tabla];
-      if (!filas || filas.length === 0) continue;
+      if (!filas || filas.length === 0) { resumen[tabla] = 0; continue; }
 
       const columnas = Object.keys(filas[0]);
       const colNames = columnas.map(c => `"${c}"`).join(', ');
+      let insertados = 0;
 
       for (const fila of filas) {
         const valores = columnas.map((_, i) => `$${i + 1}`).join(', ');
         const datos = columnas.map(c => fila[c]);
         try {
-          await client.query(
+          const r = await client.query(
             `INSERT INTO ${tabla} (${colNames}) VALUES (${valores}) ON CONFLICT DO NOTHING`,
             datos
           );
+          if (r.rowCount > 0) insertados++;
         } catch (e) {
-          // ignorar filas que fallen
+          errores.push(`${tabla}[id=${fila.id}]: ${e.message}`);
         }
       }
+      resumen[tabla] = `${insertados}/${filas.length}`;
     }
 
     // Actualizar secuencias
@@ -95,13 +101,11 @@ router.post('/restore', authMiddleware, adminMiddleware, async (req, res) => {
             false
           )
         `);
-      } catch (e) {
-        // no todas las tablas tienen id serial
-      }
+      } catch (e) { /* tabla sin serial */ }
     }
 
     await client.query('COMMIT');
-    res.json({ ok: true, mensaje: 'Datos restaurados correctamente' });
+    res.json({ ok: true, mensaje: 'Datos restaurados', resumen, errores: errores.slice(0, 20) });
   } catch (err) {
     await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
