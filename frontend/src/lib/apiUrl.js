@@ -1,24 +1,36 @@
 /**
  * Devuelve la URL base del backend según el entorno donde se ejecuta la app.
  *
- * Prioridad:
- *  1. Variable VITE_API_URL explícita (Android / builds manuales)
- *  2. Detección por hostname:
- *     - localhost / 127.0.0.1  → '' (proxy Vite en local)
- *     - URL de Vercel preview "develop" → backend de pruebas
- *     - Cualquier otra URL de Vercel → backend de producción
+ * Lógica:
+ *  - Android (Capacitor nativo): usa VITE_API_URL del .env de build
+ *  - Web (Vercel / local): detección por hostname en runtime
+ *      localhost / 192.168.x.x → '' (proxy Vite → localhost:3001)
+ *      *git-develop* / *-develop-* en Vercel → backend de pruebas
+ *      cualquier otro hostname → backend de producción
+ *
+ * IMPORTANTE: para web nunca se usa VITE_API_URL, así Vercel no
+ * puede "contaminar" el entorno equivocado con una variable mal configurada.
  */
 export function getApiUrl() {
-  // 1. Variable de entorno explícita (Android usa esto)
-  const envUrl = import.meta.env.VITE_API_URL;
-  if (envUrl) return envUrl;
+  // ── Plataforma nativa Android ──────────────────────────────────────────────
+  // VITE_CAPACITOR=true se fija solo al compilar el APK (build_dev_apk.ps1 o
+  // el build de release). En ese contexto no hay window.location fiable.
+  if (import.meta.env.VITE_CAPACITOR === 'true') {
+    const url = import.meta.env.VITE_API_URL || 'https://fichajesbodegasalvaro-production.up.railway.app';
+    // Eliminar barra final por si acaso
+    return url.replace(/\/$/, '');
+  }
 
-  // 2. Detección por hostname en tiempo de ejecución
+  // ── Web (Vercel, navegador local) ──────────────────────────────────────────
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
 
-    // Local → proxy de Vite (vite.config.js apunta a localhost:3001)
-    if (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.')) {
+    // Desarrollo local → proxy Vite (vite.config.js → localhost:3001)
+    if (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host.startsWith('192.168.')
+    ) {
       return '';
     }
 
@@ -32,6 +44,6 @@ export function getApiUrl() {
     }
   }
 
-  // 3. Por defecto → producción
+  // Producción (cualquier otro hostname de Vercel)
   return 'https://fichajesbodegasalvaro-production.up.railway.app';
 }
