@@ -35,9 +35,14 @@ export function usePushNotifications(authFetch) {
         // Notificación recibida en primer plano: no hacer nada especial
         PushNotifications.addListener('pushNotificationReceived', () => {});
 
-        // Usuario toca la notificación → navegar directamente a Planificación
-        PushNotifications.addListener('pushNotificationActionPerformed', () => {
-          navigate('/plan');
+        // Usuario toca la notificación → navegar según datos de la notificación
+        PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
+          const url = notification?.data?.url;
+          if (url) {
+            navigate(url);
+          } else {
+            navigate('/plan');
+          }
         });
       } catch (err) {
         console.error('Error inicializando push notifications:', err);

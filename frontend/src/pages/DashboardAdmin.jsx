@@ -10,9 +10,14 @@ import AdminSolicitudesPage from './admin/AdminSolicitudesPage';
 import AdminHorariosPage from './admin/AdminHorariosPage';
 import AdminReservasPage from './admin/AdminReservasPage';
 import AdminFichajesAnticipadosPage from './admin/AdminFichajesAnticipadosPage';
+import { usePushNotifications } from '../hooks/usePushNotifications';
+import { useAuth } from '../hooks/useAuth';
 import styles from './Dashboard.module.css';
 
 export default function DashboardAdmin() {
+  const { authFetch } = useAuth();
+  usePushNotifications(authFetch);
+
   return (
     <div className={styles.layout}>
       <Navbar isAdmin={true} />
