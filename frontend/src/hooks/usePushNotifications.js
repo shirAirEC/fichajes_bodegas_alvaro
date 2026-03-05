@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 export function usePushNotifications(authFetch) {
   const navigate = useNavigate();
@@ -16,7 +17,20 @@ export function usePushNotifications(authFetch) {
 
         await PushNotifications.register();
 
-        // Cuando FCM devuelve el token, lo enviamos al backend
+        // Crear canal de notificaciones con diseño corporativo
+        await LocalNotifications.createChannel({
+          id: 'avisos',
+          name: 'Fichajes Bodegas Álvaro',
+          description: 'Avisos y notificaciones de la aplicación',
+          importance: 4,   // IMPORTANCE_HIGH → aparece como banner
+          visibility: 1,   // VISIBILITY_PUBLIC
+          sound: 'default',
+          vibration: true,
+          lights: true,
+          lightColor: '#8B2635'
+        });
+
+        // Registrar token FCM en el backend
         PushNotifications.addListener('registration', async ({ value: token }) => {
           try {
             await authFetch('/api/avisos/token', {
@@ -32,10 +46,27 @@ export function usePushNotifications(authFetch) {
           console.error('Error registro push:', err);
         });
 
-        // Notificación recibida en primer plano: no hacer nada especial
-        PushNotifications.addListener('pushNotificationReceived', () => {});
+        // App en PRIMER PLANO: mostrar como notificación local con diseño
+        PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+          try {
+            await LocalNotifications.schedule({
+              notifications: [{
+                id: Math.floor(Math.random() * 100000),
+                title: notification.title || 'Fichajes Bodegas Álvaro',
+                body: notification.body || '',
+                smallIcon: 'ic_stat_notification',
+                channelId: 'avisos',
+                iconColor: '#8B2635',
+                extra: notification.data || {},
+                autoCancel: true
+              }]
+            });
+          } catch (err) {
+            console.error('Error mostrando notificación local:', err);
+          }
+        });
 
-        // Usuario toca la notificación → navegar según datos de la notificación
+        // Usuario toca la notificación push (app en background/cerrada)
         PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
           const url = notification?.data?.url;
           if (url) {
@@ -44,6 +75,17 @@ export function usePushNotifications(authFetch) {
             navigate('/plan');
           }
         });
+
+        // Usuario toca la notificación local (app en primer plano)
+        LocalNotifications.addListener('localNotificationActionPerformed', ({ notification }) => {
+          const url = notification?.extra?.url;
+          if (url) {
+            navigate(url);
+          } else {
+            navigate('/plan');
+          }
+        });
+
       } catch (err) {
         console.error('Error inicializando push notifications:', err);
       }
@@ -53,6 +95,7 @@ export function usePushNotifications(authFetch) {
 
     return () => {
       PushNotifications.removeAllListeners();
+      LocalNotifications.removeAllListeners();
     };
   }, [authFetch, navigate]);
 }
