@@ -292,6 +292,36 @@
   line-height: 1.5;
 }
 
+.anticipadoBox {
+  width: 100%;
+  background: #fff8e1;
+  border: 1px solid #f9a825;
+  color: #5d4037;
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  text-align: left;
+  line-height: 1.5;
+}
+
+.anticipadoBox strong {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.875rem;
+  color: #e65100;
+}
+
+.anticipadoBox p {
+  margin: 0 0 0.3rem 0;
+}
+
+.anticipadoSub {
+  margin-top: 0.4rem !important;
+  font-size: 0.77rem;
+  color: #795548;
+  font-style: italic;
+}
+
 .tiRight {
   display: flex;
   align-items: center;

@@ -34,6 +34,7 @@ export default function FicharPage() {
   const [descansando, setDescansando] = useState(false);
   const [mensaje, setMensaje] = useState(null);
   const [errorRed, setErrorRed] = useState(null);
+  const [errorAnticipado, setErrorAnticipado] = useState(null);
   const [segsRevertir, setSegsRevertir] = useState(null);
 
   // Reloj en tiempo real
@@ -84,6 +85,7 @@ export default function FicharPage() {
     setFichando(true);
     setMensaje(null);
     setErrorRed(null);
+    setErrorAnticipado(null);
 
     try {
       const res = await authFetch('/api/fichajes/fichar', {
@@ -94,6 +96,12 @@ export default function FicharPage() {
       if (!res.ok) {
         if (data.requiereRed) {
           setErrorRed(data.error);
+        } else if (data.requiereAprobacion) {
+          setErrorAnticipado({
+            horaEntrada: data.horaEntrada,
+            graciaMinutos: data.graciaMinutos,
+            horaDisponible: data.horaDisponible
+          });
         } else {
           throw new Error(data.error);
         }
@@ -201,6 +209,20 @@ export default function FicharPage() {
             <strong>⚠️ Red no autorizada</strong>
             <br />
             {errorRed}
+          </div>
+        )}
+
+        {errorAnticipado && (
+          <div className={styles.anticipadoBox}>
+            <strong>⏰ Fuera del horario de entrada</strong>
+            <p>
+              Tu hora de entrada es las <strong>{errorAnticipado.horaEntrada}</strong>.
+              Podrás fichar normalmente a partir de las <strong>{errorAnticipado.horaDisponible}</strong> ({errorAnticipado.graciaMinutos} min antes).
+              Aunque fiches dentro de ese margen, el fichaje se guardará exactamente a las <strong>{errorAnticipado.horaEntrada}</strong>.
+            </p>
+            <p className={styles.anticipadoSub}>
+              Este intento ha sido enviado al administrador para su aprobación. Si lo aprueba, se registrará tu entrada con la hora actual.
+            </p>
           </div>
         )}
 

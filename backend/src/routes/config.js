@@ -25,7 +25,8 @@ router.get('/', authMiddleware, async (req, res) => {
       return res.json({
         geo_activo: config.geo_activo,
         geo_radio_metros: config.geo_radio_metros,
-        empresa_nombre: config.empresa_nombre
+        empresa_nombre: config.empresa_nombre,
+        gracia_minutos: config.gracia_minutos
       });
     }
     res.json(config);

@@ -221,6 +221,24 @@ async function initializeDatabase() {
     )
   `);
 
+  // Fichajes anticipados que requieren aprobación del admin
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fichajes_anticipados (
+      id SERIAL PRIMARY KEY,
+      empleado_id INTEGER NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
+      hora_intento TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      hora_entrada_programada TIME NOT NULL,
+      fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+      estado TEXT NOT NULL DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'aprobado', 'rechazado')),
+      admin_id INTEGER REFERENCES empleados(id),
+      admin_nota TEXT DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_fichajes_anticipados_empleado ON fichajes_anticipados(empleado_id);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_fichajes_anticipados_estado ON fichajes_anticipados(estado);`);
+
   // Avisos de planificación creados por el admin
   await pool.query(`
     CREATE TABLE IF NOT EXISTS avisos (

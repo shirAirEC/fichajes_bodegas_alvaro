@@ -9,6 +9,7 @@ import AdminHorasPage from './admin/AdminHorasPage';
 import AdminSolicitudesPage from './admin/AdminSolicitudesPage';
 import AdminHorariosPage from './admin/AdminHorariosPage';
 import AdminReservasPage from './admin/AdminReservasPage';
+import AdminFichajesAnticipadosPage from './admin/AdminFichajesAnticipadosPage';
 import styles from './Dashboard.module.css';
 
 export default function DashboardAdmin() {
@@ -26,6 +27,7 @@ export default function DashboardAdmin() {
           <Route path="/solicitudes" element={<AdminSolicitudesPage />} />
           <Route path="/horarios" element={<AdminHorariosPage />} />
           <Route path="/reservas" element={<AdminReservasPage />} />
+          <Route path="/fichajes-anticipados" element={<AdminFichajesAnticipadosPage />} />
         </Routes>
       </main>
     </div>

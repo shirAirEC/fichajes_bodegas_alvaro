@@ -3,6 +3,7 @@ const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 const { crearNotificacion } = require('./solicitudes');
 const { encontrarHorario, timeToMs } = require('./horarios');
+const { enviarPush } = require('../firebase');
 
 const router = express.Router();
 
@@ -66,7 +67,6 @@ router.post('/fichar', authMiddleware, async (req, res) => {
       const horario = await encontrarHorario(empleadoId, fechaHoy);
 
       if (horario) {
-        // Redondear al horario programado si estamos dentro del margen
         const inicioDelDia = new Date(timestampFichaje);
         inicioDelDia.setHours(0, 0, 0, 0);
         const msDelDia = timestampFichaje - inicioDelDia;
@@ -74,6 +74,57 @@ router.post('/fichar', authMiddleware, async (req, res) => {
         const msEntrada = horario.hora_entrada ? timeToMs(horario.hora_entrada) : null;
         const msSalida  = horario.hora_salida  ? timeToMs(horario.hora_salida)  : null;
 
+        // Detectar entrada demasiado anticipada (antes del margen de cortesía)
+        if (tipo === 'entrada' && msEntrada !== null && msDelDia < msEntrada - graciaMsVal) {
+          // Guardar solicitud pendiente de aprobación
+          const yaExiste = await pool.query(
+            `SELECT id FROM fichajes_anticipados WHERE empleado_id = $1 AND fecha = $2 AND estado = 'pendiente'`,
+            [empleadoId, fechaHoy]
+          );
+          if (!yaExiste.rows[0]) {
+            await pool.query(
+              `INSERT INTO fichajes_anticipados (empleado_id, hora_intento, hora_entrada_programada, fecha)
+               VALUES ($1, NOW(), $2, $3)`,
+              [empleadoId, horario.hora_entrada, fechaHoy]
+            );
+          }
+
+          // Notificar push a todos los administradores
+          const { rows: empData } = await pool.query(
+            'SELECT nombre, apellidos FROM empleados WHERE id = $1', [empleadoId]
+          );
+          const nombreEmp = empData[0] ? `${empData[0].nombre} ${empData[0].apellidos}` : 'Un empleado';
+          const { rows: admins } = await pool.query(
+            `SELECT f.token FROM fcm_tokens f
+             JOIN empleados e ON e.id = f.empleado_id
+             WHERE e.rol = 'admin' AND f.token IS NOT NULL`
+          );
+          for (const admin of admins) {
+            await enviarPush(
+              admin.token,
+              'Fichaje anticipado pendiente',
+              `${nombreEmp} ha intentado fichar antes del horario permitido. Requiere tu aprobación.`,
+              { tipo: 'fichaje_anticipado', empleado_id: String(empleadoId), url: '/admin/fichajes-anticipados' }
+            );
+          }
+
+          // Formatear hora de entrada para el mensaje
+          const [hh, mm] = horario.hora_entrada.split(':');
+          const horaEntradaLeg = `${hh}:${mm}`;
+          const minutosAntes = graciaMinutos;
+          const horaDisponible = new Date(inicioDelDia.getTime() + msEntrada - graciaMsVal);
+          const horaDispLeg = horaDisponible.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+          return res.status(403).json({
+            requiereAprobacion: true,
+            horaEntrada: horaEntradaLeg,
+            graciaMinutos: minutosAntes,
+            horaDisponible: horaDispLeg,
+            error: `No es el horario de entrada. Podrás fichar a partir de las ${horaDispLeg} (${minutosAntes} min antes de las ${horaEntradaLeg}). Este intento ha sido enviado al administrador para su aprobación.`
+          });
+        }
+
+        // Redondear al horario programado si estamos dentro del margen
         if (msEntrada !== null && Math.abs(msDelDia - msEntrada) <= graciaMsVal) {
           timestampFichaje = new Date(inicioDelDia.getTime() + msEntrada);
         } else if (msSalida !== null && Math.abs(msDelDia - msSalida) <= graciaMsVal) {
@@ -146,12 +197,20 @@ router.get('/estado', authMiddleware, async (req, res) => {
         : empCfg.descanso_activo;
     const descansoMinutos = empCfg.descanso_minutos ?? parseInt(cfgD.descanso_minutos || '30');
 
+    // Horario de hoy para mostrar info de cortesía al empleado
+    const fechaHoy = new Date().toISOString().split('T')[0];
+    const horarioHoy = await encontrarHorario(req.user.id, fechaHoy);
+
     res.json({
       dentro, enDescanso, ultimoFichaje: ultimo,
       proximoTipo: dentro ? 'salida' : 'entrada',
       yaDescanso, descansoHoy,
       descansoActivo,
-      descansoMinutos
+      descansoMinutos,
+      horarioHoy: horarioHoy ? {
+        hora_entrada: horarioHoy.hora_entrada,
+        hora_salida: horarioHoy.hora_salida
+      } : null
     });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -516,6 +575,118 @@ router.delete('/admin/:id', authMiddleware, adminMiddleware, async (req, res) =>
     await pool.query('DELETE FROM fichajes WHERE id = $1', [req.params.id]);
     res.json({ message: 'Fichaje eliminado' });
   } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ─── FICHAJES ANTICIPADOS ──────────────────────────────────────────────────────
+
+// GET /api/fichajes/anticipados — admin lista los pendientes
+router.get('/anticipados', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { estado = 'pendiente' } = req.query;
+    const { rows } = await pool.query(
+      `SELECT fa.*, e.nombre, e.apellidos, e.departamento
+       FROM fichajes_anticipados fa
+       JOIN empleados e ON e.id = fa.empleado_id
+       WHERE fa.estado = $1
+       ORDER BY fa.created_at DESC`,
+      [estado]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// POST /api/fichajes/anticipados/:id/aprobar — admin aprueba y crea el fichaje
+router.post('/anticipados/:id/aprobar', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { admin_nota = '' } = req.body;
+    const { rows: anticipados } = await pool.query(
+      'SELECT * FROM fichajes_anticipados WHERE id = $1', [req.params.id]
+    );
+    if (!anticipados[0]) return res.status(404).json({ error: 'Solicitud no encontrada' });
+    const ant = anticipados[0];
+    if (ant.estado !== 'pendiente') return res.status(400).json({ error: 'Esta solicitud ya fue procesada' });
+
+    // Crear el fichaje con el timestamp del momento del intento
+    const { rows: fichaje } = await pool.query(
+      `INSERT INTO fichajes (empleado_id, tipo, notas, timestamp)
+       VALUES ($1, 'entrada', $2, $3) RETURNING *`,
+      [ant.empleado_id, 'Fichaje anticipado aprobado por administrador', ant.hora_intento]
+    );
+
+    // Actualizar estado de la solicitud
+    await pool.query(
+      `UPDATE fichajes_anticipados SET estado = 'aprobado', admin_id = $1, admin_nota = $2, updated_at = NOW()
+       WHERE id = $3`,
+      [req.user.id, admin_nota, ant.id]
+    );
+
+    // Notificar al empleado
+    await crearNotificacion(
+      ant.empleado_id,
+      `El administrador ha aprobado tu fichaje anticipado del ${new Date(ant.hora_intento).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.${admin_nota ? ` Nota: ${admin_nota}` : ''}`
+    );
+
+    // Push al empleado si tiene token
+    const { rows: tokenEmp } = await pool.query(
+      'SELECT token FROM fcm_tokens WHERE empleado_id = $1', [ant.empleado_id]
+    );
+    if (tokenEmp[0]?.token) {
+      await enviarPush(
+        tokenEmp[0].token,
+        'Fichaje aprobado',
+        `Tu entrada anticipada ha sido aprobada por el administrador.${admin_nota ? ` "${admin_nota}"` : ''}`
+      );
+    }
+
+    res.json({ ok: true, fichaje: fichaje[0] });
+  } catch (err) {
+    console.error('Aprobar anticipado error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// POST /api/fichajes/anticipados/:id/rechazar — admin rechaza
+router.post('/anticipados/:id/rechazar', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { admin_nota = '' } = req.body;
+    const { rows: anticipados } = await pool.query(
+      'SELECT * FROM fichajes_anticipados WHERE id = $1', [req.params.id]
+    );
+    if (!anticipados[0]) return res.status(404).json({ error: 'Solicitud no encontrada' });
+    const ant = anticipados[0];
+    if (ant.estado !== 'pendiente') return res.status(400).json({ error: 'Esta solicitud ya fue procesada' });
+
+    await pool.query(
+      `UPDATE fichajes_anticipados SET estado = 'rechazado', admin_id = $1, admin_nota = $2, updated_at = NOW()
+       WHERE id = $3`,
+      [req.user.id, admin_nota, ant.id]
+    );
+
+    // Notificar al empleado
+    await crearNotificacion(
+      ant.empleado_id,
+      `El administrador ha rechazado tu fichaje anticipado del ${new Date(ant.hora_intento).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.${admin_nota ? ` Motivo: ${admin_nota}` : ''}`
+    );
+
+    // Push al empleado si tiene token
+    const { rows: tokenEmp } = await pool.query(
+      'SELECT token FROM fcm_tokens WHERE empleado_id = $1', [ant.empleado_id]
+    );
+    if (tokenEmp[0]?.token) {
+      await enviarPush(
+        tokenEmp[0].token,
+        'Fichaje rechazado',
+        `Tu entrada anticipada ha sido rechazada.${admin_nota ? ` "${admin_nota}"` : ''}`
+      );
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Rechazar anticipado error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
