@@ -7,6 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "build:android": "cross-env VITE_CAPACITOR=true vite build && npx cap sync android",
+    "build:android:dev": "cross-env VITE_CAPACITOR=true vite build --mode dev && npx cap sync android",
     "android:open": "npx cap open android",
     "android:run": "npx cap run android"
   },
