@@ -17,13 +17,15 @@ export function usePushNotifications(authFetch) {
 
         await PushNotifications.register();
 
-        // Crear canal de notificaciones con diseño corporativo
+        // Crear canal de notificaciones con máxima prioridad
+        // IMPORTANTE: Android congela la config del canal una vez creado.
+        // Si se cambia el ID hay que actualizar también AndroidManifest y firebase.js
         await LocalNotifications.createChannel({
-          id: 'avisos',
+          id: 'avisos_v2',
           name: 'Fichajes Bodegas Álvaro',
-          description: 'Avisos y notificaciones de la aplicación',
-          importance: 4,   // IMPORTANCE_HIGH → aparece como banner
-          visibility: 1,   // VISIBILITY_PUBLIC
+          description: 'Avisos y notificaciones urgentes de la aplicación',
+          importance: 5,        // IMPORTANCE_MAX → banner + sonido máximo + vibración fuerte
+          visibility: 1,        // VISIBILITY_PUBLIC
           sound: 'default',
           vibration: true,
           lights: true,
@@ -55,7 +57,7 @@ export function usePushNotifications(authFetch) {
                 title: notification.title || 'Fichajes Bodegas Álvaro',
                 body: notification.body || '',
                 smallIcon: 'ic_stat_notification',
-                channelId: 'avisos',
+                channelId: 'avisos_v2',
                 iconColor: '#8B2635',
                 extra: notification.data || {},
                 autoCancel: true
