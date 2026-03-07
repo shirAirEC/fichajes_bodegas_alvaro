@@ -340,11 +340,11 @@ export default function FicharPage() {
           {resumen.fichajesHoy.length > 0 && (
             <div className={styles.timeline}>
               {resumen.fichajesHoy.map(f => (
-                <div key={f.id} className={`${styles.timelineItem} ${f.tipo === 'entrada' ? styles.tiEntrada : f.es_descanso ? styles.tiDescanso : styles.tiSalida}`}>
+                <div key={f.id} className={`${styles.timelineItem} ${f.tipo === 'entrada' ? styles.tiEntrada : f.es_descanso ? styles.tiDescanso : f.notas?.startsWith('Exceso descanso') ? styles.tiExceso : styles.tiSalida}`}>
                   <div className={styles.tiDot}></div>
                   <div className={styles.tiContent}>
                     <span className={styles.tiTipo}>
-                      {f.tipo === 'entrada' ? 'Entrada' : f.es_descanso ? '☕ Descanso' : 'Salida'}
+                      {f.tipo === 'entrada' ? 'Entrada' : f.es_descanso ? '☕ Descanso' : f.notas?.startsWith('Exceso descanso') ? '⚠️ Exceso descanso' : 'Salida'}
                     </span>
                     <div className={styles.tiRight}>
                       <span className={styles.tiHora}>{formatTimestamp(f.timestamp)}</span>

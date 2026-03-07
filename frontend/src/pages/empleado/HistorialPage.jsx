@@ -159,9 +159,9 @@ export default function HistorialPage() {
                     </div>
                     <div className={styles.grupoFichajes}>
                       {fichajesDia.map(f => (
-                        <div key={f.id} className={`${styles.fichaje} ${f.tipo === 'entrada' ? styles.fichajeEntrada : styles.fichajeSalida}`}>
-                          <div className={`${styles.fichajeTipoBadge} ${f.tipo === 'entrada' ? styles.badgeEntrada : styles.badgeSalida}`}>
-                            {f.tipo === 'entrada' ? '↓ Entrada' : '↑ Salida'}
+                        <div key={f.id} className={`${styles.fichaje} ${f.tipo === 'entrada' ? styles.fichajeEntrada : f.notas?.startsWith('Exceso descanso') ? styles.fichajeExceso : styles.fichajeSalida}`}>
+                          <div className={`${styles.fichajeTipoBadge} ${f.tipo === 'entrada' ? styles.badgeEntrada : f.notas?.startsWith('Exceso descanso') ? styles.badgeExceso : styles.badgeSalida}`}>
+                            {f.tipo === 'entrada' ? '↓ Entrada' : f.notas?.startsWith('Exceso descanso') ? '⚠️ Exceso descanso' : '↑ Salida'}
                           </div>
                           <div className={styles.fichajeHora}>{formatHora(f.timestamp)}</div>
                           {f.notas && <div className={styles.fichajeNotas}>{f.notas}</div>}

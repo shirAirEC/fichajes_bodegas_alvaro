@@ -68,6 +68,16 @@ router.post('/fichar', authMiddleware, async (req, res) => {
 
       if (realMin > allowedMin) {
         const excessMin = realMin - allowedMin;
+
+        // Insertar una salida real en el momento exacto en que expiró el tiempo permitido
+        const horaFinDescanso = new Date(new Date(lastRows[0].timestamp).getTime() + allowedMin * 60000);
+        await pool.query(
+          `INSERT INTO fichajes (empleado_id, tipo, es_descanso, notas, timestamp)
+           VALUES ($1, 'salida', false, $2, $3)`,
+          [empleadoId, `Exceso descanso — ${excessMin} min no contabilizados`, horaFinDescanso.toISOString()]
+        );
+
+        // Registrar en tabla de excesos para el informe
         await pool.query(
           `INSERT INTO excesos_descanso
              (empleado_id, fecha, hora_inicio_descanso, hora_fin_descanso, minutos_real, minutos_permitido, minutos_exceso, fichaje_descanso_id)

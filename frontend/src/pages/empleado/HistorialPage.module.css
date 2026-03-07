@@ -160,6 +160,11 @@
   background: rgba(139, 38, 53, 0.04);
 }
 
+.fichajeExceso {
+  border-color: #e65100;
+  background: rgba(230, 81, 0, 0.05);
+}
+
 .fichajeTipoBadge {
   font-size: 0.75rem;
   font-weight: 700;
@@ -178,6 +183,11 @@
 .badgeSalida {
   background: var(--color-error-light);
   color: var(--color-error);
+}
+
+.badgeExceso {
+  background: #fbe9e7;
+  color: #e65100;
 }
 
 .fichajeHora {

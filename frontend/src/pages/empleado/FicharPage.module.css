@@ -460,6 +460,11 @@
   background: #fff3e0;
 }
 
+.tiExceso .tiDot {
+  border-color: #e65100;
+  background: #fbe9e7;
+}
+
 .tiDescansoBadge {
   font-size: 0.72rem;
   font-weight: 700;
