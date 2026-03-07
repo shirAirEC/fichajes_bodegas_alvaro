@@ -322,6 +322,41 @@
   font-style: italic;
 }
 
+/* Aviso exceso descanso */
+.excesoDescansoBox {
+  background: #fff8e1;
+  border: 1.5px solid #f9a825;
+  border-radius: var(--radius-md);
+  padding: 1rem 1.2rem;
+  margin: 1rem 0 0.5rem;
+  text-align: left;
+}
+.excesoDescansoBox strong {
+  display: block;
+  color: #e65100;
+  font-size: 0.95rem;
+  margin-bottom: 0.4rem;
+}
+.excesoDescansoBox p {
+  font-size: 0.85rem;
+  color: #5d4037;
+  margin: 0 0 0.6rem;
+  line-height: 1.5;
+}
+.excesoDescansoClose {
+  background: none;
+  border: 1px solid #f9a825;
+  color: #e65100;
+  font-size: 0.78rem;
+  border-radius: 20px;
+  padding: 0.25rem 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.excesoDescansoClose:hover {
+  background: #fff3cd;
+}
+
 .tiRight {
   display: flex;
   align-items: center;

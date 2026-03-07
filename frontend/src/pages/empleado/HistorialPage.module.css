@@ -226,3 +226,150 @@
   color: var(--color-text-light);
   font-weight: 500;
 }
+
+/* ─── Tabs ─────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text-light);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tab:hover { color: var(--color-primary); }
+
+.tabActiva {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.tabAlert { color: #e65100; }
+.tabAlert.tabActiva { border-bottom-color: #e65100; }
+
+.tabCount {
+  background: var(--color-bg);
+  color: var(--color-text-light);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 10px;
+}
+
+.tabBadge {
+  background: #e65100;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.1rem 0.45rem;
+  border-radius: 10px;
+}
+
+/* ─── Excesos descanso ──────────────────────────────────────── */
+.excesosSection {
+  margin-top: 0.5rem;
+}
+
+.excesosInfo {
+  font-size: 0.85rem;
+  color: var(--color-text-light);
+  margin-bottom: 1rem;
+  padding: 0.7rem 1rem;
+  background: #fff8e1;
+  border-left: 3px solid #f9a825;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.excesosEmpty {
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.excesosEmptyIcon { font-size: 2.5rem; display: block; margin-bottom: 0.8rem; }
+.excesosEmpty p { color: var(--color-text-light); font-size: 0.95rem; }
+
+.excesosLista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.excesoItem {
+  background: var(--color-white);
+  border: 1.5px solid var(--color-border);
+  border-left: 4px solid #f9a825;
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.excesoFecha {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--color-primary);
+  text-transform: capitalize;
+}
+
+.excesoDetalle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.excesoHoras {
+  font-size: 0.85rem;
+  color: var(--color-text-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.excesoDuracion {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.83rem;
+}
+
+.excesoReal {
+  font-weight: 600;
+  color: #e65100;
+}
+
+.excesoPermitido {
+  color: var(--color-text-light);
+}
+
+.excesoTag {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #e65100;
+  background: #fff3e0;
+  border-radius: 20px;
+  padding: 0.15rem 0.7rem;
+  align-self: flex-start;
+}
+
+.excesosTotales {
+  margin-top: 1.2rem;
+  font-size: 0.88rem;
+  color: var(--color-text-light);
+  padding: 0.75rem 1rem;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+}

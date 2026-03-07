@@ -35,6 +35,7 @@ export default function FicharPage() {
   const [mensaje, setMensaje] = useState(null);
   const [errorRed, setErrorRed] = useState(null);
   const [errorAnticipado, setErrorAnticipado] = useState(null);
+  const [avisoExcesoDescanso, setAvisoExcesoDescanso] = useState(null);
   const [segsRevertir, setSegsRevertir] = useState(null);
 
   // Reloj en tiempo real
@@ -110,6 +111,10 @@ export default function FicharPage() {
 
       const tipoLabel = data.tipo === 'entrada' ? 'Entrada registrada' : 'Salida registrada';
       setMensaje({ tipo: 'success', texto: `${tipoLabel} a las ${formatTimestamp(data.fichaje.timestamp)}` });
+      if (data.excesoDescanso) {
+        const { exceso, permitido, real } = data.excesoDescanso;
+        setAvisoExcesoDescanso({ exceso, permitido, real });
+      }
       await cargarEstado();
     } catch (err) {
       setMensaje({ tipo: 'error', texto: err.message || 'Error al registrar fichaje' });
@@ -229,6 +234,18 @@ export default function FicharPage() {
         {mensaje && (
           <div className={`${styles.mensaje} ${styles[mensaje.tipo]}`}>
             {mensaje.texto}
+          </div>
+        )}
+
+        {avisoExcesoDescanso && (
+          <div className={styles.excesoDescansoBox}>
+            <strong>⚠️ Has superado el tiempo de descanso</strong>
+            <p>
+              Has estado <strong>{avisoExcesoDescanso.real} min</strong> en descanso,
+              pero el tiempo permitido es <strong>{avisoExcesoDescanso.permitido} min</strong>.
+              Los <strong>{avisoExcesoDescanso.exceso} min</strong> de exceso <strong>no se contabilizan</strong> como jornada laboral.
+            </p>
+            <button className={styles.excesoDescansoClose} onClick={() => setAvisoExcesoDescanso(null)}>Entendido ✕</button>
           </div>
         )}
 
