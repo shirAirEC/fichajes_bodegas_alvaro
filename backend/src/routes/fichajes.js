@@ -110,7 +110,8 @@ router.post('/fichar', authMiddleware, async (req, res) => {
         const msSalida  = horario.hora_salida  ? timeToMs(horario.hora_salida)  : null;
 
         // Detectar entrada demasiado anticipada (antes del margen de cortesía)
-        if (tipo === 'entrada' && msEntrada !== null && msDelDia < msEntrada - graciaMsVal) {
+        // Si el último fichaje era un descanso es un retorno, no una entrada nueva → omitir
+        if (tipo === 'entrada' && !lastRows[0]?.es_descanso && msEntrada !== null && msDelDia < msEntrada - graciaMsVal) {
           // Guardar solicitud pendiente de aprobación
           const yaExiste = await pool.query(
             `SELECT id FROM fichajes_anticipados WHERE empleado_id = $1 AND fecha = $2 AND estado = 'pendiente'`,
