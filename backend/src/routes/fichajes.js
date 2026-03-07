@@ -52,10 +52,45 @@ router.post('/fichar', authMiddleware, async (req, res) => {
 
     // Determinar tipo por último fichaje (ignorar fichajes con timestamp futuro)
     const { rows: lastRows } = await pool.query(
-      'SELECT tipo FROM fichajes WHERE empleado_id = $1 AND timestamp <= NOW() ORDER BY timestamp DESC LIMIT 1',
+      'SELECT id, tipo, es_descanso, timestamp, notas FROM fichajes WHERE empleado_id = $1 AND timestamp <= NOW() ORDER BY timestamp DESC LIMIT 1',
       [empleadoId]
     );
     const tipo = (!lastRows[0] || lastRows[0].tipo === 'salida') ? 'entrada' : 'salida';
+
+    // Detectar retorno de descanso con exceso de tiempo
+    let excesoDescanso = null;
+    if (tipo === 'entrada' && lastRows[0]?.es_descanso) {
+      const breakStartMs = new Date(lastRows[0].timestamp).getTime();
+      const breakEndMs = Date.now();
+      const realMin = Math.round((breakEndMs - breakStartMs) / 60000);
+      const matchNotas = (lastRows[0].notas || '').match(/(\d+)\s*min/);
+      const allowedMin = matchNotas ? parseInt(matchNotas[1]) : 30;
+
+      if (realMin > allowedMin) {
+        const excessMin = realMin - allowedMin;
+
+        // Insertar una salida real en el momento exacto en que expiró el tiempo permitido
+        const horaFinDescanso = new Date(new Date(lastRows[0].timestamp).getTime() + allowedMin * 60000);
+        await pool.query(
+          `INSERT INTO fichajes (empleado_id, tipo, es_descanso, notas, timestamp)
+           VALUES ($1, 'salida', false, $2, $3)`,
+          [empleadoId, `Exceso descanso — ${excessMin} min no contabilizados`, horaFinDescanso.toISOString()]
+        );
+
+        // Registrar en tabla de excesos para el informe
+        await pool.query(
+          `INSERT INTO excesos_descanso
+             (empleado_id, fecha, hora_inicio_descanso, hora_fin_descanso, minutos_real, minutos_permitido, minutos_exceso, fichaje_descanso_id)
+           VALUES ($1, CURRENT_DATE, $2, NOW(), $3, $4, $5, $6)`,
+          [empleadoId, lastRows[0].timestamp, realMin, allowedMin, excessMin, lastRows[0].id]
+        );
+        excesoDescanso = { exceso: excessMin, permitido: allowedMin, real: realMin };
+        await crearNotificacion(
+          empleadoId,
+          `Has superado el tiempo de descanso permitido (${allowedMin} min). Estuviste ${realMin} min en descanso. Los ${excessMin} min de exceso no se contabilizan como jornada laboral.`
+        );
+      }
+    }
 
     // Aplicar tiempo de gracia usando el horario programado del empleado
     const graciaMinutos = parseInt(cfg.gracia_minutos || '0');
@@ -75,7 +110,8 @@ router.post('/fichar', authMiddleware, async (req, res) => {
         const msSalida  = horario.hora_salida  ? timeToMs(horario.hora_salida)  : null;
 
         // Detectar entrada demasiado anticipada (antes del margen de cortesía)
-        if (tipo === 'entrada' && msEntrada !== null && msDelDia < msEntrada - graciaMsVal) {
+        // Si el último fichaje era un descanso es un retorno, no una entrada nueva → omitir
+        if (tipo === 'entrada' && !lastRows[0]?.es_descanso && msEntrada !== null && msDelDia < msEntrada - graciaMsVal) {
           // Guardar solicitud pendiente de aprobación
           const yaExiste = await pool.query(
             `SELECT id FROM fichajes_anticipados WHERE empleado_id = $1 AND fecha = $2 AND estado = 'pendiente'`,
@@ -149,7 +185,7 @@ router.post('/fichar', authMiddleware, async (req, res) => {
       [empleadoId, tipo, notas, timestampFichaje]
     );
 
-    res.status(201).json({ fichaje: rows[0], tipo });
+    res.status(201).json({ fichaje: rows[0], tipo, excesoDescanso });
   } catch (err) {
     console.error('Fichar error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -717,5 +753,59 @@ function calcularMinutosTrabajados(fichajes) {
   }
   return Math.round(minutos);
 }
+
+// ─── Excesos descanso: historial propio ─────────────────────────────────────
+router.get('/mis-excesos', authMiddleware, async (req, res) => {
+  const empleadoId = req.user.id;
+  const { desde, hasta } = req.query;
+  const params = [empleadoId];
+  let where = 'WHERE ed.empleado_id = $1';
+  if (desde) { params.push(desde); where += ` AND ed.fecha >= $${params.length}`; }
+  if (hasta) { params.push(hasta); where += ` AND ed.fecha <= $${params.length}`; }
+
+  const { rows } = await pool.query(
+    `SELECT ed.id, ed.fecha, ed.hora_inicio_descanso, ed.hora_fin_descanso,
+            ed.minutos_real, ed.minutos_permitido, ed.minutos_exceso
+     FROM excesos_descanso ed
+     ${where}
+     ORDER BY ed.fecha DESC, ed.hora_inicio_descanso DESC`,
+    params
+  );
+  res.json({ excesos: rows });
+});
+
+// ─── Excesos descanso: informe admin ────────────────────────────────────────
+router.get('/admin/excesos', authMiddleware, adminMiddleware, async (req, res) => {
+  const { desde, hasta } = req.query;
+  const params = [];
+  let where = '';
+  if (desde) { params.push(desde); where += `${where ? ' AND' : 'WHERE'} ed.fecha >= $${params.length}`; }
+  if (hasta) { params.push(hasta); where += `${where ? ' AND' : 'WHERE'} ed.fecha <= $${params.length}`; }
+
+  const { rows } = await pool.query(
+    `SELECT e.id, e.nombre, e.apellidos, e.departamento,
+            COUNT(ed.id)::int                         AS veces,
+            ROUND(AVG(ed.minutos_exceso))::int        AS exceso_promedio,
+            SUM(ed.minutos_exceso)::int               AS exceso_total,
+            json_agg(
+              json_build_object(
+                'id', ed.id,
+                'fecha', ed.fecha,
+                'hora_inicio', ed.hora_inicio_descanso,
+                'hora_fin', ed.hora_fin_descanso,
+                'minutos_real', ed.minutos_real,
+                'minutos_permitido', ed.minutos_permitido,
+                'minutos_exceso', ed.minutos_exceso
+              ) ORDER BY ed.fecha DESC, ed.hora_inicio_descanso DESC
+            )                                         AS detalle
+     FROM excesos_descanso ed
+     JOIN empleados e ON e.id = ed.empleado_id
+     ${where}
+     GROUP BY e.id, e.nombre, e.apellidos, e.departamento
+     ORDER BY exceso_total DESC`,
+    params
+  );
+  res.json({ empleados: rows });
+});
 
 module.exports = router;

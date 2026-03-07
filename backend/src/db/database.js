@@ -239,6 +239,24 @@ async function initializeDatabase() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_fichajes_anticipados_empleado ON fichajes_anticipados(empleado_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_fichajes_anticipados_estado ON fichajes_anticipados(estado);`);
 
+  // Registro de excesos en tiempo de descanso
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS excesos_descanso (
+      id SERIAL PRIMARY KEY,
+      empleado_id INTEGER NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
+      fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+      hora_inicio_descanso TIMESTAMPTZ NOT NULL,
+      hora_fin_descanso TIMESTAMPTZ NOT NULL,
+      minutos_real INTEGER NOT NULL,
+      minutos_permitido INTEGER NOT NULL,
+      minutos_exceso INTEGER NOT NULL,
+      fichaje_descanso_id INTEGER REFERENCES fichajes(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_excesos_descanso_empleado ON excesos_descanso(empleado_id);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_excesos_descanso_fecha ON excesos_descanso(fecha);`);
+
   // Avisos de planificación creados por el admin
   await pool.query(`
     CREATE TABLE IF NOT EXISTS avisos (

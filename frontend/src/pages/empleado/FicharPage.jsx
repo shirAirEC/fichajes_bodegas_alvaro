@@ -35,6 +35,7 @@ export default function FicharPage() {
   const [mensaje, setMensaje] = useState(null);
   const [errorRed, setErrorRed] = useState(null);
   const [errorAnticipado, setErrorAnticipado] = useState(null);
+  const [avisoExcesoDescanso, setAvisoExcesoDescanso] = useState(null);
   const [segsRevertir, setSegsRevertir] = useState(null);
 
   // Reloj en tiempo real
@@ -110,6 +111,10 @@ export default function FicharPage() {
 
       const tipoLabel = data.tipo === 'entrada' ? 'Entrada registrada' : 'Salida registrada';
       setMensaje({ tipo: 'success', texto: `${tipoLabel} a las ${formatTimestamp(data.fichaje.timestamp)}` });
+      if (data.excesoDescanso) {
+        const { exceso, permitido, real } = data.excesoDescanso;
+        setAvisoExcesoDescanso({ exceso, permitido, real });
+      }
       await cargarEstado();
     } catch (err) {
       setMensaje({ tipo: 'error', texto: err.message || 'Error al registrar fichaje' });
@@ -232,6 +237,18 @@ export default function FicharPage() {
           </div>
         )}
 
+        {avisoExcesoDescanso && (
+          <div className={styles.excesoDescansoBox}>
+            <strong>⚠️ Has superado el tiempo de descanso</strong>
+            <p>
+              Has estado <strong>{avisoExcesoDescanso.real} min</strong> en descanso,
+              pero el tiempo permitido es <strong>{avisoExcesoDescanso.permitido} min</strong>.
+              Los <strong>{avisoExcesoDescanso.exceso} min</strong> de exceso <strong>no se contabilizan</strong> como jornada laboral.
+            </p>
+            <button className={styles.excesoDescansoClose} onClick={() => setAvisoExcesoDescanso(null)}>Entendido ✕</button>
+          </div>
+        )}
+
         {enDescanso && (
           <div className={styles.descansoInfo}>
             ☕ Estás en descanso. Cuando vuelvas, pulsa <strong>Registrar Entrada</strong>.
@@ -323,11 +340,11 @@ export default function FicharPage() {
           {resumen.fichajesHoy.length > 0 && (
             <div className={styles.timeline}>
               {resumen.fichajesHoy.map(f => (
-                <div key={f.id} className={`${styles.timelineItem} ${f.tipo === 'entrada' ? styles.tiEntrada : f.es_descanso ? styles.tiDescanso : styles.tiSalida}`}>
+                <div key={f.id} className={`${styles.timelineItem} ${f.tipo === 'entrada' ? styles.tiEntrada : f.es_descanso ? styles.tiDescanso : f.notas?.startsWith('Exceso descanso') ? styles.tiExceso : styles.tiSalida}`}>
                   <div className={styles.tiDot}></div>
                   <div className={styles.tiContent}>
                     <span className={styles.tiTipo}>
-                      {f.tipo === 'entrada' ? 'Entrada' : f.es_descanso ? '☕ Descanso' : 'Salida'}
+                      {f.tipo === 'entrada' ? 'Entrada' : f.es_descanso ? '☕ Descanso' : f.notas?.startsWith('Exceso descanso') ? '⚠️ Exceso descanso' : 'Salida'}
                     </span>
                     <div className={styles.tiRight}>
                       <span className={styles.tiHora}>{formatTimestamp(f.timestamp)}</span>

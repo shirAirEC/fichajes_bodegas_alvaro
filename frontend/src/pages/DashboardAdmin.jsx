@@ -10,6 +10,7 @@ import AdminSolicitudesPage from './admin/AdminSolicitudesPage';
 import AdminHorariosPage from './admin/AdminHorariosPage';
 import AdminReservasPage from './admin/AdminReservasPage';
 import AdminFichajesAnticipadosPage from './admin/AdminFichajesAnticipadosPage';
+import AdminExcesosDescansoPage from './admin/AdminExcesosDescansoPage';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { useAuth } from '../hooks/useAuth';
 import styles from './Dashboard.module.css';
@@ -33,6 +34,7 @@ export default function DashboardAdmin() {
           <Route path="/horarios" element={<AdminHorariosPage />} />
           <Route path="/reservas" element={<AdminReservasPage />} />
           <Route path="/fichajes-anticipados" element={<AdminFichajesAnticipadosPage />} />
+          <Route path="/excesos-descanso" element={<AdminExcesosDescansoPage />} />
         </Routes>
       </main>
     </div>

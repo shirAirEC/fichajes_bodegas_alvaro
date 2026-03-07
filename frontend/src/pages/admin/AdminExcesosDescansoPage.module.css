@@ -1,0 +1,243 @@
+.page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.titulo {
+  font-family: var(--font-heading);
+  font-size: 1.6rem;
+  color: var(--color-primary);
+  margin: 0;
+}
+
+.btnPdf {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1.3rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btnPdf:hover:not(:disabled) { opacity: 0.88; }
+.btnPdf:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.filtros {
+  display: flex;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+  align-items: flex-end;
+}
+
+.filtroGrupo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-light);
+}
+
+.dateInput {
+  padding: 0.45rem 0.75rem;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  color: var(--color-text);
+  background: var(--color-white);
+}
+
+/* Resumen global */
+.resumenGlobal {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+@media (max-width: 700px) {
+  .resumenGlobal { grid-template-columns: repeat(2, 1fr); }
+}
+
+.stat {
+  background: var(--color-white);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  text-align: center;
+}
+
+.statVal {
+  display: block;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  line-height: 1.1;
+}
+
+.statLbl {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-text-light);
+  margin-top: 0.3rem;
+}
+
+/* Tabla principal */
+.tablaWrap {
+  overflow-x: auto;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  background: var(--color-white);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.tabla thead tr {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.tabla th {
+  padding: 0.85rem 1rem;
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+}
+
+.tabla td {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.trEmpleado:hover td { background: var(--color-bg); }
+
+.empNombre {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.empDept {
+  font-size: 0.82rem;
+  color: var(--color-text-light);
+}
+
+.center { text-align: center !important; }
+.right { text-align: right !important; }
+
+.veces {
+  display: inline-block;
+  background: #fce4ec;
+  color: #c62828;
+  font-weight: 700;
+  font-size: 0.82rem;
+  border-radius: 20px;
+  padding: 0.15rem 0.7rem;
+}
+
+.excesoTotal {
+  font-weight: 700;
+  color: #e65100;
+}
+
+.btnDetalle {
+  background: none;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--color-text-light);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btnDetalle:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* Detalle expandido */
+.trDetalle td { padding: 0; border-bottom: none; }
+
+.tdDetalle {
+  padding: 0 !important;
+  background: var(--color-bg) !important;
+}
+
+.detalleWrap {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 2px solid var(--color-primary);
+}
+
+.tablaDetalle {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.tablaDetalle th {
+  padding: 0.5rem 0.75rem;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.tablaDetalle td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.tablaDetalle tr:last-child td { border-bottom: none; }
+
+.excesoBadge {
+  font-weight: 700;
+  color: #e65100;
+}
+
+/* Vacío / cargando */
+.loading {
+  text-align: center;
+  padding: 3rem;
+  color: var(--color-text-light);
+}
+
+.empty {
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.emptyIcon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 0.8rem;
+}
+
+.empty p {
+  color: var(--color-text-light);
+  font-size: 0.95rem;
+}
