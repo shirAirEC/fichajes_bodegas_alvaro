@@ -593,6 +593,48 @@ router.get('/admin/exportar', authMiddleware, adminMiddleware, async (req, res) 
   }
 });
 
+// POST /api/fichajes/admin — crear fichaje manualmente por administrador
+router.post('/admin', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { empleado_id, tipo, fecha, hora, notas = '' } = req.body;
+    if (!empleado_id || !tipo || !fecha || !hora) {
+      return res.status(400).json({ error: 'Faltan campos obligatorios: empleado_id, tipo, fecha, hora' });
+    }
+    if (!['entrada', 'salida'].includes(tipo)) {
+      return res.status(400).json({ error: 'El tipo debe ser "entrada" o "salida"' });
+    }
+
+    const timestamp = new Date(`${fecha}T${hora}:00`);
+    if (isNaN(timestamp.getTime())) {
+      return res.status(400).json({ error: 'Fecha u hora inválida' });
+    }
+    if (timestamp > new Date()) {
+      return res.status(400).json({ error: 'No se puede crear un fichaje en el futuro' });
+    }
+
+    const { rows: empRows } = await pool.query('SELECT id, nombre, apellidos FROM empleados WHERE id = $1', [empleado_id]);
+    if (!empRows[0]) return res.status(404).json({ error: 'Empleado no encontrado' });
+
+    const { rows } = await pool.query(
+      `INSERT INTO fichajes (empleado_id, tipo, notas, timestamp)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [empleado_id, tipo, notas || 'Añadido por administrador', timestamp]
+    );
+
+    const fechaLeg = timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const horaLeg  = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    await crearNotificacion(
+      empleado_id,
+      `El administrador ha registrado una ${tipo} el ${fechaLeg} a las ${horaLeg}.`
+    );
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // PUT /api/fichajes/admin/:id — editar fichaje directamente
 router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
