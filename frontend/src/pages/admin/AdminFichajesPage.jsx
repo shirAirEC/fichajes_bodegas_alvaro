@@ -496,6 +496,9 @@ export default function AdminFichajesPage() {
   const [editModal, setEditModal] = useState(null);
   const [editForm, setEditForm] = useState({ tipo: '', fecha: '', hora: '' });
   const [editando, setEditando] = useState(false);
+  const [addModal, setAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({ empleado_id: '', tipo: 'salida', fecha: hoy, hora: '18:00', notas: '' });
+  const [guardandoAdd, setGuardandoAdd] = useState(false);
   const LIMITE = 50;
 
   const hoy = new Date().toISOString().split('T')[0];
@@ -584,6 +587,25 @@ export default function AdminFichajesPage() {
     else cargarDetalle();
   };
 
+  const handleGuardarNuevo = async (e) => {
+    e.preventDefault();
+    setGuardandoAdd(true);
+    const res = await authFetch('/api/fichajes/admin', {
+      method: 'POST',
+      body: JSON.stringify(addForm)
+    });
+    setGuardandoAdd(false);
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.error || 'Error al crear el fichaje');
+      return;
+    }
+    setAddModal(false);
+    setAddForm({ empleado_id: '', tipo: 'salida', fecha: hoy, hora: '18:00', notas: '' });
+    if (vista === 'jornadas') cargarJornadas();
+    else cargarDetalle();
+  };
+
   const handleExportarCSV = () => {
     const params = new URLSearchParams();
     if (filtros.empleado_id) params.append('empleado_id', filtros.empleado_id);
@@ -625,6 +647,12 @@ export default function AdminFichajesPage() {
       <div className={styles.topBar}>
         <h1 className={styles.title}>Fichajes</h1>
         <div className={styles.topBtns}>
+          <button onClick={() => setAddModal(true)} className={styles.btnAnadir}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Añadir fichaje
+          </button>
           {vista === 'informe' && (
             <button onClick={handleExportarPDF} className={styles.btnPDF} disabled={!informe.length}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -802,6 +830,59 @@ export default function AdminFichajesPage() {
                 <button type="button" className={styles.btnCancelar} onClick={() => setEditModal(null)}>Cancelar</button>
                 <button type="submit" className={styles.btnGuardarEdit} disabled={editando}>
                   {editando ? 'Guardando...' : 'Guardar cambio'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {addModal && (
+        <div className={styles.confirmOverlay} onClick={e => e.target === e.currentTarget && setAddModal(false)}>
+          <div className={styles.editBox}>
+            <div className={styles.editHeader}>
+              <h3>Añadir fichaje manualmente</h3>
+              <button className={styles.editClose} onClick={() => setAddModal(false)}>×</button>
+            </div>
+            <form onSubmit={handleGuardarNuevo} className={styles.editForm}>
+              <div className={styles.editField}>
+                <label>Empleado</label>
+                <select required value={addForm.empleado_id}
+                  onChange={e => setAddForm(f => ({ ...f, empleado_id: e.target.value }))}>
+                  <option value="">— Selecciona empleado —</option>
+                  {empleados.map(e => (
+                    <option key={e.id} value={e.id}>{e.nombre} {e.apellidos}</option>
+                  ))}
+                </select>
+              </div>
+              <div className={styles.editField}>
+                <label>Tipo</label>
+                <select value={addForm.tipo} onChange={e => setAddForm(f => ({ ...f, tipo: e.target.value }))}>
+                  <option value="salida">Salida</option>
+                  <option value="entrada">Entrada</option>
+                </select>
+              </div>
+              <div className={styles.editField}>
+                <label>Fecha</label>
+                <input type="date" required value={addForm.fecha}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={e => setAddForm(f => ({ ...f, fecha: e.target.value }))} />
+              </div>
+              <div className={styles.editField}>
+                <label>Hora</label>
+                <input type="time" required value={addForm.hora}
+                  onChange={e => setAddForm(f => ({ ...f, hora: e.target.value }))} />
+              </div>
+              <div className={styles.editField}>
+                <label>Notas <span style={{ fontWeight: 400, color: '#999' }}>(opcional)</span></label>
+                <input type="text" placeholder="Ej: Olvidó fichar salida" value={addForm.notas}
+                  onChange={e => setAddForm(f => ({ ...f, notas: e.target.value }))} />
+              </div>
+              <p className={styles.editNota}>El empleado recibirá una notificación de este registro.</p>
+              <div className={styles.editFooter}>
+                <button type="button" className={styles.btnCancelar} onClick={() => setAddModal(false)}>Cancelar</button>
+                <button type="submit" className={styles.btnGuardarEdit} disabled={guardandoAdd}>
+                  {guardandoAdd ? 'Guardando...' : 'Añadir fichaje'}
                 </button>
               </div>
             </form>
