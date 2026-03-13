@@ -52,10 +52,33 @@ router.post('/fichar', authMiddleware, async (req, res) => {
 
     // Determinar tipo por último fichaje (ignorar fichajes con timestamp futuro)
     const { rows: lastRows } = await pool.query(
-      'SELECT id, tipo, es_descanso, timestamp, notas FROM fichajes WHERE empleado_id = $1 AND timestamp <= NOW() ORDER BY timestamp DESC LIMIT 1',
+      'SELECT id, tipo, es_descanso, timestamp, notas FROM fichajes WHERE empleado_id = $1 AND timestamp <= NOW() ORDER BY timestamp DESC, id DESC LIMIT 1',
       [empleadoId]
     );
-    const tipo = (!lastRows[0] || lastRows[0].tipo === 'salida') ? 'entrada' : 'salida';
+
+    // Si el último fichaje es una ENTRADA de un día anterior (sesión sin cerrar),
+    // tratamos al empleado como "fuera" para que hoy empiece con una entrada nueva.
+    // Excepción: si era un descanso activo (es_descanso=true), sí hay que procesarlo.
+    const lastEsDeOtroDia = lastRows[0] && (() => {
+      const fechaUltimo = new Date(lastRows[0].timestamp).toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid' });
+      const fechaHoy = new Date().toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid' });
+      return fechaUltimo !== fechaHoy;
+    })();
+
+    const tipo = (!lastRows[0] || lastRows[0].tipo === 'salida' ||
+      (lastRows[0].tipo === 'entrada' && lastEsDeOtroDia && !lastRows[0].es_descanso))
+      ? 'entrada' : 'salida';
+
+    // Prevenir duplicados: si ya hay un fichaje del mismo tipo en los últimos 30 segundos, retornar el existente
+    const { rows: reciente } = await pool.query(
+      `SELECT id, tipo, timestamp, notas FROM fichajes
+       WHERE empleado_id = $1 AND tipo = $2 AND timestamp > NOW() - INTERVAL '30 seconds'
+       ORDER BY timestamp DESC, id DESC LIMIT 1`,
+      [empleadoId, tipo]
+    );
+    if (reciente[0]) {
+      return res.status(200).json({ fichaje: reciente[0], tipo, duplicado: true });
+    }
 
     // Detectar retorno de descanso con exceso de tiempo
     let excesoDescanso = null;
@@ -196,12 +219,22 @@ router.post('/fichar', authMiddleware, async (req, res) => {
 router.get('/estado', authMiddleware, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT * FROM fichajes WHERE empleado_id = $1 AND timestamp <= NOW() ORDER BY timestamp DESC LIMIT 1',
+      'SELECT * FROM fichajes WHERE empleado_id = $1 AND timestamp <= NOW() ORDER BY timestamp DESC, id DESC LIMIT 1',
       [req.user.id]
     );
     const ultimo = rows[0] || null;
-    const dentro = ultimo?.tipo === 'entrada';
-    const enDescanso = !dentro && ultimo?.es_descanso === true;
+
+    // Si el último fichaje fue una entrada de un día anterior (sesión sin cerrar),
+    // el empleado se considera "fuera" para el día de hoy.
+    const ultimoEsDeOtroDia = ultimo && (() => {
+      const fechaUltimo = new Date(ultimo.timestamp).toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid' });
+      const fechaHoy = new Date().toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid' });
+      return fechaUltimo !== fechaHoy;
+    })();
+
+    const estaFueraPorSinCerrar = ultimoEsDeOtroDia && ultimo?.tipo === 'entrada' && !ultimo?.es_descanso;
+    const dentro = estaFueraPorSinCerrar ? false : (ultimo?.tipo === 'entrada');
+    const enDescanso = !dentro && ultimo?.es_descanso === true && !estaFueraPorSinCerrar;
 
     // Comprobar si ya hubo un descanso hoy
     const { rows: descHoy } = await pool.query(
