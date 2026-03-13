@@ -3,6 +3,7 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const morgan = require('morgan');
 const { initializeDatabase } = require('./db/database');
 const { initFirebase } = require('./firebase');
 
@@ -51,6 +52,13 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Formato de log: método, URL, status, tiempo de respuesta, IP del cliente
+morgan.token('client-ip', (req) => {
+  const forwarded = req.headers['x-forwarded-for'];
+  return forwarded ? forwarded.split(',')[0].trim() : req.socket?.remoteAddress || '-';
+});
+app.use(morgan(':date[iso] :method :url :status :response-time ms - IP::client-ip'));
 
 app.use(express.json());
 
