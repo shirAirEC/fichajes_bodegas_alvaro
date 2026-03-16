@@ -484,6 +484,10 @@ function InformeMensual({ informe, filtros }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function AdminFichajesPage() {
   const { authFetch } = useAuth();
+  const hoy = new Date().toISOString().split('T')[0];
+  const inicioAnio = `${new Date().getFullYear()}-01-01`;
+  const LIMITE = 50;
+
   const [vista, setVista] = useState('jornadas');
   const [jornadas, setJornadas] = useState([]);
   const [fichajes, setFichajes] = useState([]);
@@ -492,6 +496,7 @@ export default function AdminFichajesPage() {
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(1);
   const [cargando, setCargando] = useState(true);
+  const [filtros, setFiltros] = useState({ empleado_id: '', desde: inicioAnio, hasta: hoy });
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [editModal, setEditModal] = useState(null);
   const [editForm, setEditForm] = useState({ tipo: '', fecha: '', hora: '' });
@@ -499,11 +504,6 @@ export default function AdminFichajesPage() {
   const [addModal, setAddModal] = useState(false);
   const [addForm, setAddForm] = useState({ empleado_id: '', tipo: 'salida', fecha: hoy, hora: '18:00', notas: '' });
   const [guardandoAdd, setGuardandoAdd] = useState(false);
-  const LIMITE = 50;
-
-  const hoy = new Date().toISOString().split('T')[0];
-  const inicioAnio = `${new Date().getFullYear()}-01-01`;
-  const [filtros, setFiltros] = useState({ empleado_id: '', desde: inicioAnio, hasta: hoy });
 
   useEffect(() => {
     authFetch('/api/empleados').then(r => r.json()).then(setEmpleados);
