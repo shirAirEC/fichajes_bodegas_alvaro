@@ -5,13 +5,15 @@ import DashboardEmpleado from './pages/DashboardEmpleado';
 import DashboardAdmin from './pages/DashboardAdmin';
 import TVPage from './pages/TVPage';
 import LoadingScreen from './components/LoadingScreen';
+import SolicitarBajaPage from './pages/SolicitarBajaPage';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
   const location = useLocation();
 
-  // Pantalla TV: acceso público sin autenticación
+  // Páginas públicas sin autenticación
   if (location.pathname === '/tv') return <TVPage />;
+  if (location.pathname === '/solicitar-baja') return <SolicitarBajaPage />;
 
   if (loading) return <LoadingScreen />;
   if (!user) return <LoginPage />;

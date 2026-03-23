@@ -158,6 +158,13 @@ export default function Navbar({ isAdmin = false }) {
           </button>
         </div>
       </div>
+      {!isAdmin && (
+        <div className={styles.bajaBar}>
+          <a href="/solicitar-baja" target="_blank" rel="noopener noreferrer" className={styles.bajaLink}>
+            Solicitar eliminación de cuenta
+          </a>
+        </div>
+      )}
     </nav>
   );
 }

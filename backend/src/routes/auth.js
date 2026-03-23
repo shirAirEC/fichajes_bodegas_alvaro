@@ -97,4 +97,32 @@ router.put('/cambiar-password', authMiddleware, async (req, res) => {
   }
 });
 
+// POST /api/auth/solicitar-baja — solicitud pública de eliminación de cuenta (RGPD)
+router.post('/solicitar-baja', async (req, res) => {
+  try {
+    const { nombre, apellidos, motivo = '' } = req.body;
+    if (!nombre || !apellidos) {
+      return res.status(400).json({ error: 'Nombre y apellidos son obligatorios' });
+    }
+
+    // Guardar la solicitud como notificación interna para los administradores
+    const texto = `Solicitud de eliminación de cuenta (RGPD): ${nombre} ${apellidos}${motivo ? ` — Motivo: ${motivo}` : ''}`;
+    const { rows: admins } = await pool.query(
+      `SELECT id FROM empleados WHERE rol = 'admin'`
+    );
+    for (const admin of admins) {
+      await pool.query(
+        `INSERT INTO notificaciones (empleado_id, mensaje, visto, created_at)
+         VALUES ($1, $2, false, NOW())`,
+        [admin.id, texto]
+      );
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('solicitar-baja error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 module.exports = router;
