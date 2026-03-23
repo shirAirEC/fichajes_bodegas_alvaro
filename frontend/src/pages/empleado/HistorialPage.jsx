@@ -22,13 +22,25 @@ function agruparPorDia(fichajes) {
 function calcularMinutos(fichajesDia) {
   let min = 0;
   let entrada = null;
+  let breakStart = null;
+  let breakAllowed = 30;
   const sorted = [...fichajesDia].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
   for (const f of sorted) {
     if (f.tipo === 'entrada') {
+      if (breakStart) {
+        const breakReal = (new Date(f.timestamp) - breakStart) / 60000;
+        min += Math.min(breakReal, breakAllowed);
+        breakStart = null;
+      }
       entrada = new Date(f.timestamp);
     } else if (f.tipo === 'salida' && entrada) {
       min += (new Date(f.timestamp) - entrada) / 60000;
       entrada = null;
+      if (f.es_descanso) {
+        breakStart = new Date(f.timestamp);
+        const match = (f.notas || '').match(/(\d+)\s*min/);
+        breakAllowed = match ? parseInt(match[1]) : 30;
+      }
     }
   }
   return Math.round(min);

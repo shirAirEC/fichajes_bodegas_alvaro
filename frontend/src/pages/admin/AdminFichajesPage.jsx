@@ -308,10 +308,15 @@ function FilaJornada({ jornada, onEliminarFichaje, onEditarFichaje }) {
                   <span>
                     <strong>Descanso:</strong> inicio {fmtHora(descansoFichaje.timestamp)}
                     {vueltaDescanso
-                      ? <> · vuelta {fmtHora(vueltaDescanso.timestamp)} · duración real {fmtDuracion(Math.round((new Date(vueltaDescanso.timestamp) - new Date(descansoFichaje.timestamp)) / 60000))}</>
+                      ? (() => {
+                          const realMin = Math.round((new Date(vueltaDescanso.timestamp) - new Date(descansoFichaje.timestamp)) / 60000);
+                          const matchNotas = (descansoFichaje.notas || '').match(/(\d+)\s*min/);
+                          const allowed = matchNotas ? parseInt(matchNotas[1]) : 30;
+                          const acreditado = Math.min(realMin, allowed);
+                          return <> · vuelta {fmtHora(vueltaDescanso.timestamp)} · duración real {fmtDuracion(realMin)} <span className={styles.descansoCredito}>(+{acreditado} min acreditados)</span></>;
+                        })()
                       : <em> · aún en descanso</em>
                     }
-                    
                   </span>
                 </div>
               )}

@@ -831,12 +831,25 @@ function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
 function calcularMinutosTrabajados(fichajes) {
   let minutos = 0;
   let entrada = null;
+  let breakStart = null;
+  let breakAllowed = 30;
+
   for (const f of fichajes) {
     if (f.tipo === 'entrada') {
+      if (breakStart) {
+        const breakReal = (new Date(f.timestamp) - breakStart) / 60000;
+        minutos += Math.min(breakReal, breakAllowed);
+        breakStart = null;
+      }
       entrada = new Date(f.timestamp);
     } else if (f.tipo === 'salida' && entrada) {
       minutos += (new Date(f.timestamp) - entrada) / 60000;
       entrada = null;
+      if (f.es_descanso) {
+        breakStart = new Date(f.timestamp);
+        const match = (f.notas || '').match(/(\d+)\s*min/);
+        breakAllowed = match ? parseInt(match[1]) : 30;
+      }
     }
   }
   return Math.round(minutos);
