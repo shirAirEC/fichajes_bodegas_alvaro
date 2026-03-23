@@ -140,7 +140,7 @@ export default function FicharPage() {
         return;
       }
       const mins = data.descansoMinutos ?? 30;
-      setMensaje({ tipo: 'success', texto: `Descanso iniciado a las ${formatTimestamp(data.fichaje.timestamp)} · Se acreditarán ${mins} min de tiempo efectivo` });
+      setMensaje({ tipo: 'success', texto: `Descanso iniciado a las ${formatTimestamp(data.fichaje.timestamp)}` });
       await cargarEstado();
     } catch (err) {
       setMensaje({ tipo: 'error', texto: err.message || 'Error al registrar descanso' });
@@ -151,7 +151,7 @@ export default function FicharPage() {
   };
 
   const handleRevertirDescanso = async () => {
-    if (!window.confirm(`¿Revertir el descanso? Se eliminará el registro y no se acreditarán los ${descansoMinutos} minutos.`)) return;
+    if (!window.confirm('¿Revertir el descanso? Se eliminará el registro.')) return;
     setDescansando(true);
     setMensaje(null);
     try {
@@ -252,7 +252,7 @@ export default function FicharPage() {
         {enDescanso && (
           <div className={styles.descansoInfo}>
             ☕ Estás en descanso. Cuando vuelvas, pulsa <strong>Registrar Entrada</strong>.
-            <span className={styles.descansoCredito}>+{descansoMinutos} min acreditados automáticamente</span>
+            
           </div>
         )}
 
@@ -348,11 +348,7 @@ export default function FicharPage() {
                     </span>
                     <div className={styles.tiRight}>
                       <span className={styles.tiHora}>{formatTimestamp(f.timestamp)}</span>
-                      {f.es_descanso && (
-                      <span className={styles.tiDescansoBadge}>
-                        +{(() => { const m = f.notas?.match(/(\d+)\s*min/); return m ? m[1] : descansoMinutos; })()} min
-                      </span>
-                    )}
+                      
                     </div>
                   </div>
                 </div>

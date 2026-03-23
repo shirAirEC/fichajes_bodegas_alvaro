@@ -311,7 +311,7 @@ function FilaJornada({ jornada, onEliminarFichaje, onEditarFichaje }) {
                       ? <> · vuelta {fmtHora(vueltaDescanso.timestamp)} · duración real {fmtDuracion(Math.round((new Date(vueltaDescanso.timestamp) - new Date(descansoFichaje.timestamp)) / 60000))}</>
                       : <em> · aún en descanso</em>
                     }
-                    <span className={styles.descansoResumenCredito}> (+30 min acreditados)</span>
+                    
                   </span>
                 </div>
               )}
@@ -339,7 +339,7 @@ function FilaJornada({ jornada, onEliminarFichaje, onEditarFichaje }) {
                             {fmtDuracion(Math.round((new Date(f.timestamp) - new Date(jornada.fichajes[i - 1].timestamp)) / 60000))}
                           </span>
                         )}
-                        {esDescansoItem && <span className={styles.dtCreditoBadge}>+30 min</span>}
+                        
                       </div>
                       <div className={styles.dtActions}>
                         <button

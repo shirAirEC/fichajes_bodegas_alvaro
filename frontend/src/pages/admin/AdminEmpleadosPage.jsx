@@ -233,7 +233,7 @@ export default function AdminEmpleadosPage() {
                       <div className={styles.exencionRow}>
                         <div>
                           <span className={styles.exencionLabel}>Duración del descanso</span>
-                          <p className={styles.exencionDesc}>Minutos acreditados al tomar el descanso.</p>
+                          <p className={styles.exencionDesc}>Duración máxima del descanso antes de registrar exceso.</p>
                         </div>
                         <select
                           className={styles.selectDescanso}

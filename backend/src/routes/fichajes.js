@@ -837,11 +837,6 @@ function calcularMinutosTrabajados(fichajes) {
     } else if (f.tipo === 'salida' && entrada) {
       minutos += (new Date(f.timestamp) - entrada) / 60000;
       entrada = null;
-      if (f.es_descanso) {
-        // Leer duración del descanso desde notas ("Descanso 30 min" o "Descanso 15 min")
-        const match = (f.notas || '').match(/(\d+)\s*min/);
-        minutos += match ? parseInt(match[1]) : 30;
-      }
     }
   }
   return Math.round(minutos);
