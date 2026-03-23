@@ -149,14 +149,20 @@
 }
 
 @media (max-width: 768px) {
+  .nav {
+    min-width: 0;
+    width: 100%;
+  }
+
   .menuBtn {
     display: flex;
   }
 
   .inner {
+    min-width: 0;
     flex-wrap: wrap;
     height: auto;
-    padding: 0.875rem 1.5rem;
+    padding: 0.875rem 1rem;
   }
 
   .brand {
