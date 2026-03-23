@@ -24,9 +24,8 @@ function esPWA() {
 }
 
 // Los empleados solo pueden acceder desde la app Android o desde la PWA instalada
-// Las cuentas solo_planificacion están exentas (consultan desde cualquier sitio)
-function verificarAccesoWeb(rol, soloPlanificacion) {
-  if (rol === 'empleado' && !soloPlanificacion && !esAppNativa() && !esPWA()) {
+function verificarAccesoWeb(rol) {
+  if (rol === 'empleado' && !esAppNativa() && !esPWA()) {
     throw new Error('SOLO_APP');
   }
 }
@@ -57,7 +56,7 @@ export function AuthProvider({ children }) {
         return res.json();
       })
       .then(data => {
-        try { verificarAccesoWeb(data.rol, data.solo_planificacion === 1); } catch { logout(); return; }
+        try { verificarAccesoWeb(data.rol); } catch { logout(); return; }
         setUser(data);
       })
       .catch(() => logout())
@@ -102,7 +101,7 @@ export function AuthProvider({ children }) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al iniciar sesión');
 
-    verificarAccesoWeb(data.empleado.rol, data.empleado.solo_planificacion === 1);
+    verificarAccesoWeb(data.empleado.rol);
 
     localStorage.setItem('fichajes_token', data.token);
     setToken(data.token);
