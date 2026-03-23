@@ -1,6 +1,7 @@
 .nav {
   background: var(--color-primary);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  /* sombra inferior + extensión infinita hacia la derecha del color de fondo */
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2), 9999px 0 0 0 var(--color-primary);
   position: sticky;
   top: 0;
   z-index: 100;
