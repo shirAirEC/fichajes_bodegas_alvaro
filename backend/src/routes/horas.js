@@ -10,16 +10,23 @@ const router = express.Router();
 function calcularHorasDeFichajes(fichajes) {
   let minutos = 0;
   let entrada = null;
+  let breakStart = null;
+  let breakAllowed = 30;
   for (const f of fichajes) {
     if (f.tipo === 'entrada') {
+      if (breakStart) {
+        const breakReal = (new Date(f.timestamp) - breakStart) / 60000;
+        minutos += Math.min(breakReal, breakAllowed);
+        breakStart = null;
+      }
       entrada = new Date(f.timestamp);
     } else if (f.tipo === 'salida' && entrada) {
       minutos += (new Date(f.timestamp) - entrada) / 60000;
       entrada = null;
       if (f.es_descanso) {
-        // Leer duración del descanso desde notas ("Descanso 30 min" o "Descanso 15 min")
+        breakStart = new Date(f.timestamp);
         const match = (f.notas || '').match(/(\d+)\s*min/);
-        minutos += match ? parseInt(match[1]) : 30;
+        breakAllowed = match ? parseInt(match[1]) : 30;
       }
     }
   }
@@ -832,11 +839,17 @@ router.get('/admin/informe', authMiddleware, adminMiddleware, async (req, res) =
       const jornadas = Object.entries(porFecha).map(([fecha, fs]) => {
         let entrada = null;
         let minutos = 0;
-        let descansos = 0;
+        let breakStart = null;
+        let breakAllowed = 30;
         let primeraEntrada = null;
         let ultimaSalida = null;
         for (const f of fs) {
           if (f.tipo === 'entrada') {
+            if (breakStart) {
+              const breakReal = (new Date(f.timestamp) - breakStart) / 60000;
+              minutos += Math.min(breakReal, breakAllowed);
+              breakStart = null;
+            }
             const t = new Date(f.timestamp);
             if (!primeraEntrada) primeraEntrada = f.timestamp;
             entrada = t;
@@ -844,10 +857,13 @@ router.get('/admin/informe', authMiddleware, adminMiddleware, async (req, res) =
             minutos += (new Date(f.timestamp) - entrada) / 60000;
             ultimaSalida = f.timestamp;
             entrada = null;
-            if (f.es_descanso) descansos++;
+            if (f.es_descanso) {
+              breakStart = new Date(f.timestamp);
+              const match = (f.notas || '').match(/(\d+)\s*min/);
+              breakAllowed = match ? parseInt(match[1]) : 30;
+            }
           }
         }
-        minutos += descansos * 30;
         return { fecha, minutos: Math.round(minutos), primeraEntrada, ultimaSalida, enCurso: entrada !== null };
       }).sort((a, b) => a.fecha.localeCompare(b.fecha));
 
