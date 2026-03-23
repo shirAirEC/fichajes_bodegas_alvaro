@@ -292,6 +292,23 @@ async function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_ajustes_empleado ON ajustes_horas(empleado_id);
   `);
 
+  // Tabla de auditoría — registro inmutable de acciones administrativas
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id            SERIAL PRIMARY KEY,
+      usuario_id    INTEGER REFERENCES empleados(id) ON DELETE SET NULL,
+      usuario_nombre TEXT NOT NULL,
+      accion        TEXT NOT NULL,
+      entidad_tipo  TEXT NOT NULL,
+      entidad_id    INTEGER,
+      detalle       TEXT,
+      ip            TEXT,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_usuario ON audit_log(usuario_id)`);
+
   // Admin por defecto
   const { rows } = await pool.query('SELECT COUNT(*) AS n FROM empleados');
   if (parseInt(rows[0].n) === 0) {

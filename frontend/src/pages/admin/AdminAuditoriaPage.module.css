@@ -1,0 +1,63 @@
+.page { padding: 0; }
+
+.topBar {
+  display: flex; flex-direction: column; gap: 0.25rem;
+  margin-bottom: 1.5rem;
+}
+.title { font-size: 1.5rem; font-weight: 700; color: var(--color-primary); margin: 0; }
+.subtitle { font-size: 0.85rem; color: var(--color-text-light, #666); }
+
+.filtros {
+  display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;
+  margin-bottom: 1.25rem;
+}
+.filtroInput, .filtroSelect {
+  padding: 0.6rem 0.875rem; border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm); font-size: 0.875rem; color: var(--color-text);
+  background: var(--color-white); outline: none;
+}
+.filtroSelect { min-width: 180px; }
+.filtroSep { color: #999; }
+.btnBuscar {
+  padding: 0.6rem 1.25rem; background: var(--color-primary); color: #fff;
+  border: none; border-radius: var(--radius-sm); font-weight: 600;
+  font-size: 0.875rem; cursor: pointer;
+}
+
+.loading, .empty {
+  text-align: center; padding: 3rem; color: #888; font-size: 0.95rem;
+}
+
+.count { font-size: 0.8rem; color: #999; margin-bottom: 0.5rem; }
+
+.tablaWrap { overflow-x: auto; }
+.tabla {
+  width: 100%; border-collapse: collapse; font-size: 0.875rem;
+  background: var(--color-white); border-radius: var(--radius-md);
+  overflow: hidden; box-shadow: var(--shadow-sm);
+}
+.tabla thead tr {
+  background: var(--color-primary); color: #fff;
+}
+.tabla th {
+  padding: 0.75rem 1rem; text-align: left; font-weight: 600; font-size: 0.8rem;
+  letter-spacing: 0.03em;
+}
+.fila { border-bottom: 1px solid var(--color-border); }
+.fila:last-child { border-bottom: none; }
+.fila:hover { background: #faf8f5; }
+.fila td { padding: 0.7rem 1rem; vertical-align: middle; }
+
+.tdFecha { white-space: nowrap; color: #555; font-size: 0.8rem; }
+.tdUsuario { font-weight: 600; }
+.tdDetalle { color: #555; font-size: 0.82rem; max-width: 340px; }
+.tdIp { font-size: 0.78rem; color: #aaa; font-family: monospace; }
+
+.badge {
+  display: inline-block; padding: 0.25rem 0.6rem; border-radius: 20px;
+  font-size: 0.75rem; font-weight: 600; white-space: nowrap;
+}
+.verde   { background: #e8f5e9; color: #2e7d32; }
+.naranja { background: #fff3e0; color: #e65100; }
+.rojo    { background: #fdecea; color: #c62828; }
+.gris    { background: #f0f0f0; color: #555; }

@@ -4,6 +4,7 @@ const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 const { crearNotificacion } = require('./solicitudes');
 const { encontrarHorario, timeToMs } = require('./horarios');
 const { enviarPush } = require('../firebase');
+const { registrarAudit } = require('../audit');
 
 const router = express.Router();
 
@@ -627,6 +628,9 @@ router.post('/admin', authMiddleware, adminMiddleware, async (req, res) => {
       empleado_id,
       `El administrador ha registrado una ${tipo} el ${fechaLeg} a las ${horaLeg}.`
     );
+    await registrarAudit(req, 'crear_fichaje', 'fichaje', rows[0].id,
+      `Tipo: ${tipo} | Hora: ${fechaLeg} ${horaLeg} | Empleado ID ${empleado_id}${notas ? ` | Notas: ${notas}` : ''}`
+    );
 
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -660,6 +664,12 @@ router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
       [tipo || null, nuevoTimestamp, `Editado por administrador`, req.params.id]
     );
 
+    const tsAnterior = new Date(fichaje.timestamp).toLocaleString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const tsNuevo = nuevoTimestamp ? nuevoTimestamp.toLocaleString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : tsAnterior;
+    await registrarAudit(req, 'editar_fichaje', 'fichaje', fichaje.id,
+      `Tipo: ${fichaje.tipo}→${tipo || fichaje.tipo} | Hora: ${tsAnterior}→${tsNuevo} | Empleado ID ${fichaje.empleado_id}`
+    );
+
     if (notificar) {
       const fechaLeg = (nuevoTimestamp || new Date(fichaje.timestamp))
         .toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -681,9 +691,14 @@ router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
 // DELETE /api/fichajes/admin/:id
 router.delete('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT id, empleado_id FROM fichajes WHERE id = $1', [req.params.id]);
+    const { rows } = await pool.query('SELECT id, empleado_id, tipo, timestamp FROM fichajes WHERE id = $1', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Fichaje no encontrado' });
+    const f = rows[0];
     await pool.query('DELETE FROM fichajes WHERE id = $1', [req.params.id]);
+    const ts = new Date(f.timestamp).toLocaleString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    await registrarAudit(req, 'eliminar_fichaje', 'fichaje', f.id,
+      `Tipo: ${f.tipo} | Hora: ${ts} | Empleado ID ${f.empleado_id}`
+    );
     res.json({ message: 'Fichaje eliminado' });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });

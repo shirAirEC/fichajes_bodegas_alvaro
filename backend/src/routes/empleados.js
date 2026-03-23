@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
+const { registrarAudit } = require('../audit');
 
 const router = express.Router();
 
@@ -52,6 +53,9 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
        RETURNING id, nombre, apellidos, email, rol, departamento, activo, sin_restriccion_ip`,
       [nombre.trim(), apellidos.trim(), email.toLowerCase().trim(), bcrypt.hashSync(password, 10), rol, departamento.trim()]
     );
+    await registrarAudit(req, 'crear_empleado', 'empleado', rows[0].id,
+      `Nuevo empleado: ${nombre} ${apellidos} | Rol: ${rol} | Dpto: ${departamento}`
+    );
     res.status(201).json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -99,6 +103,10 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
        RETURNING id, nombre, apellidos, email, rol, departamento, activo, sin_restriccion_ip, descanso_activo, descanso_minutos`,
       valores
     );
+    const camposCambiados = Object.keys(req.body).filter(k => k !== 'password').join(', ');
+    await registrarAudit(req, 'editar_empleado', 'empleado', parseInt(id),
+      `Empleado: ${emp[0].nombre} ${emp[0].apellidos} | Campos: ${camposCambiados}${password ? ', contraseña' : ''}`
+    );
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -111,9 +119,12 @@ router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
     if (parseInt(id) === req.user.id) {
       return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta' });
     }
-    const { rows } = await pool.query('SELECT id FROM empleados WHERE id = $1', [id]);
+    const { rows } = await pool.query('SELECT id, nombre, apellidos FROM empleados WHERE id = $1', [id]);
     if (!rows[0]) return res.status(404).json({ error: 'Empleado no encontrado' });
     await pool.query('UPDATE empleados SET activo = 0 WHERE id = $1', [id]);
+    await registrarAudit(req, 'desactivar_empleado', 'empleado', parseInt(id),
+      `Empleado desactivado: ${rows[0].nombre} ${rows[0].apellidos}`
+    );
     res.json({ message: 'Empleado desactivado correctamente' });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });

@@ -68,6 +68,12 @@ const IconLogout = () => (
     <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
   </svg>
 );
+const IconAudit = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    <polyline points="9 12 11 14 15 10"/>
+  </svg>
+);
 const IconBreakExcess = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M18 8h1a4 4 0 0 1 0 8h-1" strokeLinecap="round"/>
@@ -105,6 +111,7 @@ export default function Navbar({ isAdmin = false }) {
     { to: '/admin/excesos-descanso', label: 'Excesos descanso', icon: <IconBreakExcess /> },
     { to: '/admin/horarios', label: 'Horarios', icon: <IconSchedule /> },
     { to: '/admin/reservas', label: 'Planificación', icon: <IconPlan /> },
+    { to: '/admin/auditoria', label: 'Auditoría', icon: <IconAudit /> },
     { to: '/admin/configuracion', label: 'Configuración', icon: <IconSettings /> },
   ] : [
     { to: '/', label: 'Fichar', icon: <IconClock />, end: true },
