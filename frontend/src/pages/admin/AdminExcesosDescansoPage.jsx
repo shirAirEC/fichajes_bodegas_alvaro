@@ -3,6 +3,7 @@ import { useAuth } from '../../hooks/useAuth';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import styles from './AdminExcesosDescansoPage.module.css';
+import { savePdf } from '../../lib/savePdf';
 
 function fmtFecha(fechaStr) {
   return new Date(fechaStr + 'T12:00:00').toLocaleDateString('es-ES', {
@@ -52,7 +53,7 @@ export default function AdminExcesosDescansoPage() {
   const totalVeces = empleados.reduce((s, e) => s + e.veces, 0);
   const totalMin = empleados.reduce((s, e) => s + e.exceso_total, 0);
 
-  const generarPDF = () => {
+  const generarPDF = async () => {
     setGenerandoPdf(true);
     try {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -153,7 +154,7 @@ export default function AdminExcesosDescansoPage() {
         doc.text(`Bodegas Álvaro · Informe de excesos en descansos · Página ${i} de ${pags}`, 14, 290);
       }
 
-      doc.save(`informe-excesos-descanso-${desde}-${hasta}.pdf`);
+      await savePdf(doc, `informe-excesos-descanso-${desde}-${hasta}.pdf`);
     } finally {
       setGenerandoPdf(false);
     }

@@ -36,6 +36,11 @@ async function initializeDatabase() {
     ALTER TABLE empleados ADD COLUMN IF NOT EXISTS sin_restriccion_ip INTEGER NOT NULL DEFAULT 0
   `);
 
+  // Migración: fichaje libre (sin restricción de horario ni anticipados)
+  await pool.query(`
+    ALTER TABLE empleados ADD COLUMN IF NOT EXISTS fichaje_libre INTEGER NOT NULL DEFAULT 0
+  `);
+
   // Migración: configuración de descanso por empleado
   await pool.query(`
     ALTER TABLE empleados ADD COLUMN IF NOT EXISTS descanso_activo BOOLEAN DEFAULT NULL

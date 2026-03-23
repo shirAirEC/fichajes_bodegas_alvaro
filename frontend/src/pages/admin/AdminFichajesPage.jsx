@@ -10,6 +10,7 @@ const API_URL = getApiUrl();
 async function generarInformePDF(empleadosData, filtros) {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
+  const { savePdf } = await import('../../lib/savePdf');
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pW = doc.internal.pageSize.getWidth();
@@ -229,7 +230,7 @@ async function generarInformePDF(empleadosData, filtros) {
   const nombre = esUno
     ? `${empleadosData[0].apellidos}_${empleadosData[0].nombre}`.replace(/\s+/g, '_')
     : 'todos';
-  doc.save(`informe_${nombre}_${filtros.desde || 'inicio'}_${filtros.hasta || 'hoy'}.pdf`);
+  await savePdf(doc, `informe_${nombre}_${filtros.desde || 'inicio'}_${filtros.hasta || 'hoy'}.pdf`);
 }
 
 function fmtHora(ts) {

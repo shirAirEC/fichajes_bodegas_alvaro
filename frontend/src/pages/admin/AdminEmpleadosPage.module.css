@@ -289,6 +289,12 @@
   border-radius: 10px; border: 1px solid #a5d6a7;
 }
 
+.fichajeLibreBadge {
+  font-size: 0.7rem; padding: 0.2rem 0.5rem;
+  background: #fff3e0; color: #e65100;
+  border-radius: 10px; border: 1px solid #ffcc80;
+}
+
 .exencionRow {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
   margin: 0.75rem 0; padding: 0.875rem 1rem;

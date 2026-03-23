@@ -26,11 +26,13 @@ router.post('/fichar', authMiddleware, async (req, res) => {
     );
     const cfg = Object.fromEntries(cfgRows.map(r => [r.clave, r.valor]));
 
+    // Leer datos del empleado una sola vez (fichaje_libre + sin_restriccion_ip)
+    const { rows: empRows } = await pool.query(
+      'SELECT sin_restriccion_ip, fichaje_libre FROM empleados WHERE id = $1', [empleadoId]
+    );
+    const fichajeLibre = empRows[0]?.fichaje_libre === 1;
+
     if (cfg.ip_activo === '1') {
-      // Verificar si este empleado tiene exención de IP (teletrabajo)
-      const { rows: empRows } = await pool.query(
-        'SELECT sin_restriccion_ip FROM empleados WHERE id = $1', [empleadoId]
-      );
       const tieneExencion = empRows[0]?.sin_restriccion_ip === 1;
 
       if (!tieneExencion) {
@@ -120,7 +122,8 @@ router.post('/fichar', authMiddleware, async (req, res) => {
     const graciaMinutos = parseInt(cfg.gracia_minutos || '0');
     let timestampFichaje = new Date();
 
-    if (graciaMinutos > 0) {
+    // Empleados con jornada flexible: saltar todas las validaciones de horario
+    if (graciaMinutos > 0 && !fichajeLibre) {
       const graciaMsVal = graciaMinutos * 60 * 1000;
       const fechaHoy = timestampFichaje.toISOString().split('T')[0];
       const horario = await encontrarHorario(empleadoId, fechaHoy);
@@ -135,7 +138,7 @@ router.post('/fichar', authMiddleware, async (req, res) => {
 
         // Detectar entrada demasiado anticipada (antes del margen de cortesía)
         // Si el último fichaje era un descanso es un retorno, no una entrada nueva → omitir
-        if (tipo === 'entrada' && !lastRows[0]?.es_descanso && msEntrada !== null && msDelDia < msEntrada - graciaMsVal) {
+        if (!fichajeLibre && tipo === 'entrada' && !lastRows[0]?.es_descanso && msEntrada !== null && msDelDia < msEntrada - graciaMsVal) {
           // Guardar solicitud pendiente de aprobación
           const yaExiste = await pool.query(
             `SELECT id FROM fichajes_anticipados WHERE empleado_id = $1 AND fecha = $2 AND estado = 'pendiente'`,
