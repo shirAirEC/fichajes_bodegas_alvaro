@@ -195,6 +195,21 @@ export default function AdminEmpleadosPage() {
                     </label>
                   </div>
 
+                  <div className={styles.exencionRow}>
+                    <div>
+                      <span className={styles.exencionLabel}>Solo planificación</span>
+                      <p className={styles.exencionDesc}>Esta cuenta solo verá la pantalla de planificación y notificaciones. No podrá fichar ni acceder al resto de secciones.</p>
+                    </div>
+                    <label className={styles.switchSmall}>
+                      <input
+                        type="checkbox"
+                        checked={!!form.solo_planificacion}
+                        onChange={e => setForm(f => ({ ...f, solo_planificacion: e.target.checked ? 1 : 0 }))}
+                      />
+                      <span className={styles.switchSliderSmall}></span>
+                    </label>
+                  </div>
+
                   <div className={styles.descansoSection}>
                     <div className={styles.descansoSectionHeader}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -286,6 +301,9 @@ function EmpleadoCard({ emp, esMismo, inactivo, onEditar, onToggle }) {
         )}
         {emp.fichaje_libre === 1 && (
           <span className={styles.fichajeLibreBadge} title="Jornada flexible">⏱ Flexible</span>
+        )}
+        {emp.solo_planificacion === 1 && (
+          <span className={styles.soloPlanBadge} title="Solo planificación">📋 Solo plan</span>
         )}
       </div>
       <div className={styles.cardActions}>

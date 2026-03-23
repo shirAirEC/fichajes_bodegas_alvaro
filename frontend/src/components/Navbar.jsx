@@ -96,11 +96,13 @@ const IconMenu = () => (
   </svg>
 );
 
-export default function Navbar({ isAdmin = false }) {
+export default function Navbar({ isAdmin = false, soloPlanificacion = false }) {
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const navLinks = isAdmin ? [
+  const navLinks = soloPlanificacion ? [
+    { to: '/plan', label: 'Planificación', icon: <IconPlan />, end: true },
+  ] : isAdmin ? [
     { to: '/admin', label: 'Panel', icon: <IconDashboard />, end: true },
     { to: '/admin/fichajes', label: 'Fichajes', icon: <IconList /> },
     { to: '/admin/empleados', label: 'Empleados', icon: <IconUsers /> },

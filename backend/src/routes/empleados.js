@@ -9,7 +9,7 @@ const router = express.Router();
 router.get('/', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, nombre, apellidos, email, rol, departamento, activo, sin_restriccion_ip, descanso_activo, descanso_minutos, fichaje_libre, fecha_alta FROM empleados ORDER BY apellidos, nombre'
+      'SELECT id, nombre, apellidos, email, rol, departamento, activo, sin_restriccion_ip, descanso_activo, descanso_minutos, fichaje_libre, solo_planificacion, fecha_alta FROM empleados ORDER BY apellidos, nombre'
     );
     res.json(rows);
   } catch (err) {
@@ -86,8 +86,9 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
     if (sin_restriccion_ip !== undefined){ campos.push(`sin_restriccion_ip = $${idx++}`); valores.push(sin_restriccion_ip ? 1 : 0); }
     if (descanso_activo !== undefined)   { campos.push(`descanso_activo = $${idx++}`);    valores.push(descanso_activo); }
     if (descanso_minutos !== undefined)  { campos.push(`descanso_minutos = $${idx++}`);   valores.push(descanso_minutos); }
-    const { fichaje_libre } = req.body;
-    if (fichaje_libre !== undefined)     { campos.push(`fichaje_libre = $${idx++}`);       valores.push(fichaje_libre ? 1 : 0); }
+    const { fichaje_libre, solo_planificacion } = req.body;
+    if (fichaje_libre !== undefined)        { campos.push(`fichaje_libre = $${idx++}`);        valores.push(fichaje_libre ? 1 : 0); }
+    if (solo_planificacion !== undefined)   { campos.push(`solo_planificacion = $${idx++}`);   valores.push(solo_planificacion ? 1 : 0); }
     if (password) {
       if (!password) return res.status(400).json({ error: 'La contraseña no puede estar vacía' });
       if (await passwordYaExiste(password, id)) {
@@ -102,7 +103,7 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
     valores.push(id);
     const { rows } = await pool.query(
       `UPDATE empleados SET ${campos.join(', ')} WHERE id = $${idx}
-       RETURNING id, nombre, apellidos, email, rol, departamento, activo, sin_restriccion_ip, descanso_activo, descanso_minutos, fichaje_libre`,
+       RETURNING id, nombre, apellidos, email, rol, departamento, activo, sin_restriccion_ip, descanso_activo, descanso_minutos, fichaje_libre, solo_planificacion`,
       valores
     );
     // Detectar solo los campos que realmente cambiaron
@@ -111,6 +112,7 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
       departamento: 'departamento', activo: 'activo', sin_restriccion_ip: 'sin_restriccion_ip',
       descanso_activo: 'descanso_activo', descanso_minutos: 'descanso_minutos',
       fichaje_libre: 'fichaje_libre',
+      solo_planificacion: 'solo_planificacion',
     };
     const camposReales = Object.entries(mapaCampos)
       .filter(([k]) => req.body[k] !== undefined && String(req.body[k]) !== String(emp[0][k]))

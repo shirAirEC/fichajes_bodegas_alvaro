@@ -26,10 +26,15 @@ router.post('/fichar', authMiddleware, async (req, res) => {
     );
     const cfg = Object.fromEntries(cfgRows.map(r => [r.clave, r.valor]));
 
-    // Leer datos del empleado una sola vez (fichaje_libre + sin_restriccion_ip)
+    // Leer datos del empleado una sola vez
     const { rows: empRows } = await pool.query(
-      'SELECT sin_restriccion_ip, fichaje_libre FROM empleados WHERE id = $1', [empleadoId]
+      'SELECT sin_restriccion_ip, fichaje_libre, solo_planificacion FROM empleados WHERE id = $1', [empleadoId]
     );
+
+    if (empRows[0]?.solo_planificacion === 1) {
+      return res.status(403).json({ error: 'Esta cuenta no tiene habilitado el fichaje.' });
+    }
+
     const fichajeLibre = empRows[0]?.fichaje_libre === 1;
 
     if (cfg.ip_activo === '1') {

@@ -294,6 +294,11 @@
   background: #fff3e0; color: #e65100;
   border-radius: 10px; border: 1px solid #ffcc80;
 }
+.soloPlanBadge {
+  font-size: 0.7rem; padding: 0.2rem 0.5rem;
+  background: #e3f2fd; color: #1565c0;
+  border-radius: 10px; border: 1px solid #90caf9;
+}
 
 .exencionRow {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;

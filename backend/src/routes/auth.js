@@ -43,7 +43,8 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign(
       { id: empleado.id, email: empleado.email, nombre: empleado.nombre,
-        apellidos: empleado.apellidos, rol: empleado.rol, departamento: empleado.departamento },
+        apellidos: empleado.apellidos, rol: empleado.rol, departamento: empleado.departamento,
+        solo_planificacion: empleado.solo_planificacion },
       JWT_SECRET,
       { expiresIn: '12h' }
     );
@@ -51,7 +52,8 @@ router.post('/login', async (req, res) => {
     res.json({
       token,
       empleado: { id: empleado.id, nombre: empleado.nombre, apellidos: empleado.apellidos,
-        email: empleado.email, rol: empleado.rol, departamento: empleado.departamento }
+        email: empleado.email, rol: empleado.rol, departamento: empleado.departamento,
+        solo_planificacion: empleado.solo_planificacion }
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -62,7 +64,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, nombre, apellidos, email, rol, departamento FROM empleados WHERE id = $1',
+      'SELECT id, nombre, apellidos, email, rol, departamento, solo_planificacion FROM empleados WHERE id = $1',
       [req.user.id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Empleado no encontrado' });
