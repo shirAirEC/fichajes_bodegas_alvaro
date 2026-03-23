@@ -52,7 +52,8 @@ router.put('/', authMiddleware, adminMiddleware, async (req, res) => {
     for (const [clave, valor] of Object.entries(req.body)) {
       if (!CLAVES_PERMITIDAS.includes(clave)) continue;
       await pool.query(
-        'UPDATE configuracion SET valor = $1 WHERE clave = $2',
+        `INSERT INTO configuracion (clave, valor) VALUES ($2, $1)
+         ON CONFLICT (clave) DO UPDATE SET valor = $1`,
         [String(valor), clave]
       );
     }
