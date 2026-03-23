@@ -17,16 +17,15 @@ export function usePushNotifications(authFetch) {
 
         await PushNotifications.register();
 
-        // Crear canal de notificaciones con máxima prioridad
-        // IMPORTANTE: Android congela la config del canal una vez creado.
+        // Canal con IMPORTANCE_HIGH (4): Android asigna sonido del sistema + vibración.
+        // NO pasar sound aquí — Capacitor busca un archivo en res/raw/ y falla silenciosamente.
         // Si se cambia el ID hay que actualizar también AndroidManifest y firebase.js
         await LocalNotifications.createChannel({
-          id: 'avisos_v2',
-          name: 'Fichajes Bodegas Álvaro',
+          id: 'avisos_v4',
+          name: 'Avisos Bodegas Álvaro',
           description: 'Avisos y notificaciones urgentes de la aplicación',
-          importance: 5,        // IMPORTANCE_MAX → banner + sonido máximo + vibración fuerte
-          visibility: 1,        // VISIBILITY_PUBLIC
-          sound: 'default',
+          importance: 4,
+          visibility: 1,
           vibration: true,
           lights: true,
           lightColor: '#8B2635'
@@ -57,7 +56,8 @@ export function usePushNotifications(authFetch) {
                 title: notification.title || 'Fichajes Bodegas Álvaro',
                 body: notification.body || '',
                 smallIcon: 'ic_stat_notification',
-                channelId: 'avisos_v2',
+                channelId: 'avisos_v4',
+                sound: 'default',
                 iconColor: '#8B2635',
                 extra: notification.data || {},
                 autoCancel: true

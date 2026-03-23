@@ -31,12 +31,11 @@ async function enviarPush(token, titulo, cuerpo, datos = {}) {
       android: {
         priority: 'high',
         notification: {
-          channelId: 'avisos_v2',
+          channelId: 'avisos_v4',
           sound: 'default',
-          notificationPriority: 'PRIORITY_MAX',
-          defaultVibrateTimings: true,
           defaultSound: true,
-          vibrateTimingsMillis: [0, 500, 200, 500, 200, 500]
+          notificationPriority: 'PRIORITY_HIGH',
+          defaultVibrateTimings: true
         }
       }
     });
@@ -57,12 +56,11 @@ async function enviarPushMultiple(tokens, titulo, cuerpo, datos = {}) {
       android: {
         priority: 'high',
         notification: {
-          channelId: 'avisos_v2',
+          channelId: 'avisos_v4',
           sound: 'default',
-          notificationPriority: 'PRIORITY_MAX',
-          defaultVibrateTimings: true,
           defaultSound: true,
-          vibrateTimingsMillis: [0, 500, 200, 500, 200, 500]
+          notificationPriority: 'PRIORITY_HIGH',
+          defaultVibrateTimings: true
         }
       }
     });
