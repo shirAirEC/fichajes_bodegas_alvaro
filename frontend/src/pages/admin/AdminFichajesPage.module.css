@@ -57,7 +57,7 @@
 .loading { text-align: center; padding: 4rem; color: var(--color-text-light); }
 
 /* Tabla */
-.tablaWrap { background: var(--color-white); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
+.tablaWrap { background: var(--color-white); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow-x: auto; }
 .tabla { width: 100%; border-collapse: collapse; }
 .tabla thead tr { background: var(--color-light); }
 .tabla th { text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-light); border-bottom: 2px solid var(--color-border); }
