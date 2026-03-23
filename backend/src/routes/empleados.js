@@ -103,10 +103,20 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
        RETURNING id, nombre, apellidos, email, rol, departamento, activo, sin_restriccion_ip, descanso_activo, descanso_minutos`,
       valores
     );
-    const camposCambiados = Object.keys(req.body).filter(k => k !== 'password').join(', ');
-    await registrarAudit(req, 'editar_empleado', 'empleado', parseInt(id),
-      `Empleado: ${emp[0].nombre} ${emp[0].apellidos} | Campos: ${camposCambiados}${password ? ', contraseña' : ''}`
-    );
+    // Detectar solo los campos que realmente cambiaron
+    const mapaCampos = {
+      nombre: 'nombre', apellidos: 'apellidos', email: 'email', rol: 'rol',
+      departamento: 'departamento', activo: 'activo', sin_restriccion_ip: 'sin_restriccion_ip',
+      descanso_activo: 'descanso_activo', descanso_minutos: 'descanso_minutos',
+    };
+    const camposReales = Object.entries(mapaCampos)
+      .filter(([k]) => req.body[k] !== undefined && String(req.body[k]) !== String(emp[0][k]))
+      .map(([k]) => k);
+    if (password) camposReales.push('contraseña');
+    const detalleCambio = camposReales.length
+      ? `Empleado: ${emp[0].nombre} ${emp[0].apellidos} | Cambios: ${camposReales.join(', ')}`
+      : `Empleado: ${emp[0].nombre} ${emp[0].apellidos} | Sin cambios detectados`;
+    await registrarAudit(req, 'editar_empleado', 'empleado', parseInt(id), detalleCambio);
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
