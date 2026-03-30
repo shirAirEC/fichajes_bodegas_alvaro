@@ -7,6 +7,8 @@ const { enviarPush } = require('../firebase');
 const { registrarAudit } = require('../audit');
 const { getFechaMadrid, getMsDelDiaMadrid, crearTimestampMadrid } = require('../timezone');
 
+const router = express.Router();
+
 function getClientIP(req) {
   const forwarded = req.headers['x-forwarded-for'];
   if (forwarded) return forwarded.split(',')[0].trim();
