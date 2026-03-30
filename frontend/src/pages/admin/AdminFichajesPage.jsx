@@ -583,12 +583,17 @@ export default function AdminFichajesPage() {
       return;
     }
     setEditando(true);
-    await authFetch(`/api/fichajes/admin/${editModal.id}`, {
+    const res = await authFetch(`/api/fichajes/admin/${editModal.id}`, {
       method: 'PUT',
       body: JSON.stringify(editForm)
     });
-    setEditModal(null);
     setEditando(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || 'Error al guardar el cambio');
+      return;
+    }
+    setEditModal(null);
     if (vista === 'jornadas') cargarJornadas();
     else cargarDetalle();
   };
