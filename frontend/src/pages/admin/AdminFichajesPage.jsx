@@ -521,6 +521,7 @@ export default function AdminFichajesPage() {
     if (filtros.empleado_id) params.append('empleado_id', filtros.empleado_id);
     if (filtros.desde) params.append('desde', filtros.desde);
     if (filtros.hasta) params.append('hasta', filtros.hasta);
+    params.append('_t', Date.now());
     const res = await authFetch(`/api/fichajes/admin/jornadas?${params}`);
     const data = await res.json();
     setJornadas(data.jornadas || []);
