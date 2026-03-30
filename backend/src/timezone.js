@@ -1,10 +1,10 @@
-const TZ = 'Europe/Madrid';
+const TZ = 'Atlantic/Canary';
 
-function getFechaMadrid(date = new Date()) {
+function getFechaLocal(date = new Date()) {
   return date.toLocaleDateString('en-CA', { timeZone: TZ });
 }
 
-function getMsDelDiaMadrid(date) {
+function getMsDelDiaLocal(date) {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: TZ,
     hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -16,15 +16,15 @@ function getMsDelDiaMadrid(date) {
   return ((h * 60 + m) * 60 + s) * 1000;
 }
 
-function crearTimestampMadrid(fechaStr, horaStr) {
+function crearTimestampLocal(fechaStr, horaStr) {
   const [h, m, s] = horaStr.split(':').map(Number);
   const targetMs = ((h * 60 + (m || 0)) * 60 + (s || 0)) * 1000;
-  const approxUtcMs = Date.parse(fechaStr + 'T00:00:00Z') + targetMs - 3600000;
+  const approxUtcMs = Date.parse(fechaStr + 'T00:00:00Z') + targetMs;
   let candidate = new Date(approxUtcMs);
-  const actualMs = getMsDelDiaMadrid(candidate);
+  const actualMs = getMsDelDiaLocal(candidate);
   const correction = targetMs - actualMs;
   if (Math.abs(correction) > 500) candidate = new Date(candidate.getTime() + correction);
   return candidate;
 }
 
-module.exports = { TZ, getFechaMadrid, getMsDelDiaMadrid, crearTimestampMadrid };
+module.exports = { TZ, getFechaLocal, getMsDelDiaLocal, crearTimestampLocal };

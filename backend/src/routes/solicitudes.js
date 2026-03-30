@@ -1,7 +1,7 @@
 const express = require('express');
 const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
-const { crearTimestampMadrid, getFechaMadrid } = require('../timezone');
+const { crearTimestampLocal, getFechaLocal } = require('../timezone');
 
 async function crearNotificacion(empleadoId, mensaje) {
   await pool.query(
@@ -87,13 +87,13 @@ router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
     // Normalizar fecha y hora (fuera del bloque para que sea accesible en la notificación)
     const fechaStr = typeof solicitud.fecha_solicitada === 'string'
       ? solicitud.fecha_solicitada.split('T')[0]
-      : getFechaMadrid(solicitud.fecha_solicitada);
+      : getFechaLocal(solicitud.fecha_solicitada);
     const horaStr = typeof solicitud.hora_solicitada === 'string'
       ? solicitud.hora_solicitada.slice(0, 5)
       : solicitud.hora_solicitada.toString().slice(0, 5);
 
     if (estado === 'aprobada') {
-      const fechaHora = crearTimestampMadrid(fechaStr, horaStr + ':00');
+      const fechaHora = crearTimestampLocal(fechaStr, horaStr + ':00');
 
       if (solicitud.tipo === 'nuevo') {
         await pool.query(

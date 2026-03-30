@@ -5,7 +5,7 @@ const { crearNotificacion } = require('./solicitudes');
 const { encontrarHorario, timeToMs } = require('./horarios');
 const { enviarPush } = require('../firebase');
 const { registrarAudit } = require('../audit');
-const { getFechaMadrid, getMsDelDiaMadrid, crearTimestampMadrid } = require('../timezone');
+const { TZ, getFechaLocal, getMsDelDiaLocal, crearTimestampLocal } = require('../timezone');
 
 const router = express.Router();
 
@@ -69,8 +69,8 @@ router.post('/fichar', authMiddleware, async (req, res) => {
     // tratamos al empleado como "fuera" para que hoy empiece con una entrada nueva.
     // Excepción: si era un descanso activo (es_descanso=true), sí hay que procesarlo.
     const lastEsDeOtroDia = lastRows[0] && (() => {
-      const fechaUltimo = new Date(lastRows[0].timestamp).toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid' });
-      const fechaHoy = new Date().toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid' });
+      const fechaUltimo = new Date(lastRows[0].timestamp).toLocaleDateString('es-ES', { timeZone: TZ });
+      const fechaHoy = new Date().toLocaleDateString('es-ES', { timeZone: TZ });
       return fechaUltimo !== fechaHoy;
     })();
 
@@ -131,11 +131,11 @@ router.post('/fichar', authMiddleware, async (req, res) => {
     // Empleados con jornada flexible: saltar todas las validaciones de horario
     if (graciaMinutos > 0 && !fichajeLibre) {
       const graciaMsVal = graciaMinutos * 60 * 1000;
-      const fechaHoy = getFechaMadrid(timestampFichaje);
+      const fechaHoy = getFechaLocal(timestampFichaje);
       const horario = await encontrarHorario(empleadoId, fechaHoy);
 
       if (horario) {
-        const msDelDia = getMsDelDiaMadrid(timestampFichaje);
+        const msDelDia = getMsDelDiaLocal(timestampFichaje);
 
         const msEntrada = horario.hora_entrada ? timeToMs(horario.hora_entrada) : null;
         const msSalida  = horario.hora_salida  ? timeToMs(horario.hora_salida)  : null;
@@ -179,9 +179,9 @@ router.post('/fichar', authMiddleware, async (req, res) => {
           const [hh, mm] = horario.hora_entrada.split(':');
           const horaEntradaLeg = `${hh}:${mm}`;
           const minutosAntes = graciaMinutos;
-          const horaDisponible = crearTimestampMadrid(fechaHoy, horario.hora_entrada);
+          const horaDisponible = crearTimestampLocal(fechaHoy, horario.hora_entrada);
           horaDisponible.setTime(horaDisponible.getTime() - graciaMsVal);
-          const horaDispLeg = horaDisponible.toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit' });
+          const horaDispLeg = horaDisponible.toLocaleTimeString('es-ES', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
 
           return res.status(403).json({
             requiereAprobacion: true,
@@ -194,9 +194,9 @@ router.post('/fichar', authMiddleware, async (req, res) => {
 
         // Redondear al horario programado si estamos dentro del margen
         if (msEntrada !== null && Math.abs(msDelDia - msEntrada) <= graciaMsVal) {
-          timestampFichaje = crearTimestampMadrid(fechaHoy, horario.hora_entrada);
+          timestampFichaje = crearTimestampLocal(fechaHoy, horario.hora_entrada);
         } else if (msSalida !== null && Math.abs(msDelDia - msSalida) <= graciaMsVal) {
-          timestampFichaje = crearTimestampMadrid(fechaHoy, horario.hora_salida);
+          timestampFichaje = crearTimestampLocal(fechaHoy, horario.hora_salida);
         }
       } else {
         // Sin horario programado: redondear a la hora exacta más cercana
@@ -236,8 +236,8 @@ router.get('/estado', authMiddleware, async (req, res) => {
     // Si el último fichaje fue una entrada de un día anterior (sesión sin cerrar),
     // el empleado se considera "fuera" para el día de hoy.
     const ultimoEsDeOtroDia = ultimo && (() => {
-      const fechaUltimo = new Date(ultimo.timestamp).toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid' });
-      const fechaHoy = new Date().toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid' });
+      const fechaUltimo = new Date(ultimo.timestamp).toLocaleDateString('es-ES', { timeZone: TZ });
+      const fechaHoy = new Date().toLocaleDateString('es-ES', { timeZone: TZ });
       return fechaUltimo !== fechaHoy;
     })();
 
@@ -276,7 +276,7 @@ router.get('/estado', authMiddleware, async (req, res) => {
     const descansoMinutos = empCfg.descanso_minutos ?? parseInt(cfgD.descanso_minutos || '30');
 
     // Horario de hoy para mostrar info de cortesía al empleado
-    const fechaHoy = getFechaMadrid();
+    const fechaHoy = getFechaLocal();
     const horarioHoy = await encontrarHorario(req.user.id, fechaHoy);
 
     res.json({
@@ -479,7 +479,7 @@ router.get('/admin/todos', authMiddleware, adminMiddleware, async (req, res) => 
 // GET /api/fichajes/admin/resumen
 router.get('/admin/resumen', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const fecha = req.query.fecha || getFechaMadrid();
+    const fecha = req.query.fecha || getFechaLocal();
 
     const { rows: empleados } = await pool.query(
       "SELECT id, nombre, apellidos, departamento FROM empleados WHERE activo = 1 AND rol = 'empleado'"
@@ -508,8 +508,8 @@ router.get('/admin/jornadas', authMiddleware, adminMiddleware, async (req, res) 
   try {
     const { empleado_id, desde, hasta } = req.query;
 
-    const hoy = getFechaMadrid();
-    const fechaDesde = desde || getFechaMadrid(new Date(Date.now() - 30 * 86400000));
+    const hoy = getFechaLocal();
+    const fechaDesde = desde || getFechaLocal(new Date(Date.now() - 30 * 86400000));
     const fechaHasta = hasta || hoy;
 
     const condiciones = ['f.timestamp::date >= $1::date', 'f.timestamp::date <= $2::date'];
@@ -529,7 +529,7 @@ router.get('/admin/jornadas', authMiddleware, adminMiddleware, async (req, res) 
     // Agrupar por empleado + fecha
     const grupos = {};
     for (const f of fichajes) {
-      const fecha = getFechaMadrid(new Date(f.timestamp));
+      const fecha = getFechaLocal(new Date(f.timestamp));
       const key = `${f.empleado_id}_${fecha}`;
       if (!grupos[key]) {
         grupos[key] = {
@@ -590,7 +590,7 @@ router.get('/admin/exportar', authMiddleware, adminMiddleware, async (req, res) 
 
     const cabecera = 'Fecha y Hora,Nombre,Apellidos,Departamento,Tipo,Notas\n';
     const filas = rows.map(f => {
-      const ts = new Date(f.timestamp).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' });
+      const ts = new Date(f.timestamp).toLocaleString('es-ES', { timeZone: TZ });
       return `"${ts}","${f.nombre}","${f.apellidos}","${f.departamento}","${f.tipo}","${f.notas}"`;
     }).join('\n');
 
@@ -613,7 +613,7 @@ router.post('/admin', authMiddleware, adminMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'El tipo debe ser "entrada" o "salida"' });
     }
 
-    const timestamp = crearTimestampMadrid(fecha, hora + ':00');
+    const timestamp = crearTimestampLocal(fecha, hora + ':00');
     if (isNaN(timestamp.getTime())) {
       return res.status(400).json({ error: 'Fecha u hora inválida' });
     }
@@ -630,8 +630,8 @@ router.post('/admin', authMiddleware, adminMiddleware, async (req, res) => {
       [empleado_id, tipo, notas || 'Añadido por administrador', timestamp]
     );
 
-    const fechaLeg = timestamp.toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: '2-digit', year: 'numeric' });
-    const horaLeg  = timestamp.toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit' });
+    const fechaLeg = timestamp.toLocaleDateString('es-ES', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric' });
+    const horaLeg  = timestamp.toLocaleTimeString('es-ES', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
     await crearNotificacion(
       empleado_id,
       `El administrador ha registrado una ${tipo} el ${fechaLeg} a las ${horaLeg}.`
@@ -657,7 +657,7 @@ router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
     if (!exist[0]) return res.status(404).json({ error: 'Fichaje no encontrado' });
 
     const fichaje = exist[0];
-    const nuevoTimestamp = fecha && hora ? crearTimestampMadrid(fecha, hora + ':00') : null;
+    const nuevoTimestamp = fecha && hora ? crearTimestampLocal(fecha, hora + ':00') : null;
 
     if (nuevoTimestamp && nuevoTimestamp > new Date()) {
       return res.status(400).json({ error: 'No se puede establecer un fichaje en el futuro. Las modificaciones deben ser de tiempo pasado.' });
@@ -672,17 +672,17 @@ router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
       [tipo || null, nuevoTimestamp, `Editado por administrador`, req.params.id]
     );
 
-    const tsAnterior = new Date(fichaje.timestamp).toLocaleString('es-ES', { timeZone: 'Europe/Madrid', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-    const tsNuevo = nuevoTimestamp ? nuevoTimestamp.toLocaleString('es-ES', { timeZone: 'Europe/Madrid', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : tsAnterior;
+    const tsAnterior = new Date(fichaje.timestamp).toLocaleString('es-ES', { timeZone: TZ, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const tsNuevo = nuevoTimestamp ? nuevoTimestamp.toLocaleString('es-ES', { timeZone: TZ, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : tsAnterior;
     await registrarAudit(req, 'editar_fichaje', 'fichaje', fichaje.id,
       `Tipo: ${fichaje.tipo}→${tipo || fichaje.tipo} | Hora: ${tsAnterior}→${tsNuevo} | Empleado ID ${fichaje.empleado_id}`
     );
 
     if (notificar) {
       const fechaLeg = (nuevoTimestamp || new Date(fichaje.timestamp))
-        .toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: '2-digit', year: 'numeric' });
+        .toLocaleDateString('es-ES', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric' });
       const horaLeg = (nuevoTimestamp || new Date(fichaje.timestamp))
-        .toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit' });
+        .toLocaleTimeString('es-ES', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
       await crearNotificacion(
         fichaje.empleado_id,
         `El administrador ha modificado tu fichaje del ${fechaLeg}: ahora registrado como ${tipo || fichaje.tipo} a las ${horaLeg}.`
@@ -703,7 +703,7 @@ router.delete('/admin/:id', authMiddleware, adminMiddleware, async (req, res) =>
     if (!rows[0]) return res.status(404).json({ error: 'Fichaje no encontrado' });
     const f = rows[0];
     await pool.query('DELETE FROM fichajes WHERE id = $1', [req.params.id]);
-    const ts = new Date(f.timestamp).toLocaleString('es-ES', { timeZone: 'Europe/Madrid', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const ts = new Date(f.timestamp).toLocaleString('es-ES', { timeZone: TZ, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
     await registrarAudit(req, 'eliminar_fichaje', 'fichaje', f.id,
       `Tipo: ${f.tipo} | Hora: ${ts} | Empleado ID ${f.empleado_id}`
     );
@@ -761,7 +761,7 @@ router.post('/anticipados/:id/aprobar', authMiddleware, adminMiddleware, async (
     // Notificar al empleado
     await crearNotificacion(
       ant.empleado_id,
-      `El administrador ha aprobado tu fichaje anticipado del ${new Date(ant.hora_intento).toLocaleString('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.${admin_nota ? ` Nota: ${admin_nota}` : ''}`
+      `El administrador ha aprobado tu fichaje anticipado del ${new Date(ant.hora_intento).toLocaleString('es-ES', { timeZone: TZ, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.${admin_nota ? ` Nota: ${admin_nota}` : ''}`
     );
 
     // Push al empleado si tiene token
@@ -803,7 +803,7 @@ router.post('/anticipados/:id/rechazar', authMiddleware, adminMiddleware, async 
     // Notificar al empleado
     await crearNotificacion(
       ant.empleado_id,
-      `El administrador ha rechazado tu fichaje anticipado del ${new Date(ant.hora_intento).toLocaleString('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.${admin_nota ? ` Motivo: ${admin_nota}` : ''}`
+      `El administrador ha rechazado tu fichaje anticipado del ${new Date(ant.hora_intento).toLocaleString('es-ES', { timeZone: TZ, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.${admin_nota ? ` Motivo: ${admin_nota}` : ''}`
     );
 
     // Push al empleado si tiene token
