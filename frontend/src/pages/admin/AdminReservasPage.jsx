@@ -2,8 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './AdminReservasPage.module.css';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
-
 const ESTADOS = [
   { value: 'sin_confirmar', label: 'Sin confirmar' },
   { value: 'pendiente',     label: 'Pendiente' },
@@ -12,6 +10,32 @@ const ESTADOS = [
 ];
 
 const ESTADO_LABELS = Object.fromEntries(ESTADOS.map(e => [e.value, e.label]));
+
+/** CSV con el mismo esquema que el backend (separador `;`, UTF-8 BOM). */
+function csvInformeDesdeJson(data) {
+  const lineas = [
+    ['Fecha', 'Hora', 'Grupo', 'Pax', 'Tipo servicio', 'Estado', 'Guía', 'Necesidades especiales', 'Notas'].join(';'),
+  ];
+  for (const r of data.reservas || []) {
+    const nec = Array.isArray(r.necesidades_especiales)
+      ? r.necesidades_especiales.map(n => `${n.cantidad}x ${n.tipo}`).join(', ')
+      : '';
+    lineas.push(
+      [
+        r.fecha,
+        r.hora ? r.hora.slice(0, 5) : '',
+        `"${(r.nombre || '').replace(/"/g, '""')}"`,
+        r.pax || '',
+        `"${(r.tipo_servicio || '').replace(/"/g, '""')}"`,
+        r.estado || '',
+        `"${(r.guia || '').replace(/"/g, '""')}"`,
+        `"${nec.replace(/"/g, '""')}"`,
+        `"${(r.notas || '').replace(/"/g, '""')}"`,
+      ].join(';')
+    );
+  }
+  return '\uFEFF' + lineas.join('\n');
+}
 
 const TIPOS_SERVICIO_SUGERIDOS = [
   'Normal', 'Degustación pincho', 'Taller mojo', 'Menú especial', 'Buffet', 'Cóctel',
@@ -586,12 +610,14 @@ export default function AdminReservasPage() {
   const handleDescargarCSV = async () => {
     setGenerandoCSV(true);
     try {
-      const token = localStorage.getItem('fichajes_token');
-      const res = await fetch(`${API_URL}/api/reservas/informe?mes=${informeMes}&formato=csv`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('Error al obtener CSV');
-      const blob = await res.blob();
+      const res = await authFetch(`/api/reservas/informe?mes=${informeMes}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Error al obtener datos');
+      }
+      const data = await res.json();
+      const csv = csvInformeDesdeJson(data);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `informe_reservas_${informeMes}.csv`;
