@@ -2,12 +2,16 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './AdminReservasPage.module.css';
 
+const API_URL = import.meta.env.VITE_API_URL || '';
+
 const ESTADOS = [
   { value: 'sin_confirmar', label: 'Sin confirmar' },
   { value: 'pendiente',     label: 'Pendiente' },
   { value: 'confirmado',    label: 'Confirmado' },
   { value: 'cancelado',     label: 'Cancelado' },
 ];
+
+const ESTADO_LABELS = Object.fromEntries(ESTADOS.map(e => [e.value, e.label]));
 
 const TIPOS_SERVICIO_SUGERIDOS = [
   'Normal', 'Degustación pincho', 'Taller mojo', 'Menú especial', 'Buffet', 'Cóctel',
@@ -58,6 +62,188 @@ function getLunesDeHoy() {
   const diff = dia === 0 ? -6 : 1 - dia;
   hoy.setDate(hoy.getDate() + diff);
   return dateToStr(hoy);
+}
+
+// ─── Generación de PDF del informe de reservas ──────────────────────────────
+async function generarInformeReservasPDF(data) {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+  const { savePdf } = await import('../../lib/savePdf');
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pW = doc.internal.pageSize.getWidth();
+  const pH = doc.internal.pageSize.getHeight();
+
+  const PRIMARY   = [139, 38, 53];
+  const GOLD      = [201, 169, 97];
+  const CREAM     = [245, 241, 232];
+  const BORDER    = [224, 216, 200];
+  const TEXT      = [45, 45, 45];
+  const TEXT_L    = [102, 102, 102];
+  const WHITE     = [255, 255, 255];
+
+  const mesLabel = (() => {
+    const [y, m] = data.mes.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+  })();
+
+  let paginaNum = 1;
+
+  const dibujarCabecera = () => {
+    doc.setFillColor(...PRIMARY);
+    doc.rect(0, 0, pW, 22, 'F');
+    doc.setFillColor(...GOLD);
+    doc.rect(0, 22, pW, 1.5, 'F');
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('BODEGAS ALVARO', 14, 10);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Informe de reservas — ${mesLabel}`, 14, 17);
+    doc.text(`Pág. ${paginaNum}`, pW - 14, 14, { align: 'right' });
+  };
+
+  const dibujarPie = () => {
+    doc.setDrawColor(...BORDER);
+    doc.line(14, pH - 10, pW - 14, pH - 10);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...TEXT_L);
+    doc.text(
+      `Bodegas Alvaro — Generado el ${new Date().toLocaleString('es-ES')}  —  ${mesLabel}`,
+      14, pH - 5
+    );
+    doc.text(`${paginaNum}`, pW - 14, pH - 5, { align: 'right' });
+  };
+
+  dibujarCabecera();
+  dibujarPie();
+
+  // Bloque resumen
+  let y = 28;
+  doc.setFillColor(...CREAM);
+  doc.setDrawColor(...BORDER);
+  doc.roundedRect(14, y, pW - 28, 22, 1.5, 1.5, 'FD');
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...PRIMARY);
+  doc.text('Resumen del mes', 20, y + 6);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...TEXT);
+  const estadoTexto = Object.entries(data.porEstado || {})
+    .map(([k, v]) => `${ESTADO_LABELS[k] || k}: ${v}`)
+    .join('   ·   ');
+  doc.text(`Total grupos: ${data.totalGrupos}     |     Total pax: ${data.totalPax}`, 20, y + 12);
+  doc.text(estadoTexto, 20, y + 18);
+
+  y += 28;
+
+  // Resumen por tipo de servicio
+  const tipoEntries = Object.entries(data.porTipo || {});
+  if (tipoEntries.length > 0) {
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...PRIMARY);
+    doc.text('Desglose por tipo de servicio', 14, y);
+    y += 2;
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: 14, right: 14 },
+      head: [['Tipo de servicio', 'Grupos', 'Pax']],
+      body: tipoEntries.map(([tipo, d]) => [tipo, d.grupos, d.pax]),
+      styles: { fontSize: 7.5, cellPadding: 2, lineColor: BORDER, lineWidth: 0.2 },
+      headStyles: { fillColor: PRIMARY, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5 },
+      alternateRowStyles: { fillColor: [252, 249, 245] },
+      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } },
+    });
+    y = doc.lastAutoTable.finalY + 6;
+  }
+
+  // Resumen de necesidades alimenticias
+  const necEntries = Object.entries(data.necesidades || {});
+  if (necEntries.length > 0) {
+    if (y > pH - 40) {
+      doc.addPage(); paginaNum++; dibujarCabecera(); dibujarPie(); y = 28;
+    }
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...PRIMARY);
+    doc.text('Necesidades alimenticias (total del mes)', 14, y);
+    y += 2;
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: 14, right: 14 },
+      head: [['Necesidad', 'Total personas']],
+      body: necEntries.map(([tipo, cnt]) => [tipo.charAt(0).toUpperCase() + tipo.slice(1), cnt]),
+      styles: { fontSize: 7.5, cellPadding: 2, lineColor: BORDER, lineWidth: 0.2 },
+      headStyles: { fillColor: PRIMARY, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5 },
+      alternateRowStyles: { fillColor: [252, 249, 245] },
+      columnStyles: { 1: { halign: 'center' } },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+  }
+
+  // Tabla detallada por día
+  if (y > pH - 40) {
+    doc.addPage(); paginaNum++; dibujarCabecera(); dibujarPie(); y = 28;
+  }
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...PRIMARY);
+  doc.text('Detalle de reservas', 14, y);
+  y += 2;
+
+  const tableBody = (data.reservas || []).map(r => {
+    const nec = Array.isArray(r.necesidades_especiales)
+      ? r.necesidades_especiales.map(n => `${n.cantidad}x ${n.tipo}`).join(', ')
+      : '';
+    const fechaLabel = (() => {
+      const [yy, mm, dd] = r.fecha.split('-').map(Number);
+      return new Date(yy, mm - 1, dd).toLocaleDateString('es-ES', {
+        weekday: 'short', day: '2-digit', month: '2-digit',
+      });
+    })();
+    return [
+      fechaLabel,
+      r.hora ? r.hora.slice(0, 5) : '—',
+      r.nombre || '',
+      r.pax || '',
+      r.tipo_servicio || '',
+      ESTADO_LABELS[r.estado] || r.estado,
+      r.guia || '',
+      nec,
+      r.notas || '',
+    ];
+  });
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: 14, right: 14 },
+    head: [['Fecha', 'Hora', 'Grupo', 'Pax', 'Tipo', 'Estado', 'Guía', 'Necesidades', 'Notas']],
+    body: tableBody,
+    styles: { fontSize: 6.5, cellPadding: 1.8, lineColor: BORDER, lineWidth: 0.2, overflow: 'linebreak' },
+    headStyles: { fillColor: PRIMARY, textColor: WHITE, fontStyle: 'bold', fontSize: 7 },
+    alternateRowStyles: { fillColor: [252, 249, 245] },
+    columnStyles: {
+      0: { cellWidth: 28 },
+      1: { cellWidth: 16, halign: 'center' },
+      3: { cellWidth: 14, halign: 'center' },
+      5: { cellWidth: 22 },
+    },
+    didDrawPage: () => {
+      paginaNum++;
+      dibujarCabecera();
+      dibujarPie();
+    },
+  });
+
+  await savePdf(doc, `informe_reservas_${data.mes}.pdf`);
 }
 
 // ─── Subcomponente: editor de menú dinámico ─────────────────────────────────
@@ -261,6 +447,12 @@ export default function AdminReservasPage() {
   const [errorModal, setErrorModal] = useState('');
   const [tvToken, setTvToken] = useState('');
   const [expandida, setExpandida] = useState(null);
+  const [informeMes, setInformeMes] = useState(() => {
+    const hoy = new Date();
+    return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [generandoPDF, setGenerandoPDF] = useState(false);
+  const [generandoCSV, setGenerandoCSV] = useState(false);
 
   const hasta = addDays(desde, 6);
 
@@ -375,6 +567,41 @@ export default function AdminReservasPage() {
     await cargar();
   };
 
+  const handleDescargarPDF = async () => {
+    setGenerandoPDF(true);
+    try {
+      const res = await authFetch(`/api/reservas/informe?mes=${informeMes}`);
+      if (!res.ok) throw new Error('Error al obtener datos');
+      const data = await res.json();
+      await generarInformeReservasPDF(data);
+    } catch (err) {
+      alert(err.message || 'Error al generar el PDF');
+    } finally {
+      setGenerandoPDF(false);
+    }
+  };
+
+  const handleDescargarCSV = async () => {
+    setGenerandoCSV(true);
+    try {
+      const token = localStorage.getItem('fichajes_token');
+      const res = await fetch(`${API_URL}/api/reservas/informe?mes=${informeMes}&formato=csv`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Error al obtener CSV');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `informe_reservas_${informeMes}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (err) {
+      alert(err.message || 'Error al descargar CSV');
+    } finally {
+      setGenerandoCSV(false);
+    }
+  };
+
   const tvUrl = tvToken ? `${window.location.origin}/tv?token=${tvToken}` : '';
   const diasSemana = Array.from({ length: 7 }, (_, i) => addDays(desde, i));
 
@@ -392,6 +619,37 @@ export default function AdminReservasPage() {
       </div>
 
       <PanelAvisos authFetch={authFetch} />
+
+      <div className={styles.informeBar}>
+        <span className={styles.informeLabel}>Informe mensual</span>
+        <input
+          type="month"
+          className={styles.inputMes}
+          value={informeMes}
+          onChange={e => setInformeMes(e.target.value)}
+        />
+        <button
+          className={styles.btnInformePDF}
+          onClick={handleDescargarPDF}
+          disabled={generandoPDF}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/>
+          </svg>
+          {generandoPDF ? 'Generando...' : 'Descargar PDF'}
+        </button>
+        <button
+          className={styles.btnInformeCSV}
+          onClick={handleDescargarCSV}
+          disabled={generandoCSV}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          {generandoCSV ? 'Descargando...' : 'CSV'}
+        </button>
+      </div>
 
       <div className={styles.semanaNav}>
         <button className={styles.btnNav} onClick={semanaAnterior}>← Semana anterior</button>

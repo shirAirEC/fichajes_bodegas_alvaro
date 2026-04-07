@@ -57,6 +57,72 @@
 }
 .btnCopiar:hover { transform: scale(1.2); }
 
+/* ─── Barra de informe mensual ────────────────────────── */
+.informeBar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+  background: #faf7f2;
+  border: 1px solid #e0d8c8;
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  flex-wrap: wrap;
+}
+
+.informeLabel {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #8b1a1a;
+  white-space: nowrap;
+}
+
+.inputMes {
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.88rem;
+  color: #374151;
+  background: white;
+  font-family: inherit;
+}
+.inputMes:focus {
+  outline: none;
+  border-color: #8b1a1a;
+  box-shadow: 0 0 0 3px rgba(139,26,26,0.08);
+}
+
+.btnInformePDF,
+.btnInformeCSV {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: none;
+  border-radius: 7px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+  white-space: nowrap;
+}
+
+.btnInformePDF {
+  background: #8b1a1a;
+  color: white;
+}
+.btnInformePDF:hover:not(:disabled) { background: #a52020; }
+
+.btnInformeCSV {
+  background: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+.btnInformeCSV:hover:not(:disabled) { background: #f3f4f6; border-color: #9ca3af; }
+
+.btnInformePDF:disabled,
+.btnInformeCSV:disabled { opacity: 0.55; cursor: not-allowed; }
+
 /* ─── Navegación semana ──────────────────────────────── */
 .semanaNav {
   display: flex;

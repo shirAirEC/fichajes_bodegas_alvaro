@@ -186,6 +186,94 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/reservas/informe — informe mensual (admin, JSON o CSV)
+router.get('/informe', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const mes = req.query.mes; // YYYY-MM
+    if (!mes || !/^\d{4}-\d{2}$/.test(mes)) {
+      return res.status(400).json({ error: 'Parámetro mes requerido con formato YYYY-MM' });
+    }
+    const desde = `${mes}-01`;
+    const [y, m] = mes.split('-').map(Number);
+    const ultimoDia = new Date(y, m, 0).getDate();
+    const hasta = `${mes}-${String(ultimoDia).padStart(2, '0')}`;
+
+    const { rows } = await pool.query(
+      `SELECT * FROM reservas WHERE fecha >= $1::date AND fecha <= $2::date ORDER BY fecha ASC, orden ASC, hora ASC NULLS LAST`,
+      [desde, hasta]
+    );
+
+    const formato = req.query.formato;
+
+    if (formato === 'csv') {
+      const lineas = [
+        ['Fecha', 'Hora', 'Grupo', 'Pax', 'Tipo servicio', 'Estado', 'Guía', 'Necesidades especiales', 'Notas'].join(';')
+      ];
+      for (const r of rows) {
+        const nec = Array.isArray(r.necesidades_especiales)
+          ? r.necesidades_especiales.map(n => `${n.cantidad}x ${n.tipo}`).join(', ')
+          : '';
+        lineas.push([
+          r.fecha,
+          r.hora ? r.hora.slice(0, 5) : '',
+          `"${(r.nombre || '').replace(/"/g, '""')}"`,
+          r.pax || '',
+          `"${(r.tipo_servicio || '').replace(/"/g, '""')}"`,
+          r.estado || '',
+          `"${(r.guia || '').replace(/"/g, '""')}"`,
+          `"${nec.replace(/"/g, '""')}"`,
+          `"${(r.notas || '').replace(/"/g, '""')}"`,
+        ].join(';'));
+      }
+      const bom = '\uFEFF';
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="informe_reservas_${mes}.csv"`);
+      return res.send(bom + lineas.join('\n'));
+    }
+
+    // JSON: devolver datos + resumen
+    let totalPax = 0;
+    const porEstado = {};
+    const porTipo = {};
+    const porDia = {};
+    const necesidadesAgg = {};
+
+    for (const r of rows) {
+      const paxNum = parseInt(r.pax, 10) || 0;
+      totalPax += paxNum;
+      porEstado[r.estado] = (porEstado[r.estado] || 0) + 1;
+      const tipo = r.tipo_servicio || 'Sin especificar';
+      porTipo[tipo] = (porTipo[tipo] || { grupos: 0, pax: 0 });
+      porTipo[tipo].grupos++;
+      porTipo[tipo].pax += paxNum;
+
+      if (!porDia[r.fecha]) porDia[r.fecha] = [];
+      porDia[r.fecha].push(r);
+
+      if (Array.isArray(r.necesidades_especiales)) {
+        for (const n of r.necesidades_especiales) {
+          const key = (n.tipo || '').toLowerCase().trim();
+          if (key) necesidadesAgg[key] = (necesidadesAgg[key] || 0) + (n.cantidad || 1);
+        }
+      }
+    }
+
+    res.json({
+      mes, desde, hasta,
+      totalGrupos: rows.length,
+      totalPax,
+      porEstado,
+      porTipo,
+      necesidades: necesidadesAgg,
+      porDia,
+      reservas: rows,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // DELETE /api/reservas/:id (solo admin)
 router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
