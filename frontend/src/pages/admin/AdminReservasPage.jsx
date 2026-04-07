@@ -153,13 +153,14 @@ async function generarInformeReservasPDF(data) {
 
     autoTable(doc, {
       startY: y,
-      margin: { left: 14, right: 14 },
+      margin: { top: 28, left: 14, right: 14 },
       head: [['Tipo de servicio', 'Grupos', 'Pax']],
       body: tipoEntries.map(([tipo, d]) => [tipo, d.grupos, d.pax]),
       styles: { fontSize: 7.5, cellPadding: 2, lineColor: BORDER, lineWidth: 0.2 },
       headStyles: { fillColor: PRIMARY, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5 },
       alternateRowStyles: { fillColor: [252, 249, 245] },
       columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } },
+      didDrawPage: () => { paginaNum++; dibujarCabecera(); dibujarPie(); },
     });
     y = doc.lastAutoTable.finalY + 6;
   }
@@ -178,13 +179,14 @@ async function generarInformeReservasPDF(data) {
 
     autoTable(doc, {
       startY: y,
-      margin: { left: 14, right: 14 },
+      margin: { top: 28, left: 14, right: 14 },
       head: [['Necesidad', 'Total personas']],
       body: necEntries.map(([tipo, cnt]) => [tipo.charAt(0).toUpperCase() + tipo.slice(1), cnt]),
       styles: { fontSize: 7.5, cellPadding: 2, lineColor: BORDER, lineWidth: 0.2 },
       headStyles: { fillColor: PRIMARY, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5 },
       alternateRowStyles: { fillColor: [252, 249, 245] },
       columnStyles: { 1: { halign: 'center' } },
+      didDrawPage: () => { paginaNum++; dibujarCabecera(); dibujarPie(); },
     });
     y = doc.lastAutoTable.finalY + 8;
   }
@@ -224,7 +226,7 @@ async function generarInformeReservasPDF(data) {
 
   autoTable(doc, {
     startY: y,
-    margin: { left: 14, right: 14 },
+    margin: { top: 28, left: 14, right: 14 },
     head: [['Fecha', 'Hora', 'Grupo', 'Pax', 'Tipo', 'Estado', 'Guía', 'Necesidades', 'Notas']],
     body: tableBody,
     styles: { fontSize: 6.5, cellPadding: 1.8, lineColor: BORDER, lineWidth: 0.2, overflow: 'linebreak' },
