@@ -37,6 +37,16 @@ function tipoPrioridadHorario(tipo) {
   return { fecha: 0, rango: 1, semanal: 2, diario: 3 }[tipo] ?? 99;
 }
 
+// Normaliza un valor de fecha (Date | string) a 'YYYY-MM-DD'.
+// Las columnas DATE/TIMESTAMPTZ de PostgreSQL llegan como objetos Date desde el driver pg,
+// pero todas nuestras comparaciones internas usan strings 'YYYY-MM-DD'.
+function toDateStr(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return value.split('T')[0];
+  if (value instanceof Date) return value.toISOString().split('T')[0];
+  return String(value).split('T')[0];
+}
+
 // Calcula el objetivo de horas del mes basándose en los horarios configurados.
 // Devuelve null si no hay horarios activos para ese empleado.
 async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
@@ -52,20 +62,27 @@ async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
   if (horarios.length === 0) return null;
 
   // No contar días anteriores a la fecha de alta (primer mes parcial)
-  const fechaAltaRaw = empRows[0]?.fecha_alta;
-  const fechaAlta = fechaAltaRaw ? new Date(fechaAltaRaw + 'T12:00:00') : null;
-  const desdeDia = (fechaAlta && fechaAlta.getFullYear() === anio && fechaAlta.getMonth() + 1 === mes)
-    ? fechaAlta.getDate()
-    : 1;
+  // fecha_alta llega como objeto Date desde pg (timestamptz); normalizamos a string 'YYYY-MM-DD'.
+  const fechaAltaStr = toDateStr(empRows[0]?.fecha_alta);
+  let desdeDia = 1;
+  if (fechaAltaStr) {
+    const [yA, mA, dA] = fechaAltaStr.split('-').map(Number);
+    if (yA === anio && mA === mes) desdeDia = dA;
+  }
 
   // Obtener períodos de vacaciones del empleado que solapan este mes
   const fechaInicioMesStr = `${anio}-${String(mes).padStart(2, '0')}-01`;
   const fechaFinMesStr = new Date(anio, mes, 0).toISOString().split('T')[0];
-  const { rows: vacRows } = await pool.query(
+  const { rows: vacRowsRaw } = await pool.query(
     `SELECT fecha_inicio, fecha_fin FROM vacaciones
      WHERE empleado_id = $1 AND fecha_inicio <= $2 AND fecha_fin >= $3`,
     [empleadoId, fechaFinMesStr, fechaInicioMesStr]
   );
+  // Normalizar fechas DATE de pg (Date) a strings 'YYYY-MM-DD' para comparar con el bucle.
+  const vacRows = vacRowsRaw.map(v => ({
+    fecha_inicio: toDateStr(v.fecha_inicio),
+    fecha_fin:    toDateStr(v.fecha_fin)
+  }));
 
   // Si el empleado tiene horarios personales, los días no cubiertos por ellos son libres
   // (no aplicar el horario global en esos días)
@@ -150,17 +167,19 @@ async function calcularObjetivoRango(empleadoId, fechaInicio, fechaFin) {
 
   if (horarios.length === 0) return null;
 
-  const fechaAltaRaw = empRows[0]?.fecha_alta;
-  // fecha_alta puede venir como YYYY-MM-DD o como ISO timestamp
-  const fechaAltaStr = fechaAltaRaw
-    ? (typeof fechaAltaRaw === 'string' ? fechaAltaRaw.split('T')[0] : new Date(fechaAltaRaw).toISOString().split('T')[0])
-    : null;
+  const fechaAltaStr = toDateStr(empRows[0]?.fecha_alta);
 
-  const { rows: vacRows } = await pool.query(
+  const { rows: vacRowsRaw } = await pool.query(
     `SELECT fecha_inicio, fecha_fin FROM vacaciones
      WHERE empleado_id = $1 AND fecha_inicio <= $2 AND fecha_fin >= $3`,
     [empleadoId, fechaFin, fechaInicio]
   );
+  // Normalizar fechas a strings 'YYYY-MM-DD' para poder compararlas con la fecha del bucle.
+  // El driver pg devuelve columnas DATE como objetos Date y `Date <= 'YYYY-MM-DD'` siempre da false.
+  const vacRows = vacRowsRaw.map(v => ({
+    fecha_inicio: toDateStr(v.fecha_inicio),
+    fecha_fin:    toDateStr(v.fecha_fin)
+  }));
 
   const tieneHorarioPersonal = horarios.some(h => h.empleado_id == empleadoId);
 
@@ -500,10 +519,14 @@ async function calcularSaldoSemanalAcum(empleadoId, fechaAlta, objetivoSemanal) 
   );
   const totalAjustes = parseFloat(ajustesTotal.rows[0].total) || 0;
 
-  // Si el empleado se incorporó después del último domingo → solo ajustes
-  if (!fechaAlta || fechaAlta > ultimoDomingoStr) return Math.round(totalAjustes * 100) / 100;
+  // Normalizar fecha_alta: viene como objeto Date desde pg (timestamptz) y
+  // todas nuestras comparaciones internas usan strings 'YYYY-MM-DD'.
+  const fechaAltaStr = toDateStr(fechaAlta);
 
-  const semanas = semanasEnPeriodo(fechaAlta, ultimoDomingoStr)
+  // Si el empleado se incorporó después del último domingo → solo ajustes
+  if (!fechaAltaStr || fechaAltaStr > ultimoDomingoStr) return Math.round(totalAjustes * 100) / 100;
+
+  const semanas = semanasEnPeriodo(fechaAltaStr, ultimoDomingoStr)
     .filter(s => s.domingo <= ultimoDomingoStr);
 
   let saldo = 0;
@@ -521,8 +544,11 @@ async function calcularSaldoSemanalAcum(empleadoId, fechaAlta, objetivoSemanal) 
 
 function semanasEnPeriodo(fechaInicio, fechaFin) {
   const semanas = [];
-  const inicio = new Date(fechaInicio + 'T12:00:00');
-  const fin = new Date(fechaFin + 'T12:00:00');
+  // Normalizamos a string 'YYYY-MM-DD' por si llegan objetos Date desde el driver pg
+  const inicioStr = toDateStr(fechaInicio);
+  const finStr    = toDateStr(fechaFin);
+  const inicio = new Date(inicioStr + 'T12:00:00');
+  const fin    = new Date(finStr    + 'T12:00:00');
   // Retroceder al lunes de la semana de inicio
   const diaSemana = inicio.getDay() === 0 ? 6 : inicio.getDay() - 1;
   let lunes = new Date(inicio);
