@@ -8,4 +8,4 @@ cmds = ["npm install --prefix backend"]
 cmds = []
 
 [start]
-cmd = "NODE_ENV=production node backend/src/index.js"
+cmd = "npm start"
