@@ -147,7 +147,11 @@ async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
     }
   }
 
-  if (!hayDiasConHorario) return null;
+  // El empleado SÍ tiene horarios configurados (se valida al inicio), así que
+  // si no hubo días aplicables (toda la semana fue vacaciones / anterior al alta /
+  // domingos sin horario) el objetivo correcto es 0, NO null (que dispararía el
+  // fallback global de 40h y penalizaría injustamente al empleado).
+  if (!hayDiasConHorario) return 0;
 
   return Math.max(0, Math.round(totalHoras * 100) / 100);
 }
@@ -238,7 +242,10 @@ async function calcularObjetivoRango(empleadoId, fechaInicio, fechaFin) {
     }
   }
 
-  if (!hayDiasConHorario) return null;
+  // Mismo razonamiento que en calcularObjetivoMensPorHorario: si hay horarios pero
+  // ningún día aplica (vacaciones / anterior al alta / domingo sin horario), el
+  // objetivo es 0, no null (que activaría el fallback de 40h y penalizaría injustamente).
+  if (!hayDiasConHorario) return 0;
   return Math.max(0, Math.round(totalHoras * 100) / 100);
 }
 
