@@ -39,4 +39,13 @@ npm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+actualizar_version.ps1
+
+# Scripts locales de auditoria/diagnostico (no desplegar)
+backend/_*.js
+backend/_*.txt
+backend/_*.json
+backend/_*.csv
+*_desglose_*.csv
+backend/BALANCE_ODOO_RESIDUAL.md
 

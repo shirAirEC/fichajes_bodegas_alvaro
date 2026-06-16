@@ -1,323 +1,27 @@
 const express = require('express');
 const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
-const { timeToMs } = require('./horarios');
+const { syncAjusteToOdoo, deleteAjusteFromOdoo } = require('../sync/sync-ajustes');
+const {
+  FECHA_LOCAL_SQL,
+  calcularHorasDeFichajes,
+  calcularObjetivoRango,
+  getObjetivoMes,
+  getObjetivoEmpleado,
+  calcularBalancePeriodo,
+  semanasEnPeriodo,
+  calcularSaldoSemanalAcum,
+  calcularBalanceAcumulado,
+  buildHistorialSemanal,
+} = require('../lib/balance-horas');
 
 const router = express.Router();
 
-// ─── UTILIDADES ───────────────────────────────────────────────────────────────
-
-function calcularHorasDeFichajes(fichajes) {
-  let minutos = 0;
-  let entrada = null;
-  let breakStart = null;
-  let breakAllowed = 30;
-  for (const f of fichajes) {
-    if (f.tipo === 'entrada') {
-      if (breakStart) {
-        const breakReal = (new Date(f.timestamp) - breakStart) / 60000;
-        minutos += Math.min(breakReal, breakAllowed);
-        breakStart = null;
-      }
-      entrada = new Date(f.timestamp);
-    } else if (f.tipo === 'salida' && entrada) {
-      minutos += (new Date(f.timestamp) - entrada) / 60000;
-      entrada = null;
-      if (f.es_descanso) {
-        breakStart = new Date(f.timestamp);
-        const match = (f.notas || '').match(/(\d+)\s*min/);
-        breakAllowed = match ? parseInt(match[1]) : 30;
-      }
-    }
-  }
-  return Math.round(minutos) / 60;
-}
-
-function tipoPrioridadHorario(tipo) {
-  return { fecha: 0, rango: 1, semanal: 2, diario: 3 }[tipo] ?? 99;
-}
-
-// Normaliza un valor de fecha (Date | string) a 'YYYY-MM-DD'.
-// Las columnas DATE/TIMESTAMPTZ de PostgreSQL llegan como objetos Date desde el driver pg,
-// pero todas nuestras comparaciones internas usan strings 'YYYY-MM-DD'.
-function toDateStr(value) {
-  if (!value) return null;
-  if (typeof value === 'string') return value.split('T')[0];
-  if (value instanceof Date) return value.toISOString().split('T')[0];
-  return String(value).split('T')[0];
-}
-
-// Calcula el objetivo de horas del mes basándose en los horarios configurados.
-// Devuelve null si no hay horarios activos para ese empleado.
-async function calcularObjetivoMensPorHorario(empleadoId, anio, mes) {
-  const [{ rows: horarios }, { rows: empRows }, objConf] = await Promise.all([
-    pool.query(
-      `SELECT * FROM horarios WHERE (empleado_id = $1 OR empleado_id IS NULL) AND activo = 1`,
-      [empleadoId]
-    ),
-    pool.query('SELECT fecha_alta FROM empleados WHERE id = $1', [empleadoId]),
-    getObjetivoEmpleado(empleadoId)
-  ]);
-
-  if (horarios.length === 0) return null;
-
-  // No contar días anteriores a la fecha de alta (primer mes parcial)
-  // fecha_alta llega como objeto Date desde pg (timestamptz); normalizamos a string 'YYYY-MM-DD'.
-  const fechaAltaStr = toDateStr(empRows[0]?.fecha_alta);
-  let desdeDia = 1;
-  if (fechaAltaStr) {
-    const [yA, mA, dA] = fechaAltaStr.split('-').map(Number);
-    if (yA === anio && mA === mes) desdeDia = dA;
-  }
-
-  // Obtener períodos de vacaciones del empleado que solapan este mes
-  const fechaInicioMesStr = `${anio}-${String(mes).padStart(2, '0')}-01`;
-  const fechaFinMesStr = new Date(anio, mes, 0).toISOString().split('T')[0];
-  const { rows: vacRowsRaw } = await pool.query(
-    `SELECT fecha_inicio, fecha_fin FROM vacaciones
-     WHERE empleado_id = $1 AND fecha_inicio <= $2 AND fecha_fin >= $3`,
-    [empleadoId, fechaFinMesStr, fechaInicioMesStr]
-  );
-  // Normalizar fechas DATE de pg (Date) a strings 'YYYY-MM-DD' para comparar con el bucle.
-  const vacRows = vacRowsRaw.map(v => ({
-    fecha_inicio: toDateStr(v.fecha_inicio),
-    fecha_fin:    toDateStr(v.fecha_fin)
-  }));
-
-  // Si el empleado tiene horarios personales, los días no cubiertos por ellos son libres
-  // (no aplicar el horario global en esos días)
-  const tieneHorarioPersonal = horarios.some(h => h.empleado_id == empleadoId);
-
-  const diasEnMes = new Date(anio, mes, 0).getDate();
-  let totalHoras = 0;
-  let hayDiasConHorario = false;
-
-  for (let dia = desdeDia; dia <= diasEnMes; dia++) {
-    const fecha = `${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-    const d = new Date(fecha + 'T12:00:00');
-    const diaSemana = d.getDay() === 0 ? 7 : d.getDay(); // 1=lun...7=dom
-
-    let mejor = null;
-    for (const h of horarios) {
-      const esPersonal = h.empleado_id == empleadoId;
-      const aplica =
-        (h.tipo === 'fecha' && h.fecha === fecha) ||
-        (h.tipo === 'rango' && h.fecha_inicio <= fecha && (!h.fecha_fin || h.fecha_fin >= fecha)) ||
-        (h.tipo === 'semanal' && h.dias_semana && h.dias_semana.split(',').map(Number).includes(diaSemana)) ||
-        h.tipo === 'diario';
-
-      if (aplica) {
-        if (!mejor ||
-          (esPersonal && !mejor._esPersonal) ||
-          (esPersonal === mejor._esPersonal && tipoPrioridadHorario(h.tipo) < tipoPrioridadHorario(mejor.tipo))) {
-          mejor = { ...h, _esPersonal: esPersonal };
-        }
-      }
-    }
-
-    // Si el empleado tiene horario personal pero este día solo cubre el global → día libre
-    if (tieneHorarioPersonal && mejor && !mejor._esPersonal) continue;
-
-    // Si este día cae en un período de vacaciones registrado → no se espera trabajo
-    const esVacaciones = vacRows.some(v => v.fecha_inicio <= fecha && v.fecha_fin >= fecha);
-    if (esVacaciones) continue;
-
-    if (mejor) {
-      let horasDia = 0;
-      if (mejor.hora_salida) {
-        // Diferencia exacta entrada–salida
-        const msEntrada = timeToMs(mejor.hora_entrada);
-        const msSalida = timeToMs(mejor.hora_salida);
-        if (msSalida > msEntrada) horasDia = (msSalida - msEntrada) / 3600000;
-      } else if (mejor.dias_semana) {
-        // Sin hora de salida: horas_semana ÷ nº días configurados = horas/día
-        const diasConfig = mejor.dias_semana.split(',').filter(Boolean).length;
-        if (diasConfig > 0) horasDia = objConf.horas_semana / diasConfig;
-      } else if (mejor.tipo === 'diario') {
-        // Horario diario sin días explícitos: jornada lunes–sábado (6 días)
-        // Domingo (diaSemana=7) no cuenta
-        if (diaSemana <= 6) horasDia = objConf.horas_semana / 6;
-      }
-      // Otros casos sin dias_semana ni hora_salida → fallback a horas_mes
-
-      if (horasDia > 0) {
-        totalHoras += horasDia;
-        hayDiasConHorario = true;
-      }
-    }
-  }
-
-  // El empleado SÍ tiene horarios configurados (se valida al inicio), así que
-  // si no hubo días aplicables (toda la semana fue vacaciones / anterior al alta /
-  // domingos sin horario) el objetivo correcto es 0, NO null (que dispararía el
-  // fallback global de 40h y penalizaría injustamente al empleado).
-  if (!hayDiasConHorario) return 0;
-
-  return Math.max(0, Math.round(totalHoras * 100) / 100);
-}
-
-// Calcula el objetivo de horas para un rango arbitrario de fechas,
-// aplicando la misma lógica de horarios + vacaciones que el cálculo mensual.
-// Devuelve null si no hay horarios activos.
-async function calcularObjetivoRango(empleadoId, fechaInicio, fechaFin) {
-  const [{ rows: horarios }, { rows: empRows }, objConf] = await Promise.all([
-    pool.query(
-      `SELECT * FROM horarios WHERE (empleado_id = $1 OR empleado_id IS NULL) AND activo = 1`,
-      [empleadoId]
-    ),
-    pool.query('SELECT fecha_alta FROM empleados WHERE id = $1', [empleadoId]),
-    getObjetivoEmpleado(empleadoId)
-  ]);
-
-  if (horarios.length === 0) return null;
-
-  const fechaAltaStr = toDateStr(empRows[0]?.fecha_alta);
-
-  const { rows: vacRowsRaw } = await pool.query(
-    `SELECT fecha_inicio, fecha_fin FROM vacaciones
-     WHERE empleado_id = $1 AND fecha_inicio <= $2 AND fecha_fin >= $3`,
-    [empleadoId, fechaFin, fechaInicio]
-  );
-  // Normalizar fechas a strings 'YYYY-MM-DD' para poder compararlas con la fecha del bucle.
-  // El driver pg devuelve columnas DATE como objetos Date y `Date <= 'YYYY-MM-DD'` siempre da false.
-  const vacRows = vacRowsRaw.map(v => ({
-    fecha_inicio: toDateStr(v.fecha_inicio),
-    fecha_fin:    toDateStr(v.fecha_fin)
-  }));
-
-  const tieneHorarioPersonal = horarios.some(h => h.empleado_id == empleadoId);
-
-  let totalHoras = 0;
-  let hayDiasConHorario = false;
-
-  const dInicio = new Date(fechaInicio + 'T12:00:00');
-  const dFin    = new Date(fechaFin    + 'T12:00:00');
-
-  for (let d = new Date(dInicio); d <= dFin; d.setDate(d.getDate() + 1)) {
-    const fecha = d.toISOString().split('T')[0];
-
-    // No contar días anteriores a la fecha de alta
-    if (fechaAltaStr && fecha < fechaAltaStr) continue;
-
-    const diaSemana = d.getDay() === 0 ? 7 : d.getDay(); // 1=lun…7=dom
-
-    let mejor = null;
-    for (const h of horarios) {
-      const esPersonal = h.empleado_id == empleadoId;
-      const aplica =
-        (h.tipo === 'fecha'    && h.fecha === fecha) ||
-        (h.tipo === 'rango'    && h.fecha_inicio <= fecha && (!h.fecha_fin || h.fecha_fin >= fecha)) ||
-        (h.tipo === 'semanal'  && h.dias_semana && h.dias_semana.split(',').map(Number).includes(diaSemana)) ||
-        h.tipo === 'diario';
-
-      if (aplica) {
-        if (!mejor ||
-          (esPersonal && !mejor._esPersonal) ||
-          (esPersonal === mejor._esPersonal && tipoPrioridadHorario(h.tipo) < tipoPrioridadHorario(mejor.tipo))) {
-          mejor = { ...h, _esPersonal: esPersonal };
-        }
-      }
-    }
-
-    // Día no cubierto por horario personal → día libre
-    if (tieneHorarioPersonal && mejor && !mejor._esPersonal) continue;
-
-    // Día de vacaciones → no se espera trabajo
-    const esVacaciones = vacRows.some(v => v.fecha_inicio <= fecha && v.fecha_fin >= fecha);
-    if (esVacaciones) continue;
-
-    if (mejor) {
-      let horasDia = 0;
-      if (mejor.hora_salida) {
-        const msEntrada = timeToMs(mejor.hora_entrada);
-        const msSalida  = timeToMs(mejor.hora_salida);
-        if (msSalida > msEntrada) horasDia = (msSalida - msEntrada) / 3600000;
-      } else if (mejor.dias_semana) {
-        const diasConfig = mejor.dias_semana.split(',').filter(Boolean).length;
-        if (diasConfig > 0) horasDia = objConf.horas_semana / diasConfig;
-      } else if (mejor.tipo === 'diario') {
-        if (diaSemana <= 6) horasDia = objConf.horas_semana / 6;
-      }
-      if (horasDia > 0) { totalHoras += horasDia; hayDiasConHorario = true; }
-    }
-  }
-
-  // Mismo razonamiento que en calcularObjetivoMensPorHorario: si hay horarios pero
-  // ningún día aplica (vacaciones / anterior al alta / domingo sin horario), el
-  // objetivo es 0, no null (que activaría el fallback de 40h y penalizaría injustamente).
-  if (!hayDiasConHorario) return 0;
-  return Math.max(0, Math.round(totalHoras * 100) / 100);
-}
-
-// Objetivo mensual: usa horarios si están configurados, si no cae al valor configurado
-async function getObjetivoMes(empleadoId, anio, mes) {
-  const porHorario = await calcularObjetivoMensPorHorario(empleadoId, anio, mes);
-  if (porHorario !== null) return porHorario;
-  const objetivo = await getObjetivoEmpleado(empleadoId);
-  return objetivo.horas_mes;
-}
-
-async function getObjetivoEmpleado(empleadoId) {
-  // Intenta primero objetivo personalizado del empleado
-  const { rows: custom } = await pool.query(
-    'SELECT horas_semana, horas_mes FROM horas_objetivo WHERE empleado_id = $1',
-    [empleadoId]
-  );
-  if (custom[0]?.horas_semana != null || custom[0]?.horas_mes != null) {
-    const semana = parseFloat(custom[0].horas_semana) || 40;
-    // Si solo se configura semana, derivar mes (52 semanas / 12 meses)
-    const mes = custom[0].horas_mes != null
-      ? parseFloat(custom[0].horas_mes)
-      : Math.round(semana * 52 / 12 * 100) / 100;
-    return { horas_semana: semana, horas_mes: mes };
-  }
-  // Fallback a configuración global
-  const { rows: cfg } = await pool.query(
-    "SELECT clave, valor FROM configuracion WHERE clave IN ('horas_objetivo_semana','horas_objetivo_mes')"
-  );
-  const config = Object.fromEntries(cfg.map(r => [r.clave, parseFloat(r.valor)]));
-  const semana = config.horas_objetivo_semana || 40;
-  // Si horas_mes no está configurado o es 0, derivarlo de horas_semana
-  const mes = config.horas_objetivo_mes || Math.round(semana * 52 / 12 * 100) / 100;
-  return { horas_semana: semana, horas_mes: mes };
-}
-
-async function calcularBalancePeriodo(empleadoId, fechaInicio, fechaFin) {
-  const { rows: fichajes } = await pool.query(
-    `SELECT tipo, timestamp, es_descanso FROM fichajes
-     WHERE empleado_id = $1 AND timestamp::date >= $2::date AND timestamp::date <= $3::date
-     ORDER BY timestamp ASC`,
-    [empleadoId, fechaInicio, fechaFin]
-  );
-  const { rows: ajustesRow } = await pool.query(
-    `SELECT COALESCE(SUM(cantidad_horas), 0) AS total FROM ajustes_horas
-     WHERE empleado_id = $1 AND fecha >= $2::date AND fecha <= $3::date`,
-    [empleadoId, fechaInicio, fechaFin]
-  );
-  return {
-    horasTrabajadas: calcularHorasDeFichajes(fichajes),
-    horasAjuste: parseFloat(ajustesRow[0].total)
-  };
-}
-
-// Devuelve array de meses [{anio, mes, primerDia, ultimoDia}] desde fecha_alta hasta hoy
-function mesesDesdeAlta(fechaAlta) {
-  const meses = [];
-  const inicio = new Date(fechaAlta);
-  inicio.setDate(1);
-  const hoy = new Date();
-  const fin = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-
-  let cursor = new Date(inicio);
-  while (cursor <= fin) {
-    const anio = cursor.getFullYear();
-    const mes = cursor.getMonth() + 1;
-    const primerDia = `${anio}-${String(mes).padStart(2, '0')}-01`;
-    const ultimoDia = new Date(anio, mes, 0).toISOString().split('T')[0];
-    meses.push({ anio, mes, primerDia, ultimoDia });
-    cursor.setMonth(cursor.getMonth() + 1);
-  }
-  return meses;
+function triggerAjusteSync(ajusteId, deleted = false) {
+  const fn = deleted ? deleteAjusteFromOdoo : syncAjusteToOdoo;
+  fn(ajusteId).catch((err) => {
+    console.error('[odoo-sync] ajuste', ajusteId, err.message);
+  });
 }
 
 // ─── RUTAS EMPLEADO ───────────────────────────────────────────────────────────
@@ -340,23 +44,17 @@ router.get('/resumen', authMiddleware, async (req, res) => {
     const mesInicio = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
     const mesFin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().split('T')[0];
 
-    const [semana, mes] = await Promise.all([
+    const [semana, mes, objSemanaActual] = await Promise.all([
       calcularBalancePeriodo(empleadoId, semanaInicio, semanaFin),
-      calcularBalancePeriodo(empleadoId, mesInicio, mesFin)
+      calcularBalancePeriodo(empleadoId, mesInicio, mesFin),
+      calcularObjetivoRango(empleadoId, semanaInicio, semanaFin)
     ]);
 
-    // Balance acumulado (desde fecha_alta)
-    const { rows: empRow } = await pool.query('SELECT fecha_alta FROM empleados WHERE id = $1', [empleadoId]);
-    const meses = mesesDesdeAlta(empRow[0].fecha_alta);
-
     const objMesActual = await getObjetivoMes(empleadoId, hoy.getFullYear(), hoy.getMonth() + 1);
+    const objetivoSemana = objSemanaActual !== null ? objSemanaActual : objetivo.horas_semana;
 
-    let balanceAcumulado = 0;
-    for (const m of meses) {
-      const { horasTrabajadas, horasAjuste } = await calcularBalancePeriodo(empleadoId, m.primerDia, m.ultimoDia);
-      const objM = await getObjetivoMes(empleadoId, m.anio, m.mes);
-      balanceAcumulado += horasTrabajadas + horasAjuste - objM;
-    }
+    const { rows: empRow } = await pool.query('SELECT fecha_alta FROM empleados WHERE id = $1', [empleadoId]);
+    const balanceAcumulado = await calcularBalanceAcumulado(empleadoId, empRow[0].fecha_alta, objetivo.horas_semana);
 
     res.json({
       objetivo,
@@ -364,8 +62,8 @@ router.get('/resumen', authMiddleware, async (req, res) => {
         inicio: semanaInicio, fin: semanaFin,
         trabajadas: Math.round(semana.horasTrabajadas * 100) / 100,
         ajuste: semana.horasAjuste,
-        objetivo: objetivo.horas_semana,
-        diferencia: Math.round((semana.horasTrabajadas + semana.horasAjuste - objetivo.horas_semana) * 100) / 100
+        objetivo: Math.round(objetivoSemana * 100) / 100,
+        diferencia: Math.round((semana.horasTrabajadas + semana.horasAjuste - objetivoSemana) * 100) / 100
       },
       mes: {
         inicio: mesInicio, fin: mesFin,
@@ -382,32 +80,17 @@ router.get('/resumen', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/horas/historial  — historial mensual del empleado
+// GET /api/horas/historial  — historial semanal del empleado (modelo canónico)
 router.get('/historial', authMiddleware, async (req, res) => {
   try {
     const empleadoId = req.user.id;
     const objetivo = await getObjetivoEmpleado(empleadoId);
     const { rows: empRow } = await pool.query('SELECT fecha_alta FROM empleados WHERE id = $1', [empleadoId]);
-    const meses = mesesDesdeAlta(empRow[0].fecha_alta);
+    const { historial, balanceAcumulado } = await buildHistorialSemanal(
+      empleadoId, empRow[0].fecha_alta, objetivo.horas_semana
+    );
 
-    let balanceAcum = 0;
-    const historial = [];
-    for (const m of meses) {
-      const { horasTrabajadas, horasAjuste } = await calcularBalancePeriodo(empleadoId, m.primerDia, m.ultimoDia);
-      const objM = await getObjetivoMes(empleadoId, m.anio, m.mes);
-      const diferencia = horasTrabajadas + horasAjuste - objM;
-      balanceAcum += diferencia;
-      historial.push({
-        anio: m.anio, mes: m.mes,
-        trabajadas: Math.round(horasTrabajadas * 100) / 100,
-        ajuste: horasAjuste,
-        objetivo: objM,
-        diferencia: Math.round(diferencia * 100) / 100,
-        balanceAcumulado: Math.round(balanceAcum * 100) / 100
-      });
-    }
-
-    res.json({ historial: historial.reverse(), objetivo });
+    res.json({ historial, objetivo, balanceAcumulado });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
@@ -446,7 +129,7 @@ router.get('/filtro', authMiddleware, async (req, res) => {
     // Desglose por semanas dentro del periodo
     const { rows: fichajes } = await pool.query(
       `SELECT tipo, timestamp, es_descanso FROM fichajes
-       WHERE empleado_id = $1 AND timestamp::date >= $2::date AND timestamp::date <= $3::date
+       WHERE empleado_id = $1 AND ${FECHA_LOCAL_SQL} >= $2::date AND ${FECHA_LOCAL_SQL} <= $3::date
        ORDER BY timestamp ASC`,
       [empleadoId, fechaInicio, fechaFin]
     );
@@ -504,74 +187,6 @@ router.get('/filtro', authMiddleware, async (req, res) => {
 });
 
 // ─── RUTAS ADMIN ──────────────────────────────────────────────────────────────
-
-// Genera array de semanas [{lunes, domingo}] dentro de un rango
-// Calcula el saldo acumulado basado en semanas ISO completamente cerradas
-// (lunes a domingo, el domingo debe haber pasado)
-async function calcularSaldoSemanalAcum(empleadoId, fechaAlta, objetivoSemanal) {
-  const hoy = new Date();
-  // Obtener el último domingo completamente pasado
-  const diaSemana = hoy.getDay(); // 0=Dom, 1=Lun…
-  // Si hoy es domingo (0) retrocedemos 7 días; si es lunes (1) retrocedemos 1 día, etc.
-  const diasAtras = diaSemana === 0 ? 7 : diaSemana;
-  const ultimoDomingo = new Date(hoy);
-  ultimoDomingo.setDate(hoy.getDate() - diasAtras);
-  const ultimoDomingoStr = ultimoDomingo.toISOString().split('T')[0];
-
-  // Suma TODOS los ajustes manuales del empleado (sin filtro de fecha)
-  // para que ajustes de la semana actual (aún abierta) también cuenten
-  const ajustesTotal = await pool.query(
-    'SELECT COALESCE(SUM(cantidad_horas), 0) AS total FROM ajustes_horas WHERE empleado_id = $1',
-    [empleadoId]
-  );
-  const totalAjustes = parseFloat(ajustesTotal.rows[0].total) || 0;
-
-  // Normalizar fecha_alta: viene como objeto Date desde pg (timestamptz) y
-  // todas nuestras comparaciones internas usan strings 'YYYY-MM-DD'.
-  const fechaAltaStr = toDateStr(fechaAlta);
-
-  // Si el empleado se incorporó después del último domingo → solo ajustes
-  if (!fechaAltaStr || fechaAltaStr > ultimoDomingoStr) return Math.round(totalAjustes * 100) / 100;
-
-  const semanas = semanasEnPeriodo(fechaAltaStr, ultimoDomingoStr)
-    .filter(s => s.domingo <= ultimoDomingoStr);
-
-  let saldo = 0;
-  for (const s of semanas) {
-    const { horasTrabajadas } = await calcularBalancePeriodo(empleadoId, s.lunes, s.domingo);
-    // Objetivo real de esa semana: aplica horario + vacaciones (puede ser < horas_semana si hay ausencias)
-    const objSemana = await calcularObjetivoRango(empleadoId, s.lunes, s.domingo);
-    const objetivoEfectivo = objSemana !== null ? objSemana : objetivoSemanal;
-    saldo += horasTrabajadas - objetivoEfectivo;
-  }
-  // Sumar todos los ajustes manuales por separado (independientemente de la semana)
-  saldo += totalAjustes;
-  return Math.round(saldo * 100) / 100;
-}
-
-function semanasEnPeriodo(fechaInicio, fechaFin) {
-  const semanas = [];
-  // Normalizamos a string 'YYYY-MM-DD' por si llegan objetos Date desde el driver pg
-  const inicioStr = toDateStr(fechaInicio);
-  const finStr    = toDateStr(fechaFin);
-  const inicio = new Date(inicioStr + 'T12:00:00');
-  const fin    = new Date(finStr    + 'T12:00:00');
-  // Retroceder al lunes de la semana de inicio
-  const diaSemana = inicio.getDay() === 0 ? 6 : inicio.getDay() - 1;
-  let lunes = new Date(inicio);
-  lunes.setDate(inicio.getDate() - diaSemana);
-  while (lunes <= fin) {
-    const domingo = new Date(lunes);
-    domingo.setDate(lunes.getDate() + 6);
-    semanas.push({
-      lunes: lunes.toISOString().split('T')[0],
-      domingo: domingo.toISOString().split('T')[0]
-    });
-    lunes = new Date(lunes);
-    lunes.setDate(lunes.getDate() + 7);
-  }
-  return semanas;
-}
 
 // GET /api/horas/admin/todos?modo=semana|mes|anio|rango&desde=&hasta=
 router.get('/admin/todos', authMiddleware, adminMiddleware, async (req, res) => {
@@ -683,24 +298,7 @@ router.get('/admin/empleado/:id', authMiddleware, adminMiddleware, async (req, r
 
     const emp = empRow[0];
     const objetivo = await getObjetivoEmpleado(id);
-    const meses = mesesDesdeAlta(emp.fecha_alta);
-
-    let balanceAcum = 0;
-    const historial = [];
-    for (const m of meses) {
-      const { horasTrabajadas, horasAjuste } = await calcularBalancePeriodo(id, m.primerDia, m.ultimoDia);
-      const objM = await getObjetivoMes(id, m.anio, m.mes);
-      const diferencia = horasTrabajadas + horasAjuste - objM;
-      balanceAcum += diferencia;
-      historial.push({
-        anio: m.anio, mes: m.mes,
-        trabajadas: Math.round(horasTrabajadas * 100) / 100,
-        ajuste: horasAjuste,
-        objetivo: objM,
-        diferencia: Math.round(diferencia * 100) / 100,
-        balanceAcumulado: Math.round(balanceAcum * 100) / 100
-      });
-    }
+    const { historial, balanceAcumulado } = await buildHistorialSemanal(id, emp.fecha_alta, objetivo.horas_semana);
 
     const { rows: ajustes } = await pool.query(
       `SELECT a.*, e.nombre AS admin_nombre, e.apellidos AS admin_apellidos
@@ -710,8 +308,7 @@ router.get('/admin/empleado/:id', authMiddleware, adminMiddleware, async (req, r
     );
 
     res.json({
-      empleado: emp, objetivo, historial: historial.reverse(),
-      ajustes, balanceAcumulado: Math.round(balanceAcum * 100) / 100
+      empleado: emp, objetivo, historial, ajustes, balanceAcumulado
     });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -767,6 +364,7 @@ router.post('/admin/ajuste', authMiddleware, adminMiddleware, async (req, res) =
        FROM ajustes_horas a JOIN empleados e ON a.admin_id = e.id WHERE a.id = $1`,
       [rows[0].id]
     );
+    triggerAjusteSync(rows[0].id);
     res.status(201).json(full[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -778,7 +376,9 @@ router.delete('/admin/ajuste/:id', authMiddleware, adminMiddleware, async (req, 
   try {
     const { rows } = await pool.query('SELECT id FROM ajustes_horas WHERE id = $1', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Ajuste no encontrado' });
-    await pool.query('DELETE FROM ajustes_horas WHERE id = $1', [req.params.id]);
+    const ajusteId = req.params.id;
+    await pool.query('DELETE FROM ajustes_horas WHERE id = $1', [ajusteId]);
+    triggerAjusteSync(ajusteId, true);
     res.json({ message: 'Ajuste eliminado' });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -852,8 +452,8 @@ router.get('/admin/informe', authMiddleware, adminMiddleware, async (req, res) =
         `SELECT tipo, timestamp, es_descanso
          FROM fichajes
          WHERE empleado_id = $1
-           AND timestamp::date >= $2::date
-           AND timestamp::date <= $3::date
+           AND ${FECHA_LOCAL_SQL} >= $2::date
+           AND ${FECHA_LOCAL_SQL} <= $3::date
          ORDER BY timestamp ASC`,
         [emp.id, fechaDesde, fechaHasta]
       );

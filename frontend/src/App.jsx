@@ -6,6 +6,8 @@ import DashboardAdmin from './pages/DashboardAdmin';
 import TVPage from './pages/TVPage';
 import LoadingScreen from './components/LoadingScreen';
 import SolicitarBajaPage from './pages/SolicitarBajaPage';
+import SsoCallbackPage from './pages/SsoCallbackPage';
+import OdooSsoRedirectPage from './pages/OdooSsoRedirectPage';
 import { useAppUpdate } from './hooks/useAppUpdate';
 
 function PantallaActualizacion({ versionMinima }) {
@@ -58,6 +60,8 @@ function AppRoutes() {
   // Páginas públicas sin autenticación
   if (location.pathname === '/tv') return <TVPage />;
   if (location.pathname === '/solicitar-baja') return <SolicitarBajaPage />;
+  if (location.pathname === '/admin/sso-callback') return <SsoCallbackPage />;
+  if (location.pathname === '/auth/odoo-sso') return <OdooSsoRedirectPage />;
 
   if (loading) return <LoadingScreen />;
   if (!user) return <LoginPage />;

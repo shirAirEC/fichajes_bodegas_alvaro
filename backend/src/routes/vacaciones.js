@@ -4,6 +4,15 @@ const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
+const { syncVacacionToOdoo, deleteVacacionFromOdoo } = require('../sync/sync-vacaciones');
+
+function triggerVacacionSync(vacacionId, deleted = false) {
+  const fn = deleted ? deleteVacacionFromOdoo : syncVacacionToOdoo;
+  fn(vacacionId).catch((err) => {
+    console.error('[odoo-sync] vacacion', vacacionId, err.message);
+  });
+}
+
 const TIPOS_AUSENCIA = ['vacaciones', 'permiso_especial', 'baja_medica'];
 const TIPO_LABELS = {
   vacaciones: 'Vacaciones',
@@ -86,6 +95,7 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
     );
 
     await client.query('COMMIT');
+    triggerVacacionSync(vacRows[0].id);
     res.json({ ...vacRows[0], dias });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -113,6 +123,7 @@ router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
 
     await client.query('DELETE FROM vacaciones WHERE id = $1', [req.params.id]);
     await client.query('COMMIT');
+    triggerVacacionSync(vac.id, true);
     res.json({ ok: true });
   } catch (err) {
     await client.query('ROLLBACK');

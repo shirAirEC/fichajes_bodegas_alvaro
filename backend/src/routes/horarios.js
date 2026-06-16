@@ -4,6 +4,15 @@ const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
+const { syncHorarioToOdoo, deleteHorarioFromOdoo } = require('../sync/sync-horarios');
+
+function triggerHorarioSync(horarioId, deleted = false) {
+  const fn = deleted ? deleteHorarioFromOdoo : syncHorarioToOdoo;
+  fn(horarioId).catch((err) => {
+    console.error('[odoo-sync] horario', horarioId, err.message);
+  });
+}
+
 // Convierte "HH:MM:SS" o "HH:MM" a milisegundos desde medianoche
 function timeToMs(timeStr) {
   const [h, m, s] = (timeStr || '').split(':').map(Number);
@@ -74,6 +83,7 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
       [empleado_id || null, tipo, dias_semana || null, fecha || null,
        fecha_inicio || null, fecha_fin || null, hora_entrada, hora_salida || null, req.user.id]
     );
+    triggerHorarioSync(rows[0].id);
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error(err);
@@ -94,6 +104,7 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
        fecha_inicio || null, fecha_fin || null, hora_entrada, hora_salida || null, req.params.id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Horario no encontrado' });
+    triggerHorarioSync(rows[0].id);
     res.json(rows[0]);
   } catch (err) {
     console.error(err);
@@ -105,6 +116,7 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
 router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     await pool.query('UPDATE horarios SET activo = 0 WHERE id = $1', [req.params.id]);
+    triggerHorarioSync(parseInt(req.params.id, 10), true);
     res.json({ message: 'Horario eliminado' });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });

@@ -8,6 +8,7 @@ const { initializeDatabase } = require('./db/database');
 const { initFirebase } = require('./firebase');
 
 const authRoutes = require('./routes/auth');
+const odooSsoRoutes = require('./routes/odoo-sso');
 const fichajesRoutes = require('./routes/fichajes');
 const empleadosRoutes = require('./routes/empleados');
 const saldosRoutes = require('./routes/saldos');
@@ -19,6 +20,7 @@ const horariosRoutes = require('./routes/horarios');
 const reservasRoutes = require('./routes/reservas');
 const vacacionesRoutes = require('./routes/vacaciones');
 const avisosRoutes = require('./routes/avisos');
+const syncRoutes = require('./routes/sync');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -50,7 +52,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Odoo-Sync', 'X-Odoo-Sync-Key']
 }));
 
 // Formato de log: método, URL, status, tiempo de respuesta, IP del cliente
@@ -73,6 +75,7 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', version: '1.0.0', timestamp: new Date().toISOString() });
 });
 
+app.use('/api/auth', odooSsoRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/fichajes', fichajesRoutes);
 app.use('/api/empleados', empleadosRoutes);
@@ -85,6 +88,7 @@ app.use('/api/horarios', horariosRoutes);
 app.use('/api/reservas', reservasRoutes);
 app.use('/api/vacaciones', vacacionesRoutes);
 app.use('/api/avisos', avisosRoutes);
+app.use('/api/sync', syncRoutes);
 
 app.use('/api/*', (req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
 

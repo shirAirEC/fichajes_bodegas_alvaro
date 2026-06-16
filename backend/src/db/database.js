@@ -319,6 +319,46 @@ async function initializeDatabase() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_usuario ON audit_log(usuario_id)`);
 
+  // Nonces one-time para SSO Odoo → Fichajes admin
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sso_nonces (
+      nonce TEXT PRIMARY KEY,
+      used_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // Sincronizacion bidireccional con Odoo hr.employee
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sync_odoo_map (
+      fichajes_empleado_id INTEGER UNIQUE REFERENCES empleados(id) ON DELETE CASCADE,
+      odoo_employee_id INTEGER UNIQUE NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    ALTER TABLE empleados ADD COLUMN IF NOT EXISTS odoo_employee_id INTEGER
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_empleados_odoo_id ON empleados(odoo_employee_id)
+  `);
+
+  // Mapeo idempotente fichajes -> registros Odoo (asistencia, vacaciones, horarios)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sync_odoo_entity_map (
+      id SERIAL PRIMARY KEY,
+      entity_type TEXT NOT NULL,
+      fichajes_entity_id INTEGER NOT NULL,
+      odoo_model TEXT NOT NULL,
+      odoo_record_id INTEGER NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(entity_type, fichajes_entity_id)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_sync_odoo_entity_type
+      ON sync_odoo_entity_map(entity_type, fichajes_entity_id)
+  `);
+
   // Admin por defecto
   const { rows } = await pool.query('SELECT COUNT(*) AS n FROM empleados');
   if (parseInt(rows[0].n) === 0) {

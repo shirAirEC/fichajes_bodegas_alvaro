@@ -1,9 +1,18 @@
 const express = require('express');
 const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
+const { isOdooSyncRequest } = require('../middleware/odooSyncAuth');
 const { enviarPushMultiple } = require('../firebase');
+const { syncReservaToOdoo, deleteReservaFromOdoo } = require('../sync/sync-reservas');
 
 const router = express.Router();
+
+function triggerReservaSync(reservaId, deleted = false) {
+  const fn = deleted ? deleteReservaFromOdoo : syncReservaToOdoo;
+  fn(reservaId).catch((err) => {
+    console.error('[odoo-sync] reserva', reservaId, err.message);
+  });
+}
 
 // Crea un aviso y envía push SOLO al usuario de Planificación
 async function notificarCambioPlanificacion(adminId, titulo, mensaje) {
@@ -136,6 +145,9 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
       'Planificacion actualizada',
       `Nueva reserva: ${reserva.nombre} el ${fechaStr}${reserva.hora ? ' a las ' + reserva.hora.slice(0,5) : ''}`
     );
+    if (!isOdooSyncRequest(req)) {
+      triggerReservaSync(reserva.id);
+    }
     res.status(201).json(reserva);
   } catch (err) {
     console.error(err);
@@ -179,6 +191,9 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
       'Planificacion actualizada',
       `Cambio en reserva: ${reserva.nombre} el ${fechaStr}${reserva.hora ? ' a las ' + reserva.hora.slice(0,5) : ''}`
     );
+    if (!isOdooSyncRequest(req)) {
+      triggerReservaSync(reserva.id);
+    }
     res.json(reserva);
   } catch (err) {
     console.error(err);
@@ -287,6 +302,9 @@ router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
         'Planificacion actualizada',
         `Reserva cancelada: ${prev[0].nombre} el ${fechaStr}`
       );
+    }
+    if (!isOdooSyncRequest(req)) {
+      triggerReservaSync(parseInt(req.params.id, 10), true);
     }
     res.json({ message: 'Reserva eliminada' });
   } catch (err) {

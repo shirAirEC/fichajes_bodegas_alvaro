@@ -6,8 +6,21 @@ const { encontrarHorario, timeToMs } = require('./horarios');
 const { enviarPush } = require('../firebase');
 const { registrarAudit } = require('../audit');
 const { TZ, getFechaLocal, getMsDelDiaLocal, crearTimestampLocal } = require('../timezone');
+const { syncAsistenciaAfterFichaje, resyncAsistenciaForFichaje, syncAsistenciaAfterFichajeDelete } = require('../sync/sync-asistencia');
 
 const router = express.Router();
+
+function triggerAsistenciaSync(fichajeId) {
+  resyncAsistenciaForFichaje(fichajeId).catch((err) => {
+    console.error('[odoo-sync] asistencia fichaje', fichajeId, err.message);
+  });
+}
+
+function triggerAsistenciaDeleteSync(fichaje) {
+  syncAsistenciaAfterFichajeDelete(fichaje).catch((err) => {
+    console.error('[odoo-sync] asistencia delete fichaje', fichaje?.id, err.message);
+  });
+}
 
 function getClientIP(req) {
   const forwarded = req.headers['x-forwarded-for'];
@@ -217,6 +230,7 @@ router.post('/fichar', authMiddleware, async (req, res) => {
       [empleadoId, tipo, notas, timestampFichaje]
     );
 
+    triggerAsistenciaSync(rows[0].id);
     res.status(201).json({ fichaje: rows[0], tipo, excesoDescanso });
   } catch (err) {
     console.error('Fichar error:', err);
@@ -640,6 +654,7 @@ router.post('/admin', authMiddleware, adminMiddleware, async (req, res) => {
       `Tipo: ${tipo} | Hora: ${fechaLeg} ${horaLeg} | Empleado ID ${empleado_id}${notas ? ` | Notas: ${notas}` : ''}`
     );
 
+    triggerAsistenciaSync(rows[0].id);
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error(err);
@@ -689,6 +704,7 @@ router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
       );
     }
 
+    triggerAsistenciaSync(rows[0].id);
     res.json(rows[0]);
   } catch (err) {
     console.error(err);
@@ -699,7 +715,7 @@ router.put('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
 // DELETE /api/fichajes/admin/:id
 router.delete('/admin/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT id, empleado_id, tipo, timestamp FROM fichajes WHERE id = $1', [req.params.id]);
+    const { rows } = await pool.query('SELECT * FROM fichajes WHERE id = $1', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Fichaje no encontrado' });
     const f = rows[0];
     await pool.query('DELETE FROM fichajes WHERE id = $1', [req.params.id]);
@@ -707,6 +723,7 @@ router.delete('/admin/:id', authMiddleware, adminMiddleware, async (req, res) =>
     await registrarAudit(req, 'eliminar_fichaje', 'fichaje', f.id,
       `Tipo: ${f.tipo} | Hora: ${ts} | Empleado ID ${f.empleado_id}`
     );
+    triggerAsistenciaDeleteSync(f);
     res.json({ message: 'Fichaje eliminado' });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -776,6 +793,7 @@ router.post('/anticipados/:id/aprobar', authMiddleware, adminMiddleware, async (
       );
     }
 
+    triggerAsistenciaSync(fichaje[0].id);
     res.json({ ok: true, fichaje: fichaje[0] });
   } catch (err) {
     console.error('Aprobar anticipado error:', err);
