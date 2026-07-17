@@ -32,7 +32,7 @@ async function main() {
       console.log('[OK] actualizado', a.email, 'id=', rows[0].id);
     } else {
       const { rows: ins } = await pool.query(
-        `INSERT INTO empleados (nombre, apellidos, email, rol, activo, password_hash)
+        `INSERT INTO empleados (nombre, apellidos, email, rol, activo, password)
          VALUES ($1, $2, $3, 'admin', 1, $4) RETURNING id`,
         [a.nombre, a.apellidos, a.email, hash]
       );
