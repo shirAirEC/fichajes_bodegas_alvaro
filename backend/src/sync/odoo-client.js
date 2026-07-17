@@ -244,7 +244,9 @@ async function deleteReserva(fichajesReservaId) {
 }
 
 const LEAVE_TYPE_NAMES = {
-  vacaciones: 'Vacaciones',
+  // Nombre distinto a "Vacaciones": Odoo no deja cambiar requires_allocation
+  // de un tipo que ya tiene ausencias tomadas.
+  vacaciones: 'Vacaciones con saldo',
   permiso_especial: 'Permiso especial',
   baja_medica: 'Baja médica',
 };
