@@ -49,3 +49,6 @@ backend/_*.csv
 *_desglose_*.csv
 backend/BALANCE_ODOO_RESIDUAL.md
 
+
+.vercel
+.env*.local

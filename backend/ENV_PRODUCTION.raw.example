@@ -1,0 +1,42 @@
+# =============================================================================
+# FICHAJES — Railway servicio API (PRODUCCIÓN)
+# Copiar/pegar en Railway → Variables (RAW editor)
+# Los secretos marcados con # ya estaban configurados si /api/sync/health responde ok.
+# NO commitear un fichero con secretos reales; usar el panel Railway o `railway variables`.
+# =============================================================================
+
+DATABASE_URL=postgresql://postgres:REDACTED@yamabiko.proxy.rlwy.net:32226/railway
+
+JWT_SECRET=REDACTED_64_HEX_CHARS
+
+PORT=3001
+NODE_ENV=production
+
+FRONTEND_URL=https://fichajes-bodegas-alvaro.vercel.app
+
+ODOO_URL=https://tpv.bodegas-alvaro.com
+ODOO_DB=bodegas
+ODOO_USER=admin
+ODOO_PASSWORD=REDACTED_ODOO_ADMIN_OR_API
+ODOO_SYNC_API_KEY=REDACTED_MISMO_VALOR_EN_ODOO_FICHAJES_SYNC_API_KEY
+ODOO_SSO_SECRET=REDACTED_MISMO_VALOR_EN_ODOO_ODOO_SSO_SECRET
+
+FIREBASE_SERVICE_ACCOUNT={"type":"service_account","project_id":"fichajes-bodegas-alvaro",...}
+
+# =============================================================================
+# ODOO — Railway servicio Odoo (variables para setup_fichajes_sync.py en shell)
+# Ejecutar en contenedor Odoo antes del script, o export en shell interactivo.
+# FICHAJES_SYNC_API_KEY debe ser idéntica a ODOO_SYNC_API_KEY del servicio Fichajes.
+# ODOO_SSO_SECRET debe ser idéntica a ODOO_SSO_SECRET del servicio Fichajes.
+# =============================================================================
+
+FICHAJES_API_URL=https://fichajesbodegasalvaro-production.up.railway.app
+FICHAJES_ADMIN_URL=https://fichajes-bodegas-alvaro.vercel.app
+FICHAJES_SYNC_API_KEY=REDACTED_MISMO_VALOR_QUE_ODOO_SYNC_API_KEY
+ODOO_SSO_SECRET=REDACTED_MISMO_VALOR_QUE_FICHAJES_ODOO_SSO_SECRET
+
+# =============================================================================
+# VERCEL — Frontend (Root Directory = frontend)
+# =============================================================================
+
+VITE_API_URL=https://fichajesbodegasalvaro-production.up.railway.app
