@@ -131,7 +131,8 @@ router.get('/odoo-sso', async (req, res) => {
       ]
     );
 
-    const redirect = `${frontendUrl()}/admin/sso-callback#token=${encodeURIComponent(fichajesJwt)}`;
+    // Query (no hash): sobrevive mejor a proxies; el front borra el token de la URL al entrar.
+    const redirect = `${frontendUrl()}/admin/sso-callback?token=${encodeURIComponent(fichajesJwt)}`;
     return res.redirect(302, redirect);
   } catch (err) {
     console.error('[odoo-sso]', err.message);

@@ -1,24 +1,41 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+
+function readSsoToken() {
+  const fromQuery = new URLSearchParams(window.location.search).get('token');
+  if (fromQuery) return fromQuery;
+  const hash = window.location.hash.replace(/^#/, '');
+  return new URLSearchParams(hash).get('token');
+}
 
 export default function SsoCallbackPage() {
   const [error, setError] = useState('');
+  const { loginWithToken } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    try {
-      const hash = window.location.hash.replace(/^#/, '');
-      const params = new URLSearchParams(hash);
-      const token = params.get('token');
-      if (!token) {
-        setError('Token SSO no recibido.');
-        return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const token = readSsoToken();
+        if (!token) {
+          setError('Token SSO no recibido.');
+          return;
+        }
+        await loginWithToken(token);
+        if (cancelled) return;
+        // Quitar token de la URL y entrar al panel admin.
+        window.history.replaceState(null, '', '/admin');
+        navigate('/admin', { replace: true });
+      } catch {
+        if (!cancelled) setError('No se pudo completar el inicio de sesion SSO.');
       }
-      localStorage.setItem('fichajes_token', token);
-      window.history.replaceState(null, '', '/admin/sso-callback');
-      window.location.replace('/admin');
-    } catch {
-      setError('No se pudo completar el inicio de sesion SSO.');
-    }
-  }, []);
+    })();
+
+    return () => { cancelled = true; };
+  }, [loginWithToken, navigate]);
 
   if (error) {
     return (

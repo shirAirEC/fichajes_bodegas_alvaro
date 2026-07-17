@@ -48,6 +48,9 @@ export function AuthProvider({ children }) {
       return;
     }
 
+    let cancelled = false;
+    setLoading(true);
+
     fetch(`${API_URL}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` }
     })
@@ -56,11 +59,19 @@ export function AuthProvider({ children }) {
         return res.json();
       })
       .then(data => {
+        if (cancelled) return;
         try { verificarAccesoWeb(data.rol); } catch { logout(); return; }
         setUser(data);
       })
-      .catch(() => logout())
-      .finally(() => setLoading(false));
+      .catch(() => {
+        // No borrar un token nuevo si este /me quedó obsoleto (p. ej. carrera SSO).
+        if (!cancelled) logout();
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
   }, [token, logout]);
 
   const cargarNotificaciones = useCallback(async (tok) => {
@@ -71,6 +82,25 @@ export function AuthProvider({ children }) {
       if (res.ok) setNotificaciones(await res.json());
     } catch {}
   }, []);
+
+  const loginWithToken = useCallback(async (newToken) => {
+    localStorage.setItem('fichajes_token', newToken);
+    setToken(newToken);
+    setLoading(true);
+    const res = await fetch(`${API_URL}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${newToken}` }
+    });
+    if (!res.ok) {
+      logout();
+      throw new Error('Token SSO inválido');
+    }
+    const data = await res.json();
+    verificarAccesoWeb(data.rol);
+    setUser(data);
+    setLoading(false);
+    await cargarNotificaciones(newToken);
+    return data;
+  }, [logout, cargarNotificaciones]);
 
   const refrescarNotificaciones = useCallback(async () => {
     if (!token) return;
@@ -130,7 +160,7 @@ export function AuthProvider({ children }) {
   }, [token, logout]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, authFetch, notificaciones, marcarNotificacionesLeidas, refrescarNotificaciones }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginWithToken, logout, authFetch, notificaciones, marcarNotificacionesLeidas, refrescarNotificaciones }}>
       {children}
     </AuthContext.Provider>
   );

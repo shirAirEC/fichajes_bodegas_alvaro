@@ -154,13 +154,14 @@ router.post('/planificacion', odooSyncAuth, async (req, res) => {
   try {
     const options = req.body || {};
     const empleados = await syncAllEmpleados(options);
-    const [asistencias, vacaciones, horarios, ajustes] = await Promise.all([
+    const [asistencias, vacaciones, horarios, ajustes, reservas] = await Promise.all([
       syncAllAsistencias(options),
       syncAllVacaciones(options),
       syncAllHorarios(options),
       syncAllAjustes(options),
+      syncAllReservas(options),
     ]);
-    res.json({ empleados, asistencias, vacaciones, horarios, ajustes });
+    res.json({ empleados, asistencias, vacaciones, horarios, ajustes, reservas });
   } catch (err) {
     console.error('[odoo-sync] planificacion batch:', err.message);
     res.status(500).json({ error: err.message });
