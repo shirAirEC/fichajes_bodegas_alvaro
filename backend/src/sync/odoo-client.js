@@ -249,16 +249,86 @@ const LEAVE_TYPE_NAMES = {
   baja_medica: 'Baja médica',
 };
 
+/** Tipos que en Odoo deben llevar allocation (días disponibles). */
+const LEAVE_TYPE_REQUIRES_ALLOCATION = {
+  vacaciones: 'yes',
+  permiso_especial: 'yes',
+  baja_medica: 'no',
+};
+
 async function getLeaveTypeId(tipo) {
   const name = LEAVE_TYPE_NAMES[tipo] || LEAVE_TYPE_NAMES.vacaciones;
+  const requires = LEAVE_TYPE_REQUIRES_ALLOCATION[tipo] || 'no';
   let ids = await search('hr.leave.type', [['name', '=', name]], { limit: 1 });
-  if (ids.length) return ids[0];
-  ids = await create('hr.leave.type', {
+  if (ids.length) {
+    try {
+      await write('hr.leave.type', ids, { requires_allocation: requires });
+    } catch (err) {
+      console.warn('[odoo-sync] No se pudo actualizar requires_allocation', name, err.message);
+    }
+    return ids[0];
+  }
+  return create('hr.leave.type', {
     name,
-    requires_allocation: 'no',
+    requires_allocation: requires,
     leave_validation_type: 'hr',
   });
-  return ids;
+}
+
+async function upsertAllocation(vals, fichajesSaldoId) {
+  const existing = await search(
+    'hr.leave.allocation',
+    [['fichajes_saldo_id', '=', fichajesSaldoId]],
+    { limit: 1 }
+  );
+  if (existing.length) {
+    await write('hr.leave.allocation', existing, vals);
+    const [rec] = await executeKw('hr.leave.allocation', 'read', [existing, ['state']], SYNC_CONTEXT);
+    if (rec && rec.state !== 'validate') {
+      try {
+        await executeKw('hr.leave.allocation', 'action_validate', [existing], SYNC_CONTEXT);
+      } catch (err) {
+        try {
+          await executeKw('hr.leave.allocation', 'action_approve', [existing], SYNC_CONTEXT);
+        } catch (err2) {
+          console.warn('[odoo-sync] No se pudo validar allocation', existing[0], err2.message);
+        }
+      }
+    }
+    return existing[0];
+  }
+  const allocationId = await create('hr.leave.allocation', {
+    ...vals,
+    fichajes_saldo_id: fichajesSaldoId,
+    allocation_type: 'regular',
+  });
+  try {
+    await executeKw('hr.leave.allocation', 'action_validate', [[allocationId]], SYNC_CONTEXT);
+  } catch (err) {
+    try {
+      await executeKw('hr.leave.allocation', 'action_approve', [[allocationId]], SYNC_CONTEXT);
+    } catch (err2) {
+      console.warn('[odoo-sync] No se pudo validar allocation', allocationId, err2.message);
+    }
+  }
+  return allocationId;
+}
+
+async function deleteAllocationByFichajesId(fichajesSaldoId) {
+  const existing = await search(
+    'hr.leave.allocation',
+    [['fichajes_saldo_id', '=', fichajesSaldoId]],
+    { limit: 1 }
+  );
+  if (!existing.length) return false;
+  // Si está validada, intentar refuse/cancel antes de unlink
+  try {
+    await executeKw('hr.leave.allocation', 'action_refuse', [existing], SYNC_CONTEXT);
+  } catch (_) {
+    /* ignore */
+  }
+  await unlink('hr.leave.allocation', existing);
+  return true;
 }
 
 module.exports = {
@@ -286,6 +356,8 @@ module.exports = {
   deactivateHorario,
   upsertReserva,
   deleteReserva,
+  upsertAllocation,
+  deleteAllocationByFichajesId,
   getLeaveTypeId,
   LEAVE_TYPE_NAMES,
 };

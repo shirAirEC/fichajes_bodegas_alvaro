@@ -1,9 +1,19 @@
 const express = require('express');
 const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
+const { isOdooSyncRequest } = require('../middleware/odooSyncAuth');
+const { syncSaldoToOdoo, deleteSaldoFromOdoo } = require('../sync/sync-saldos');
 
 const router = express.Router();
 const TIPOS_SALDO = ['vacaciones', 'horas_extra', 'permiso_especial', 'baja_medica'];
+
+function triggerSaldoSync(req, saldoId, deleted = false) {
+  if (isOdooSyncRequest(req)) return;
+  const fn = deleted ? deleteSaldoFromOdoo : syncSaldoToOdoo;
+  fn(saldoId).catch((err) => {
+    console.error('[odoo-sync] saldo', saldoId, err.message);
+  });
+}
 
 router.get('/mio', authMiddleware, async (req, res) => {
   try {
@@ -83,6 +93,7 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
        FROM saldos s JOIN empleados e ON s.admin_id = e.id WHERE s.id = $1`,
       [rows[0].id]
     );
+    triggerSaldoSync(req, rows[0].id);
     res.status(201).json(full[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -93,7 +104,9 @@ router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT id FROM saldos WHERE id = $1', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Movimiento no encontrado' });
-    await pool.query('DELETE FROM saldos WHERE id = $1', [req.params.id]);
+    const saldoId = rows[0].id;
+    await pool.query('DELETE FROM saldos WHERE id = $1', [saldoId]);
+    triggerSaldoSync(req, saldoId, true);
     res.json({ message: 'Movimiento eliminado' });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });

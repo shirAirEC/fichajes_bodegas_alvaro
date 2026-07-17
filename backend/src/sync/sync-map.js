@@ -6,6 +6,7 @@ const ENTITY_TYPES = {
   HORARIO: 'horario',
   RESERVA: 'reserva',
   AJUSTE: 'ajuste',
+  SALDO: 'saldo',
 };
 
 async function getEntityMapping(entityType, fichajesEntityId) {

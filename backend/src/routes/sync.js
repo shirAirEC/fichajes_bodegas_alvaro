@@ -12,6 +12,12 @@ const {
   deleteVacacionFromOdoo,
   upsertVacacionFromOdoo,
 } = require('../sync/sync-vacaciones');
+const {
+  syncAllSaldos,
+  syncSaldoToOdoo,
+  deleteSaldoFromOdoo,
+  upsertSaldoFromOdoo,
+} = require('../sync/sync-saldos');
 const { syncAllHorarios, syncHorarioToOdoo, deleteHorarioFromOdoo } = require('../sync/sync-horarios');
 const { syncAllReservas, syncReservaToOdoo, deleteReservaFromOdoo } = require('../sync/sync-reservas');
 const { syncAllAjustes, syncAjusteToOdoo, deleteAjusteFromOdoo } = require('../sync/sync-ajustes');
@@ -98,7 +104,7 @@ router.post('/vacaciones', odooSyncAuth, async (req, res) => {
   try {
     const body = req.body || {};
     // Inbound Odoo → Fichajes (tiempo real)
-    if (body.odoo_leave_id || body.from_odoo) {
+    if (body.odoo_leave_id || (body.from_odoo && !body.odoo_allocation_id)) {
       const result = await upsertVacacionFromOdoo(body);
       return res.json(result);
     }
@@ -115,6 +121,33 @@ router.post('/vacaciones', odooSyncAuth, async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[odoo-sync] vacaciones:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/saldos', odooSyncAuth, async (req, res) => {
+  try {
+    const body = req.body || {};
+    if (body.odoo_allocation_id || (body.from_odoo && body.number_of_days != null)) {
+      const result = await upsertSaldoFromOdoo(body);
+      return res.json(result);
+    }
+    const { saldo_id: saldoId, deleted, sync_all: syncAll } = body;
+    if (deleted && saldoId) {
+      const result = await deleteSaldoFromOdoo(saldoId);
+      return res.json(result || { skipped: true });
+    }
+    if (saldoId) {
+      const result = await syncSaldoToOdoo(saldoId);
+      return res.json(result || { skipped: true });
+    }
+    if (syncAll || Object.keys(body).length === 0) {
+      const result = await syncAllSaldos(body);
+      return res.json(result);
+    }
+    res.status(400).json({ error: 'Indica saldo_id, sync_all o payload Odoo' });
+  } catch (err) {
+    console.error('[odoo-sync] saldos:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -180,14 +213,15 @@ router.post('/planificacion', odooSyncAuth, async (req, res) => {
   try {
     const options = req.body || {};
     const empleados = await syncAllEmpleados(options);
-    const [asistencias, vacaciones, horarios, ajustes, reservas] = await Promise.all([
+    const [asistencias, vacaciones, saldos, horarios, ajustes, reservas] = await Promise.all([
       syncAllAsistencias(options),
       syncAllVacaciones(options),
+      syncAllSaldos(options),
       syncAllHorarios(options),
       syncAllAjustes(options),
       syncAllReservas(options),
     ]);
-    res.json({ empleados, asistencias, vacaciones, horarios, ajustes, reservas });
+    res.json({ empleados, asistencias, vacaciones, saldos, horarios, ajustes, reservas });
   } catch (err) {
     console.error('[odoo-sync] planificacion batch:', err.message);
     res.status(500).json({ error: err.message });
