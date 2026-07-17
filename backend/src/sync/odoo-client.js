@@ -261,10 +261,18 @@ async function getLeaveTypeId(tipo) {
   const requires = LEAVE_TYPE_REQUIRES_ALLOCATION[tipo] || 'no';
   let ids = await search('hr.leave.type', [['name', '=', name]], { limit: 1 });
   if (ids.length) {
-    try {
-      await write('hr.leave.type', ids, { requires_allocation: requires });
-    } catch (err) {
-      console.warn('[odoo-sync] No se pudo actualizar requires_allocation', name, err.message);
+    const [current] = await executeKw(
+      'hr.leave.type',
+      'read',
+      [ids, ['requires_allocation']],
+      SYNC_CONTEXT
+    );
+    if (current && current.requires_allocation !== requires) {
+      try {
+        await write('hr.leave.type', ids, { requires_allocation: requires });
+      } catch (err) {
+        console.warn('[odoo-sync] No se pudo actualizar requires_allocation', name, err.message);
+      }
     }
     return ids[0];
   }

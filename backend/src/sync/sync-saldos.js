@@ -13,6 +13,18 @@ const { getMappedEmpleadoIds } = require('./sync-empleado');
 /** Solo estos tipos se reflejan como hr.leave.allocation (días disponibles). */
 const TIPOS_ALLOCATION = new Set(['vacaciones', 'permiso_especial', 'baja_medica']);
 
+function yearFromValue(value) {
+  if (!value) return String(new Date().getFullYear());
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return String(value.getFullYear());
+  }
+  const s = String(value);
+  if (/^\d{4}/.test(s)) return s.slice(0, 4);
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) return String(d.getFullYear());
+  return String(new Date().getFullYear());
+}
+
 async function syncSaldoToOdoo(saldoId) {
   if (!odoo.isConfigured()) {
     return { skipped: true, reason: 'odoo_not_configured' };
@@ -36,7 +48,7 @@ async function syncSaldoToOdoo(saldoId) {
   }
 
   const holidayStatusId = await odoo.getLeaveTypeId(saldo.tipo);
-  const year = (saldo.fecha_referencia || saldo.created_at || new Date().toISOString()).toString().slice(0, 4);
+  const year = yearFromValue(saldo.fecha_referencia || saldo.created_at);
   const dateFrom = `${year}-01-01`;
   const dateTo = `${year}-12-31`;
 
