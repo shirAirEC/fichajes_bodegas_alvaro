@@ -52,10 +52,36 @@ async function getOdooEmployeeId(fichajesEmpleadoId) {
   return row.odoo_employee_id || row.map_odoo_id || null;
 }
 
+async function getFichajesEmployeeId(odooEmployeeId) {
+  if (!odooEmployeeId) return null;
+  const { rows } = await pool.query(
+    `SELECT e.id
+     FROM empleados e
+     LEFT JOIN sync_odoo_map m ON m.fichajes_empleado_id = e.id
+     WHERE e.odoo_employee_id = $1 OR m.odoo_employee_id = $1
+     ORDER BY e.id
+     LIMIT 1`,
+    [odooEmployeeId]
+  );
+  return rows[0]?.id || null;
+}
+
+async function getEntityMappingByOdooId(entityType, odooRecordId) {
+  const { rows } = await pool.query(
+    `SELECT * FROM sync_odoo_entity_map
+     WHERE entity_type = $1 AND odoo_record_id = $2
+     LIMIT 1`,
+    [entityType, odooRecordId]
+  );
+  return rows[0] || null;
+}
+
 module.exports = {
   ENTITY_TYPES,
   getEntityMapping,
+  getEntityMappingByOdooId,
   saveEntityMapping,
   deleteEntityMapping,
   getOdooEmployeeId,
+  getFichajesEmployeeId,
 };

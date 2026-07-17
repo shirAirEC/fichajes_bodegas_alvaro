@@ -1,8 +1,17 @@
 const express = require('express');
 const { odooSyncAuth } = require('../middleware/odooSyncAuth');
 const { upsertEmpleadoFromOdoo, syncAllEmpleados } = require('../sync/sync-empleado');
-const { syncAllAsistencias, syncAsistenciaAfterFichaje } = require('../sync/sync-asistencia');
-const { syncAllVacaciones, syncVacacionToOdoo, deleteVacacionFromOdoo } = require('../sync/sync-vacaciones');
+const {
+  syncAllAsistencias,
+  syncAsistenciaAfterFichaje,
+  upsertAsistenciaFromOdoo,
+} = require('../sync/sync-asistencia');
+const {
+  syncAllVacaciones,
+  syncVacacionToOdoo,
+  deleteVacacionFromOdoo,
+  upsertVacacionFromOdoo,
+} = require('../sync/sync-vacaciones');
 const { syncAllHorarios, syncHorarioToOdoo, deleteHorarioFromOdoo } = require('../sync/sync-horarios');
 const { syncAllReservas, syncReservaToOdoo, deleteReservaFromOdoo } = require('../sync/sync-reservas');
 const { syncAllAjustes, syncAjusteToOdoo, deleteAjusteFromOdoo } = require('../sync/sync-ajustes');
@@ -66,7 +75,13 @@ router.post('/empleados', odooSyncAuth, async (req, res) => {
 
 router.post('/asistencias', odooSyncAuth, async (req, res) => {
   try {
-    const { fichaje_id: fichajeId, empleado_id: empleadoId, desde, hasta } = req.body || {};
+    const body = req.body || {};
+    // Inbound Odoo → Fichajes (tiempo real)
+    if (body.odoo_attendance_id || body.from_odoo) {
+      const result = await upsertAsistenciaFromOdoo(body);
+      return res.json(result);
+    }
+    const { fichaje_id: fichajeId, empleado_id: empleadoId, desde, hasta } = body;
     if (fichajeId) {
       const result = await syncAsistenciaAfterFichaje(fichajeId);
       return res.json(result || { skipped: true });
@@ -81,7 +96,13 @@ router.post('/asistencias', odooSyncAuth, async (req, res) => {
 
 router.post('/vacaciones', odooSyncAuth, async (req, res) => {
   try {
-    const { vacacion_id: vacacionId, deleted } = req.body || {};
+    const body = req.body || {};
+    // Inbound Odoo → Fichajes (tiempo real)
+    if (body.odoo_leave_id || body.from_odoo) {
+      const result = await upsertVacacionFromOdoo(body);
+      return res.json(result);
+    }
+    const { vacacion_id: vacacionId, deleted } = body;
     if (deleted && vacacionId) {
       const result = await deleteVacacionFromOdoo(vacacionId);
       return res.json(result || { skipped: true });
@@ -90,7 +111,7 @@ router.post('/vacaciones', odooSyncAuth, async (req, res) => {
       const result = await syncVacacionToOdoo(vacacionId);
       return res.json(result || { skipped: true });
     }
-    const result = await syncAllVacaciones(req.body || {});
+    const result = await syncAllVacaciones(body);
     res.json(result);
   } catch (err) {
     console.error('[odoo-sync] vacaciones:', err.message);

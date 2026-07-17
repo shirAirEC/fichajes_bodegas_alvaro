@@ -1,12 +1,14 @@
 const express = require('express');
 const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
+const { isOdooSyncRequest } = require('../middleware/odooSyncAuth');
 
 const router = express.Router();
 
 const { syncVacacionToOdoo, deleteVacacionFromOdoo } = require('../sync/sync-vacaciones');
 
-function triggerVacacionSync(vacacionId, deleted = false) {
+function triggerVacacionSync(req, vacacionId, deleted = false) {
+  if (isOdooSyncRequest(req)) return;
   const fn = deleted ? deleteVacacionFromOdoo : syncVacacionToOdoo;
   fn(vacacionId).catch((err) => {
     console.error('[odoo-sync] vacacion', vacacionId, err.message);
@@ -95,8 +97,59 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
     );
 
     await client.query('COMMIT');
-    triggerVacacionSync(vacRows[0].id);
+    triggerVacacionSync(req, vacRows[0].id);
     res.json({ ...vacRows[0], dias });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    client.release();
+  }
+});
+
+// PUT /api/vacaciones/:id — actualiza fechas/tipo/motivo y ajusta saldo
+router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { rows: existing } = await client.query(
+      'SELECT * FROM vacaciones WHERE id = $1',
+      [req.params.id]
+    );
+    if (!existing[0]) return res.status(404).json({ error: 'No encontrado' });
+    const vac = existing[0];
+
+    const fecha_inicio = req.body.fecha_inicio || vac.fecha_inicio;
+    const fecha_fin = req.body.fecha_fin || vac.fecha_fin;
+    const tipo = req.body.tipo || vac.tipo;
+    const motivo = req.body.motivo !== undefined ? req.body.motivo : vac.motivo;
+
+    if (!TIPOS_AUSENCIA.includes(tipo)) {
+      return res.status(400).json({ error: `Tipo inválido. Permitidos: ${TIPOS_AUSENCIA.join(', ')}` });
+    }
+    if (fecha_inicio > fecha_fin) {
+      return res.status(400).json({ error: 'La fecha de inicio debe ser anterior o igual a la de fin' });
+    }
+
+    const dias = diasEntreFechas(fecha_inicio, fecha_fin);
+    const concepto = `${TIPO_LABELS[tipo]}: ${fecha_inicio} – ${fecha_fin}${motivo ? ` (${motivo})` : ''}`;
+
+    await client.query('BEGIN');
+    if (vac.saldo_id) {
+      await client.query(
+        `UPDATE saldos SET cantidad = $1, concepto = $2, tipo = $3, fecha_referencia = $4 WHERE id = $5`,
+        [-dias, concepto, tipo, fecha_inicio, vac.saldo_id]
+      );
+    }
+    const { rows } = await client.query(
+      `UPDATE vacaciones
+       SET fecha_inicio = $1, fecha_fin = $2, tipo = $3, motivo = $4
+       WHERE id = $5 RETURNING *`,
+      [fecha_inicio, fecha_fin, tipo, motivo || '', req.params.id]
+    );
+    await client.query('COMMIT');
+    triggerVacacionSync(req, rows[0].id);
+    res.json({ ...rows[0], dias });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
@@ -123,7 +176,7 @@ router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
 
     await client.query('DELETE FROM vacaciones WHERE id = $1', [req.params.id]);
     await client.query('COMMIT');
-    triggerVacacionSync(vac.id, true);
+    triggerVacacionSync(req, vac.id, true);
     res.json({ ok: true });
   } catch (err) {
     await client.query('ROLLBACK');

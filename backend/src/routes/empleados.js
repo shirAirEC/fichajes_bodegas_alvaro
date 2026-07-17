@@ -8,7 +8,8 @@ const { syncEmpleadoToOdoo } = require('../sync/sync-empleado');
 
 const router = express.Router();
 
-function triggerOdooSync(empleadoId) {
+function triggerOdooSync(req, empleadoId) {
+  if (isOdooSyncRequest(req)) return;
   syncEmpleadoToOdoo(empleadoId).catch((err) => {
     console.error('[odoo-sync] Error sincronizando empleado', empleadoId, err.message);
   });
@@ -64,9 +65,7 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
     await registrarAudit(req, 'crear_empleado', 'empleado', rows[0].id,
       `Nuevo empleado: ${nombre} ${apellidos} | Rol: ${rol} | Dpto: ${departamento}`
     );
-    if (!isOdooSyncRequest(req)) {
-      triggerOdooSync(rows[0].id);
-    }
+    triggerOdooSync(req, rows[0].id);
     res.status(201).json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -133,9 +132,7 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
       ? `Empleado: ${emp[0].nombre} ${emp[0].apellidos} | Cambios: ${camposReales.join(', ')}`
       : `Empleado: ${emp[0].nombre} ${emp[0].apellidos} | Sin cambios detectados`;
     await registrarAudit(req, 'editar_empleado', 'empleado', parseInt(id), detalleCambio);
-    if (!isOdooSyncRequest(req)) {
-      triggerOdooSync(parseInt(id));
-    }
+    triggerOdooSync(req, parseInt(id));
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -154,9 +151,7 @@ router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
     await registrarAudit(req, 'desactivar_empleado', 'empleado', parseInt(id),
       `Empleado desactivado: ${rows[0].nombre} ${rows[0].apellidos}`
     );
-    if (!isOdooSyncRequest(req)) {
-      triggerOdooSync(parseInt(id));
-    }
+    triggerOdooSync(req, parseInt(id));
     res.json({ message: 'Empleado desactivado correctamente' });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
