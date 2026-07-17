@@ -155,8 +155,15 @@ async function syncEmpleadoToOdoo(empleadoId) {
       await pool.query('UPDATE empleados SET odoo_employee_id = NULL WHERE id = $1', [emp.id]);
       odooId = null;
     } else {
-      // writeEmployee usa active_test=False (reactiva archivados, no duplica).
-      await odoo.writeEmployee(odooId, vals);
+      try {
+        // writeEmployee usa active_test=False (reactiva archivados, no duplica).
+        await odoo.writeEmployee(odooId, vals);
+      } catch (err) {
+        if (!/does not exist|has been deleted/i.test(err.message || '')) throw err;
+        await pool.query('DELETE FROM sync_odoo_map WHERE fichajes_empleado_id = $1', [emp.id]);
+        await pool.query('UPDATE empleados SET odoo_employee_id = NULL WHERE id = $1', [emp.id]);
+        odooId = null;
+      }
     }
   }
   if (!odooId) {
