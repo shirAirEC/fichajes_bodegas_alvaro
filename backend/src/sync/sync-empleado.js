@@ -29,6 +29,18 @@ async function getMappingByOdooId(odooId) {
 }
 
 async function saveMapping(fichajesId, odooId) {
+  // odoo_employee_id es UNIQUE: liberar mapeos huérfanos antes de asignar.
+  await pool.query(
+    `DELETE FROM sync_odoo_map
+     WHERE odoo_employee_id = $1 AND fichajes_empleado_id <> $2`,
+    [odooId, fichajesId]
+  );
+  await pool.query(
+    `UPDATE empleados
+     SET odoo_employee_id = NULL
+     WHERE odoo_employee_id = $1 AND id <> $2`,
+    [odooId, fichajesId]
+  );
   await pool.query(
     `INSERT INTO sync_odoo_map (fichajes_empleado_id, odoo_employee_id, updated_at)
      VALUES ($1, $2, NOW())
@@ -65,7 +77,9 @@ async function syncAllEmpleados(options = {}) {
     [limit]
   );
 
-  const summary = { synced: 0, skipped: 0, errors: 0, active: 0, inactive: 0, ids: [] };
+  const summary = {
+    synced: 0, skipped: 0, errors: 0, active: 0, inactive: 0, ids: [], details: [],
+  };
   for (const row of rows) {
     try {
       const odooId = await syncEmpleadoToOdoo(row.id);
@@ -79,6 +93,7 @@ async function syncAllEmpleados(options = {}) {
       }
     } catch (err) {
       summary.errors++;
+      summary.details.push({ fichajes: row.id, error: err.message });
       console.error('[odoo-sync] empleado', row.id, err.message);
     }
   }
@@ -109,25 +124,38 @@ async function syncEmpleadoToOdoo(empleadoId) {
     fijo_discontinuo: true,
   };
 
-  // Búsqueda estable por mapeo (fichajes_empleado_id). Primero la columna
-  // directa, luego la tabla de mapeo y, como último recurso, por email.
+  // Búsqueda estable: columna local → mapa → fichajes_employee_id en Odoo → email.
   let odooId = emp.odoo_employee_id;
   const mapping = await getMappingByFichajesId(emp.id);
   if (!odooId && mapping) odooId = mapping.odoo_employee_id;
+
+  if (!odooId) {
+    const found = await odoo.searchEmployee([['fichajes_employee_id', '=', emp.id]]);
+    if (found.length) odooId = found[0];
+  }
 
   if (!odooId && emp.email) {
     const found = await odoo.searchEmployee([['work_email', '=', emp.email]]);
     if (found.length) odooId = found[0];
   }
 
+  async function employeeExists(id) {
+    try {
+      return await odoo.readEmployee(id, ['id']);
+    } catch (err) {
+      if (/does not exist|has been deleted/i.test(err.message || '')) return null;
+      throw err;
+    }
+  }
+
   if (odooId) {
-    // Si el hr.employee ya no existe (borrado duro), recrear y remapear.
-    const existing = await odoo.readEmployee(odooId, ['id']);
+    const existing = await employeeExists(odooId);
     if (!existing) {
+      await pool.query('DELETE FROM sync_odoo_map WHERE fichajes_empleado_id = $1', [emp.id]);
+      await pool.query('UPDATE empleados SET odoo_employee_id = NULL WHERE id = $1', [emp.id]);
       odooId = null;
     } else {
-      // writeEmployee usa active_test=False, por lo que reactiva (active=True)
-      // un registro archivado en lugar de crear uno nuevo.
+      // writeEmployee usa active_test=False (reactiva archivados, no duplica).
       await odoo.writeEmployee(odooId, vals);
     }
   }

@@ -51,6 +51,11 @@ router.get('/planificacion/health', async (req, res) => {
 
 router.post('/empleados', odooSyncAuth, async (req, res) => {
   try {
+    // { sync_all: true } → empuja todos los empleados Fichajes → Odoo
+    if (req.body && req.body.sync_all) {
+      const result = await syncAllEmpleados(req.body);
+      return res.json(result);
+    }
     const result = await upsertEmpleadoFromOdoo(req.body);
     res.json(result);
   } catch (err) {
