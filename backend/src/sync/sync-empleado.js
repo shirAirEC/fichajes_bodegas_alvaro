@@ -121,10 +121,17 @@ async function syncEmpleadoToOdoo(empleadoId) {
   }
 
   if (odooId) {
-    // writeEmployee usa active_test=False, por lo que reactiva (active=True)
-    // un registro archivado en lugar de crear uno nuevo.
-    await odoo.writeEmployee(odooId, vals);
-  } else {
+    // Si el hr.employee ya no existe (borrado duro), recrear y remapear.
+    const existing = await odoo.readEmployee(odooId, ['id']);
+    if (!existing) {
+      odooId = null;
+    } else {
+      // writeEmployee usa active_test=False, por lo que reactiva (active=True)
+      // un registro archivado en lugar de crear uno nuevo.
+      await odoo.writeEmployee(odooId, vals);
+    }
+  }
+  if (!odooId) {
     odooId = await odoo.createEmployee(vals);
   }
 
