@@ -59,18 +59,29 @@ function vacio(valor) {
 /**
  * Traduce una reserva de planificación a los campos de la visita en Odoo.
  *
- * REGLA IMPORTANTE: solo se envían los campos que aquí tienen valor. Antes se
- * mandaba `false` para los vacíos y eso BORRABA en Odoo datos que se habían
- * rellenado allí para facturar (turoperadora, tipo de servicio, referencia de
- * bus). Perder un dato de facturación es mucho peor que arrastrar uno viejo,
- * así que ante la duda no se envía.
+ * Cada dato tiene un dueño, y de ahí salen dos comportamientos distintos:
  *
- * `vaciados` son los campos que el administrador acaba de dejar en blanco a
- * propósito en esta misma edición. Esos sí se envían vacíos, porque ahí la
- * intención de borrar es explícita y conocida.
+ *  - DATOS DE PLANIFICACIÓN (fecha, hora, estado, título, guía, menú, notas y
+ *    el texto libre del pax): esto es nuestro, aquí está la verdad. Se envían
+ *    SIEMPRE, incluso vacíos, para que Odoo refleje exactamente lo que ve el
+ *    empleado en su móvil. Si un servicio se reprograma o se cancela, tiene
+ *    que llegar sí o sí.
+ *
+ *  - DATOS DE FACTURACIÓN (turoperadora, tipo de servicio, referencia de
+ *    guagua, número de personas y el desglose de niños): el dueño es Odoo.
+ *    Solo se envían cuando aquí tienen valor. Antes se mandaba «vacío» y eso
+ *    BORRABA en Odoo lo que se hubiera rellenado allí para facturar. Perder un
+ *    dato de facturación es mucho peor que no enviarlo, así que ante la duda
+ *    no se toca.
+ *
+ * `vaciados` son los datos de facturación que el administrador acaba de dejar
+ * en blanco a propósito en esta misma edición. Esos sí se envían vacíos,
+ * porque ahí la intención de borrar es explícita y conocida.
  */
 function reservaToOdooVals(reserva, vaciados = []) {
   const { allday, start, stop } = reservaDateTimes(reserva);
+
+  // Lo que manda planificación: siempre, tal cual está aquí.
   const vals = {
     name: reserva.nombre || 'Reserva',
     privacy: 'public',
@@ -78,23 +89,21 @@ function reservaToOdooVals(reserva, vaciados = []) {
     start,
     stop,
     x_estado: reserva.estado || 'sin_confirmar',
+    x_pax: reserva.pax || false,
+    x_guia: reserva.guia || false,
+    x_notas: reserva.notas || false,
+    x_menu: serializeJsonField(reserva.menu),
+    x_necesidades: serializeJsonField(reserva.necesidades_especiales),
   };
 
-  // Texto libre y datos de planificación: se envían si tienen algo.
-  const opcionales = {
-    x_pax: reserva.pax,
-    x_guia: reserva.guia,
-    x_notas: reserva.notas,
-    x_menu: serializeJsonField(reserva.menu) || null,
-    x_necesidades: serializeJsonField(reserva.necesidades_especiales) || null,
-    // Estructurados desde el desplegable de planificación (catálogo de Odoo):
-    // permiten facturar sin que Odoo tenga que adivinar nada.
+  // Lo que manda Odoo: solo si aquí hay algo que aportar.
+  const facturacion = {
     x_tipo_servicio: reserva.tipo_servicio,
     x_turoperador_id: reserva.turoperador_odoo_id,
     x_bus_ref: reserva.bus_ref,
     x_servicio_ninos_id: reserva.servicio_ninos_odoo_id,
   };
-  for (const [campo, valor] of Object.entries(opcionales)) {
+  for (const [campo, valor] of Object.entries(facturacion)) {
     if (!vacio(valor)) vals[campo] = valor;
   }
 
@@ -117,14 +126,14 @@ function reservaToOdooVals(reserva, vaciados = []) {
   return vals;
 }
 
-/** Campos de Odoo que se vacían al dejar en blanco cada dato de planificación. */
+/**
+ * Datos de facturación que se vacían al dejarlos en blanco en el panel. Los de
+ * planificación no están aquí porque se envían siempre y no necesitan aviso.
+ */
 const CAMPO_ODOO_POR_COLUMNA = {
   tipo_servicio: 'x_tipo_servicio',
   turoperador_odoo_id: 'x_turoperador_id',
   bus_ref: 'x_bus_ref',
-  guia: 'x_guia',
-  notas: 'x_notas',
-  pax: 'x_pax',
   servicio_ninos_odoo_id: 'x_servicio_ninos_id',
 };
 
