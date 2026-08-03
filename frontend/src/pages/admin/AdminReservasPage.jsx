@@ -14,7 +14,7 @@ const ESTADO_LABELS = Object.fromEntries(ESTADOS.map(e => [e.value, e.label]));
 /** CSV con el mismo esquema que el backend (separador `;`, UTF-8 BOM). */
 function csvInformeDesdeJson(data) {
   const lineas = [
-    ['Fecha', 'Hora', 'Grupo', 'Pax', 'Tipo servicio', 'Estado', 'Guía', 'Necesidades especiales', 'Notas'].join(';'),
+    ['Fecha', 'Hora', 'Grupo', 'Turoperadora', 'Pax', 'Pax confirmado', 'Tipo servicio', 'Bus/Guagua', 'Estado', 'Guía', 'Necesidades especiales', 'Notas'].join(';'),
   ];
   for (const r of data.reservas || []) {
     const nec = Array.isArray(r.necesidades_especiales)
@@ -25,8 +25,11 @@ function csvInformeDesdeJson(data) {
         r.fecha,
         r.hora ? r.hora.slice(0, 5) : '',
         `"${(r.nombre || '').replace(/"/g, '""')}"`,
+        `"${(r.turoperador_nombre || '').replace(/"/g, '""')}"`,
         r.pax || '',
+        r.pax_confirmado ?? '',
         `"${(r.tipo_servicio || '').replace(/"/g, '""')}"`,
+        `"${(r.bus_ref || '').replace(/"/g, '""')}"`,
         r.estado || '',
         `"${(r.guia || '').replace(/"/g, '""')}"`,
         `"${nec.replace(/"/g, '""')}"`,
@@ -37,9 +40,7 @@ function csvInformeDesdeJson(data) {
   return '\uFEFF' + lineas.join('\n');
 }
 
-const TIPOS_SERVICIO_SUGERIDOS = [
-  'Normal', 'Degustación pincho', 'Taller mojo', 'Menú especial', 'Buffet', 'Cóctel',
-];
+const SIN_TUROPERADORA = ''; // valor del <select>: particular / no factura a turoperadora
 
 const NECESIDADES_SUGERIDAS = [
   'Vegetariana', 'Vegana', 'Celíaca', 'Sin lactosa', 'Sin gluten', 'Alergia frutos secos',
@@ -49,6 +50,8 @@ const NECESIDADES_SUGERIDAS = [
 const RESERVA_VACIA = {
   fecha: '', hora: '', nombre: '', pax: '',
   tipo_servicio: '', estado: 'sin_confirmar', notas: '', guia: '',
+  turoperador_odoo_id: SIN_TUROPERADORA, bus_ref: '', pax_confirmado: '',
+  pax_ninos: '', servicio_ninos_odoo_id: '',
   menu: [],
   necesidades_especiales: [],
   orden: 0,
@@ -239,6 +242,7 @@ async function generarInformeReservasPDF(data) {
       fechaLabel,
       r.hora ? r.hora.slice(0, 5) : '—',
       r.nombre || '',
+      r.turoperador_nombre || '',
       r.pax || '',
       r.tipo_servicio || '',
       ESTADO_LABELS[r.estado] || r.estado,
@@ -251,16 +255,16 @@ async function generarInformeReservasPDF(data) {
   autoTable(doc, {
     startY: y,
     margin: { top: 28, left: 14, right: 14 },
-    head: [['Fecha', 'Hora', 'Grupo', 'Pax', 'Tipo', 'Estado', 'Guía', 'Necesidades', 'Notas']],
+    head: [['Fecha', 'Hora', 'Grupo', 'Turoperadora', 'Pax', 'Tipo', 'Estado', 'Guía', 'Necesidades', 'Notas']],
     body: tableBody,
     styles: { fontSize: 6.5, cellPadding: 1.8, lineColor: BORDER, lineWidth: 0.2, overflow: 'linebreak' },
     headStyles: { fillColor: PRIMARY, textColor: WHITE, fontStyle: 'bold', fontSize: 7 },
     alternateRowStyles: { fillColor: [252, 249, 245] },
     columnStyles: {
-      0: { cellWidth: 28 },
-      1: { cellWidth: 16, halign: 'center' },
-      3: { cellWidth: 14, halign: 'center' },
-      5: { cellWidth: 22 },
+      0: { cellWidth: 26 },
+      1: { cellWidth: 14, halign: 'center' },
+      4: { cellWidth: 12, halign: 'center' },
+      6: { cellWidth: 20 },
     },
     didDrawPage: () => {
       paginaNum++;
@@ -479,8 +483,33 @@ export default function AdminReservasPage() {
   });
   const [generandoPDF, setGenerandoPDF] = useState(false);
   const [generandoCSV, setGenerandoCSV] = useState(false);
+  const [catalogo, setCatalogo] = useState({ turoperadoras: [], tiposServicio: [], tarifasNinos: [], stale: false, error: null });
 
   const hasta = addDays(desde, 6);
+
+  // Catálogo de turoperadoras y tipos de servicio facturables (viene de Odoo,
+  // ver FICHAJES_PLANIFICACION.md). Se carga una vez al entrar en la página;
+  // si Odoo no responde se muestra con las últimas opciones conocidas.
+  const cargarCatalogo = useCallback(async (forzar = false) => {
+    try {
+      const res = await authFetch(
+        forzar ? '/api/config/catalogo-planificacion/refresh' : '/api/config/catalogo-planificacion',
+        forzar ? { method: 'POST' } : undefined
+      );
+      const data = await res.json();
+      setCatalogo({
+        turoperadoras: Array.isArray(data.turoperadoras) ? data.turoperadoras : [],
+        tiposServicio: Array.isArray(data.tiposServicio) ? data.tiposServicio : [],
+        tarifasNinos: Array.isArray(data.tarifasNinos) ? data.tarifasNinos : [],
+        stale: Boolean(data.stale),
+        error: data.error || null,
+      });
+    } catch {
+      setCatalogo(c => ({ ...c, error: 'No se pudo cargar el catálogo de Odoo' }));
+    }
+  }, [authFetch]);
+
+  useEffect(() => { cargarCatalogo(); }, [cargarCatalogo]);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -524,6 +553,11 @@ export default function AdminReservasPage() {
         estado: r.estado,
         notas: r.notas || '',
         guia: r.guia || '',
+        turoperador_odoo_id: r.turoperador_odoo_id != null ? String(r.turoperador_odoo_id) : SIN_TUROPERADORA,
+        bus_ref: r.bus_ref || '',
+        pax_confirmado: r.pax_confirmado != null ? String(r.pax_confirmado) : '',
+        pax_ninos: r.pax_ninos != null ? String(r.pax_ninos) : '',
+        servicio_ninos_odoo_id: r.servicio_ninos_odoo_id != null ? String(r.servicio_ninos_odoo_id) : '',
         menu: Array.isArray(r.menu) ? r.menu : [],
         necesidades_especiales: Array.isArray(r.necesidades_especiales) ? r.necesidades_especiales : [],
         orden: r.orden ?? 0,
@@ -556,6 +590,14 @@ export default function AdminReservasPage() {
         .filter(n => n.tipo.trim())
         .map(n => ({ tipo: n.tipo.trim(), cantidad: Number(n.cantidad) || 1 }));
 
+      const turoSeleccionado = catalogo.turoperadoras.find(
+        t => String(t.id) === String(datos.turoperador_odoo_id)
+      );
+      const ninos = Number(datos.pax_ninos) || 0;
+      const servicioNinos = ninos > 0
+        ? catalogo.tarifasNinos.find(t => String(t.id) === String(datos.servicio_ninos_odoo_id))
+        : null;
+
       const body = {
         fecha: datos.fecha,
         hora: datos.hora || null,
@@ -565,6 +607,13 @@ export default function AdminReservasPage() {
         estado: datos.estado,
         notas: datos.notas,
         guia: datos.guia || '',
+        turoperador_odoo_id: turoSeleccionado ? turoSeleccionado.id : null,
+        turoperador_nombre: turoSeleccionado ? turoSeleccionado.nombre : null,
+        bus_ref: datos.bus_ref ? datos.bus_ref.trim() : null,
+        pax_confirmado: datos.pax_confirmado !== '' ? datos.pax_confirmado : null,
+        pax_ninos: ninos > 0 ? ninos : null,
+        servicio_ninos_odoo_id: servicioNinos ? servicioNinos.id : null,
+        servicio_ninos_nombre: servicioNinos ? servicioNinos.nombre : null,
         menu: menuLimpio,
         necesidades_especiales: necesidadesLimpias,
         orden: Number(datos.orden) || 0,
@@ -632,6 +681,17 @@ export default function AdminReservasPage() {
 
   const tvUrl = tvToken ? `${window.location.origin}/tv?token=${tvToken}` : '';
   const diasSemana = Array.from({ length: 7 }, (_, i) => addDays(desde, i));
+
+  // Ayudas del formulario de reserva (solo se usan con el modal abierto).
+  const servicioActual = modal?.datos?.tipo_servicio || '';
+  const servicioFueraDeCatalogo = Boolean(
+    servicioActual && !catalogo.tiposServicio.some(t => t.nombre === servicioActual)
+  );
+  const numNinos = Number(modal?.datos?.pax_ninos) || 0;
+  const numTotal = Number(modal?.datos?.pax_confirmado) || 0;
+  const hayNinos = numNinos > 0;
+  const ninosSinTotal = hayNinos && numTotal <= 0;
+  const adultosCalculados = Math.max(numTotal - numNinos, 0);
 
   return (
     <div className={styles.page}>
@@ -731,6 +791,12 @@ export default function AdminReservasPage() {
                           {r.tipo_servicio && (
                             <span className={styles.tarjetaTipo}>{r.tipo_servicio}</span>
                           )}
+                          {r.turoperador_nombre && (
+                            <span className={styles.tarjetaTipo} title="Turoperadora">🏢 {r.turoperador_nombre}</span>
+                          )}
+                          {r.bus_ref && (
+                            <span className={styles.tarjetaTipo} title="Referencia bus/guagua">🚌 {r.bus_ref}</span>
+                          )}
                         </div>
                         {necesidades.length > 0 && (
                           <div className={styles.necesidadesPills}>
@@ -783,7 +849,17 @@ export default function AdminReservasPage() {
           <div className={styles.modal} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
               <h2>{modal.modo === 'nuevo' ? 'Nueva reserva' : 'Editar reserva'}</h2>
-              <button className={styles.btnCerrarModal} onClick={cerrarModal}>✕</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => cargarCatalogo(true)}
+                  title="Recargar turoperadoras y tipos de servicio desde Odoo"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: '#6366f1' }}
+                >
+                  ↻ Catálogo
+                </button>
+                <button className={styles.btnCerrarModal} onClick={cerrarModal}>✕</button>
+              </div>
             </div>
 
             {errorModal && <div className={styles.errorBox}>{errorModal}</div>}
@@ -832,19 +908,106 @@ export default function AdminReservasPage() {
                     value={modal.datos.pax}
                     onChange={e => handleChange('pax', e.target.value)}
                   />
+                  <label style={{ marginTop: '0.5rem' }}>Pax confirmado (para facturar)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Nº exacto de personas, niños incluidos"
+                    value={modal.datos.pax_confirmado}
+                    onChange={e => handleChange('pax_confirmado', e.target.value)}
+                  />
                 </div>
                 <div className={styles.field}>
                   <label>Tipo de servicio</label>
-                  <input
-                    list="tipos-servicio"
-                    placeholder="Normal, Degustación pincho, Taller mojo..."
+                  <select
                     value={modal.datos.tipo_servicio}
                     onChange={e => handleChange('tipo_servicio', e.target.value)}
-                  />
-                  <datalist id="tipos-servicio">
-                    {TIPOS_SERVICIO_SUGERIDOS.map(t => <option key={t} value={t} />)}
-                  </datalist>
+                  >
+                    <option value="">Sin especificar (no factura)</option>
+                    {/* Reservas antiguas con un servicio escrito a mano que ya
+                        no está en el catálogo de Odoo: se conserva como opción
+                        para no borrarlo sin querer al guardar. */}
+                    {servicioFueraDeCatalogo && (
+                      <option value={modal.datos.tipo_servicio}>
+                        {modal.datos.tipo_servicio} (no está en el catálogo)
+                      </option>
+                    )}
+                    {catalogo.tiposServicio.map(t => (
+                      <option key={t.id} value={t.nombre}>{t.nombre}</option>
+                    ))}
+                  </select>
+                  {servicioFueraDeCatalogo && (
+                    <span className={styles.fieldHint}>
+                      Este servicio no existe en las tarifas de Odoo, así que no
+                      se podrá facturar. Elija uno de la lista cuando sepa cuál es.
+                    </span>
+                  )}
+                  {catalogo.error && (
+                    <span className={styles.fieldHint}>⚠ {catalogo.error} (mostrando último catálogo cargado)</span>
+                  )}
                 </div>
+              </div>
+
+              {/* Facturación: turoperadora + bus (desplegable cargado desde Odoo) */}
+              <div className={styles.formGrid}>
+                <div className={styles.field}>
+                  <label>Turoperadora / Cliente</label>
+                  <select
+                    value={modal.datos.turoperador_odoo_id}
+                    onChange={e => handleChange('turoperador_odoo_id', e.target.value)}
+                  >
+                    <option value={SIN_TUROPERADORA}>Particular / Sin turoperadora</option>
+                    {catalogo.turoperadoras.map(t => (
+                      <option key={t.id} value={t.id}>{t.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className={styles.field}>
+                  <label>Ref. bus/guagua</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: BUS-14 (si la turoperadora factura por bus)"
+                    value={modal.datos.bus_ref}
+                    onChange={e => handleChange('bus_ref', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Niños: solo se despliega cuando realmente vienen niños. */}
+              <div className={styles.formGrid}>
+                <div className={styles.field}>
+                  <label>¿Cuántos niños? (de los anteriores)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={modal.datos.pax_ninos}
+                    onChange={e => handleChange('pax_ninos', e.target.value)}
+                  />
+                  <span className={styles.fieldHint}>
+                    Déjelo vacío si no vienen niños. Se cobran aparte, con su
+                    propia tarifa.
+                  </span>
+                </div>
+                {hayNinos && (
+                  <div className={styles.field}>
+                    <label>Servicio de los niños</label>
+                    <select
+                      value={modal.datos.servicio_ninos_odoo_id}
+                      onChange={e => handleChange('servicio_ninos_odoo_id', e.target.value)}
+                    >
+                      <option value="">Usar el habitual de la turoperadora</option>
+                      {catalogo.tarifasNinos.map(t => (
+                        <option key={t.id} value={t.id}>{t.nombre}</option>
+                      ))}
+                    </select>
+                    <span className={styles.fieldHint}>
+                      {ninosSinTotal
+                        ? '⚠ Indique también el «Pax confirmado» (total, niños incluidos) para poder separarlos al facturar.'
+                        : `Se facturarán ${adultosCalculados} adulto(s) y ${Number(modal.datos.pax_ninos)} niño(s).`}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Necesidades alimenticias — junto al pax */}

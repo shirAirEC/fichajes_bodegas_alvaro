@@ -3,13 +3,18 @@ const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 const { isOdooSyncRequest } = require('../middleware/odooSyncAuth');
 const { enviarPushMultiple } = require('../firebase');
-const { syncReservaToOdoo, deleteReservaFromOdoo } = require('../sync/sync-reservas');
+const { syncReservaToOdoo, deleteReservaFromOdoo, camposVaciados } = require('../sync/sync-reservas');
 
 const router = express.Router();
 
-function triggerReservaSync(reservaId, deleted = false) {
-  const fn = deleted ? deleteReservaFromOdoo : syncReservaToOdoo;
-  fn(reservaId).catch((err) => {
+function triggerReservaSync(reservaId, deleted = false, vaciados = []) {
+  if (deleted) {
+    deleteReservaFromOdoo(reservaId).catch((err) => {
+      console.error('[odoo-sync] reserva', reservaId, err.message);
+    });
+    return;
+  }
+  syncReservaToOdoo(reservaId, vaciados).catch((err) => {
     console.error('[odoo-sync] reserva', reservaId, err.message);
   });
 }
@@ -123,19 +128,32 @@ router.get('/tv', tvTokenMiddleware, async (req, res) => {
 // POST /api/reservas — crear (solo admin)
 router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { fecha, hora, nombre, pax, estado, tipo_servicio, notas, guia, menu, necesidades_especiales, orden } = req.body;
+    const {
+      fecha, hora, nombre, pax, estado, tipo_servicio, notas, guia, menu, necesidades_especiales, orden,
+      turoperador_odoo_id, turoperador_nombre, bus_ref, pax_confirmado,
+      pax_ninos, servicio_ninos_odoo_id, servicio_ninos_nombre,
+    } = req.body;
     if (!fecha || !nombre) return res.status(400).json({ error: 'Fecha y nombre son obligatorios' });
 
+    const numeroONulo = (valor) => (valor !== undefined && valor !== null && valor !== '' ? parseInt(valor, 10) : null);
+
     const { rows } = await pool.query(
-      `INSERT INTO reservas (fecha, hora, nombre, pax, estado, tipo_servicio, notas, guia, menu, necesidades_especiales, orden, admin_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, $12) RETURNING *`,
+      `INSERT INTO reservas (
+         fecha, hora, nombre, pax, estado, tipo_servicio, notas, guia, menu, necesidades_especiales, orden, admin_id,
+         turoperador_odoo_id, turoperador_nombre, bus_ref, pax_confirmado,
+         pax_ninos, servicio_ninos_odoo_id, servicio_ninos_nombre
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`,
       [
         fecha, hora || null, nombre, pax ? String(pax) : null,
         estado || 'sin_confirmar', tipo_servicio || '',
         notas || '', guia || '',
         JSON.stringify(Array.isArray(menu) ? menu : []),
         JSON.stringify(Array.isArray(necesidades_especiales) ? necesidades_especiales : []),
-        orden || 0, req.user.id
+        orden || 0, req.user.id,
+        turoperador_odoo_id || null, turoperador_nombre || null, bus_ref || null,
+        numeroONulo(pax_confirmado),
+        numeroONulo(pax_ninos), servicio_ninos_odoo_id || null, servicio_ninos_nombre || null,
       ]
     );
     const reserva = rows[0];
@@ -158,7 +176,24 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
 // PUT /api/reservas/:id — actualizar (solo admin)
 router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { fecha, hora, nombre, pax, estado, tipo_servicio, notas, guia, menu, necesidades_especiales, orden } = req.body;
+    const {
+      fecha, hora, nombre, pax, estado, tipo_servicio, notas, guia, menu, necesidades_especiales, orden,
+      turoperador_odoo_id, turoperador_nombre, bus_ref, pax_confirmado,
+      pax_ninos, servicio_ninos_odoo_id, servicio_ninos_nombre,
+    } = req.body;
+
+    // Estado anterior: hace falta para saber qué ha vaciado el administrador a
+    // propósito en esta edición (eso sí debe borrarse también en Odoo) frente
+    // a lo que simplemente nunca se rellenó (eso no se toca allí).
+    const { rows: previas } = await pool.query('SELECT * FROM reservas WHERE id = $1', [req.params.id]);
+    const antes = previas[0];
+    if (!antes) return res.status(404).json({ error: 'Reserva no encontrada' });
+
+    // Los datos de facturación solo se tocan si vienen en la petición: así una
+    // actualización parcial (o una llamada de otro cliente) no los borra.
+    const traeCampo = (nombreCampo) => Object.prototype.hasOwnProperty.call(req.body, nombreCampo);
+    const numeroONulo = (valor) => (valor !== undefined && valor !== null && valor !== '' ? parseInt(valor, 10) : null);
+
     const { rows } = await pool.query(
       `UPDATE reservas
        SET fecha                  = COALESCE($1, fecha),
@@ -172,19 +207,33 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
            menu                   = COALESCE($9::jsonb, menu),
            necesidades_especiales = COALESCE($10::jsonb, necesidades_especiales),
            orden                  = COALESCE($11, orden),
+           turoperador_odoo_id    = CASE WHEN $12 THEN $13::integer ELSE turoperador_odoo_id END,
+           turoperador_nombre     = CASE WHEN $12 THEN $14::text    ELSE turoperador_nombre  END,
+           bus_ref                = CASE WHEN $15 THEN $16::text    ELSE bus_ref             END,
+           pax_confirmado         = CASE WHEN $17 THEN $18::integer ELSE pax_confirmado      END,
+           pax_ninos              = CASE WHEN $19 THEN $20::integer ELSE pax_ninos           END,
+           servicio_ninos_odoo_id = CASE WHEN $21 THEN $22::integer ELSE servicio_ninos_odoo_id END,
+           servicio_ninos_nombre  = CASE WHEN $21 THEN $23::text    ELSE servicio_ninos_nombre  END,
            updated_at             = NOW()
-       WHERE id = $12 RETURNING *`,
+       WHERE id = $24 RETURNING *`,
       [
         fecha, hora || null, nombre, pax ? String(pax) : null,
         estado, tipo_servicio ?? '',
         notas ?? '', guia ?? '',
         menu !== undefined ? JSON.stringify(menu) : null,
         necesidades_especiales !== undefined ? JSON.stringify(necesidades_especiales) : null,
-        orden ?? 0, req.params.id
+        orden ?? 0,
+        traeCampo('turoperador_odoo_id'), turoperador_odoo_id || null, turoperador_nombre || null,
+        traeCampo('bus_ref'), bus_ref || null,
+        traeCampo('pax_confirmado'), numeroONulo(pax_confirmado),
+        traeCampo('pax_ninos'), numeroONulo(pax_ninos),
+        traeCampo('servicio_ninos_odoo_id'), servicio_ninos_odoo_id || null, servicio_ninos_nombre || null,
+        req.params.id
       ]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Reserva no encontrada' });
     const reserva = rows[0];
+    const vaciados = camposVaciados(antes, reserva);
     const fechaStr = new Date(reserva.fecha + 'T00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
     notificarCambioPlanificacion(
       req.user.id,
@@ -192,7 +241,7 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
       `Cambio en reserva: ${reserva.nombre} el ${fechaStr}${reserva.hora ? ' a las ' + reserva.hora.slice(0,5) : ''}`
     );
     if (!isOdooSyncRequest(req)) {
-      triggerReservaSync(reserva.id);
+      triggerReservaSync(reserva.id, false, vaciados);
     }
     res.json(reserva);
   } catch (err) {
@@ -222,7 +271,7 @@ router.get('/informe', authMiddleware, adminMiddleware, async (req, res) => {
 
     if (formato === 'csv') {
       const lineas = [
-        ['Fecha', 'Hora', 'Grupo', 'Pax', 'Tipo servicio', 'Estado', 'Guía', 'Necesidades especiales', 'Notas'].join(';')
+        ['Fecha', 'Hora', 'Grupo', 'Turoperadora', 'Pax', 'Pax confirmado', 'Tipo servicio', 'Bus/Guagua', 'Estado', 'Guía', 'Necesidades especiales', 'Notas'].join(';')
       ];
       for (const r of rows) {
         const nec = Array.isArray(r.necesidades_especiales)
@@ -232,8 +281,11 @@ router.get('/informe', authMiddleware, adminMiddleware, async (req, res) => {
           r.fecha,
           r.hora ? r.hora.slice(0, 5) : '',
           `"${(r.nombre || '').replace(/"/g, '""')}"`,
+          `"${(r.turoperador_nombre || '').replace(/"/g, '""')}"`,
           r.pax || '',
+          r.pax_confirmado ?? '',
           `"${(r.tipo_servicio || '').replace(/"/g, '""')}"`,
+          `"${(r.bus_ref || '').replace(/"/g, '""')}"`,
           r.estado || '',
           `"${(r.guia || '').replace(/"/g, '""')}"`,
           `"${nec.replace(/"/g, '""')}"`,

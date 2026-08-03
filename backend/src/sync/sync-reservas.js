@@ -51,25 +51,102 @@ function reservaDateTimes(reserva) {
   };
 }
 
-function reservaToOdooVals(reserva) {
+/** Un valor "sin rellenar" en planificación: no se envía a Odoo. */
+function vacio(valor) {
+  return valor == null || valor === '';
+}
+
+/**
+ * Traduce una reserva de planificación a los campos de la visita en Odoo.
+ *
+ * REGLA IMPORTANTE: solo se envían los campos que aquí tienen valor. Antes se
+ * mandaba `false` para los vacíos y eso BORRABA en Odoo datos que se habían
+ * rellenado allí para facturar (turoperadora, tipo de servicio, referencia de
+ * bus). Perder un dato de facturación es mucho peor que arrastrar uno viejo,
+ * así que ante la duda no se envía.
+ *
+ * `vaciados` son los campos que el administrador acaba de dejar en blanco a
+ * propósito en esta misma edición. Esos sí se envían vacíos, porque ahí la
+ * intención de borrar es explícita y conocida.
+ */
+function reservaToOdooVals(reserva, vaciados = []) {
   const { allday, start, stop } = reservaDateTimes(reserva);
-  return {
+  const vals = {
     name: reserva.nombre || 'Reserva',
     privacy: 'public',
     allday,
     start,
     stop,
-    x_pax: reserva.pax || false,
     x_estado: reserva.estado || 'sin_confirmar',
-    x_tipo_servicio: reserva.tipo_servicio || false,
-    x_guia: reserva.guia || false,
-    x_menu: serializeJsonField(reserva.menu),
-    x_necesidades: serializeJsonField(reserva.necesidades_especiales),
-    x_notas: reserva.notas || false,
   };
+
+  // Texto libre y datos de planificación: se envían si tienen algo.
+  const opcionales = {
+    x_pax: reserva.pax,
+    x_guia: reserva.guia,
+    x_notas: reserva.notas,
+    x_menu: serializeJsonField(reserva.menu) || null,
+    x_necesidades: serializeJsonField(reserva.necesidades_especiales) || null,
+    // Estructurados desde el desplegable de planificación (catálogo de Odoo):
+    // permiten facturar sin que Odoo tenga que adivinar nada.
+    x_tipo_servicio: reserva.tipo_servicio,
+    x_turoperador_id: reserva.turoperador_odoo_id,
+    x_bus_ref: reserva.bus_ref,
+    x_servicio_ninos_id: reserva.servicio_ninos_odoo_id,
+  };
+  for (const [campo, valor] of Object.entries(opcionales)) {
+    if (!vacio(valor)) vals[campo] = valor;
+  }
+
+  // Reparto de personas. Odoo espera los adultos SIN los niños, y solo
+  // entiende que hay desglose si le llegan los dos números.
+  const total = vacio(reserva.pax_confirmado) ? null : Number(reserva.pax_confirmado);
+  const ninos = vacio(reserva.pax_ninos) ? null : Number(reserva.pax_ninos);
+  if (total != null && Number.isFinite(total)) {
+    vals.x_pax_real = total;
+    if (ninos != null && Number.isFinite(ninos) && ninos > 0 && ninos <= total) {
+      vals.x_pax_ninos = ninos;
+      vals.x_pax_adultos = total - ninos;
+    }
+  }
+
+  // Borrados explícitos de esta edición.
+  for (const campo of vaciados) {
+    vals[campo] = false;
+  }
+  return vals;
 }
 
-async function syncReservaToOdoo(reservaId) {
+/** Campos de Odoo que se vacían al dejar en blanco cada dato de planificación. */
+const CAMPO_ODOO_POR_COLUMNA = {
+  tipo_servicio: 'x_tipo_servicio',
+  turoperador_odoo_id: 'x_turoperador_id',
+  bus_ref: 'x_bus_ref',
+  guia: 'x_guia',
+  notas: 'x_notas',
+  pax: 'x_pax',
+  servicio_ninos_odoo_id: 'x_servicio_ninos_id',
+};
+
+/**
+ * Compara la reserva antes y después de una edición y devuelve los campos de
+ * Odoo que el administrador ha vaciado a propósito.
+ */
+function camposVaciados(antes, despues) {
+  if (!antes || !despues) return [];
+  const salida = [];
+  for (const [columna, campoOdoo] of Object.entries(CAMPO_ODOO_POR_COLUMNA)) {
+    if (!vacio(antes[columna]) && vacio(despues[columna])) salida.push(campoOdoo);
+  }
+  // Quitar los niños es dejar la visita sin desglose infantil.
+  if (!vacio(antes.pax_ninos) && Number(antes.pax_ninos) > 0
+      && (vacio(despues.pax_ninos) || Number(despues.pax_ninos) === 0)) {
+    salida.push('x_pax_ninos', 'x_pax_adultos');
+  }
+  return salida;
+}
+
+async function syncReservaToOdoo(reservaId, vaciados = []) {
   if (!odoo.isConfigured()) {
     console.warn('[odoo-sync] Odoo no configurado; omitiendo sync reserva', reservaId);
     return null;
@@ -82,7 +159,7 @@ async function syncReservaToOdoo(reservaId) {
   const reserva = rows[0];
   if (!reserva) return null;
 
-  const vals = reservaToOdooVals(reserva);
+  const vals = reservaToOdooVals(reserva, vaciados);
   const odooId = await odoo.upsertReserva(vals, reserva.id);
   await saveEntityMapping(ENTITY_TYPES.RESERVA, reserva.id, 'calendar.event', odooId);
   return { synced: true, odooId, reservaId: reserva.id };
@@ -142,6 +219,7 @@ async function syncAllReservas(options = {}) {
 
 module.exports = {
   reservaToOdooVals,
+  camposVaciados,
   syncReservaToOdoo,
   deleteReservaFromOdoo,
   syncAllReservas,

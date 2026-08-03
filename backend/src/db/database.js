@@ -198,7 +198,27 @@ async function initializeDatabase() {
   // Columna guía
   await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS guia TEXT DEFAULT ''`);
 
+  // Datos estructurados para facturación automática en Odoo (turoperadora +
+  // referencia de bus). Se seleccionan desde un desplegable en el admin
+  // (catálogo cargado desde Odoo), nunca texto libre, para que Odoo pueda
+  // facturar sin adivinar. turoperador_odoo_id = id del res.partner en Odoo
+  // (NULL = particular / sin turoperadora, visita no facturable a un turo).
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS turoperador_odoo_id INTEGER DEFAULT NULL`);
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS turoperador_nombre TEXT DEFAULT NULL`);
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS bus_ref TEXT DEFAULT NULL`);
+  // Pax numérico opcional para facturar (prioridad sobre el texto libre de
+  // "pax" en Odoo, ver x_pax_real / _bodegas_parse_pax). El texto libre de
+  // planificación (pax) no se toca: sigue admitiendo "41(39+2 niños)" etc.
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS pax_confirmado INTEGER DEFAULT NULL`);
+  // Desglose de niños: cuántos del total son niños y con qué tarifa infantil
+  // se les factura. Solo lo usa el panel de administración; los empleados
+  // siguen viendo el texto libre de "pax" sin cambios.
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS pax_ninos INTEGER DEFAULT NULL`);
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS servicio_ninos_odoo_id INTEGER DEFAULT NULL`);
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS servicio_ninos_nombre TEXT DEFAULT NULL`);
+
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_reservas_fecha ON reservas(fecha);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_reservas_turoperador ON reservas(turoperador_odoo_id);`);
 
   // Tabla de períodos de ausencia (vacaciones, permiso especial, baja médica)
   await pool.query(`
