@@ -9,6 +9,20 @@ const {
 
 const DEFAULT_DURATION_MS = 60 * 60 * 1000;
 
+/**
+ * Convención horaria en la frontera con Odoo.
+ *
+ * Planificación guarda la visita como reloj de pared canario: `fecha` (DATE) y
+ * `hora` (TIME), o sea "el 16 de julio a las 12:30 en Canarias".
+ *
+ * Odoo guarda los Datetime en UTC, sin indicador de zona, y los convierte a la
+ * zona del usuario al mostrarlos. Así que al enviar hay que dar el instante ya
+ * en UTC: de 12:30 en Canarias sale "11:30:00" en julio (UTC+1) y "12:30:00" en
+ * enero (UTC+0). De la diferencia entre las dos estaciones se encarga la propia
+ * zona horaria en `crearTimestampLocal`, no un desfase fijo.
+ *
+ * Los eventos de todo el día son la excepción y van aparte, más abajo.
+ */
 function formatOdooDatetime(date) {
   return date.toISOString().slice(0, 19).replace('T', ' ');
 }
@@ -16,7 +30,14 @@ function formatOdooDatetime(date) {
 function normalizeFecha(fecha) {
   if (!fecha) return null;
   if (typeof fecha === 'string') return fecha.slice(0, 10);
-  return fecha.toISOString().slice(0, 10);
+  // El driver devuelve las columnas DATE como un Date a medianoche de la zona
+  // del proceso. Se leen sus componentes locales en vez de su ISO en UTC:
+  // con toISOString, si el proceso corriera en Canarias, en verano esa
+  // medianoche caería el día anterior en UTC y la fecha se iría un día.
+  const anio = fecha.getFullYear();
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+  const dia = String(fecha.getDate()).padStart(2, '0');
+  return `${anio}-${mes}-${dia}`;
 }
 
 function serializeJsonField(value) {
@@ -31,13 +52,18 @@ function reservaDateTimes(reserva) {
     throw new Error('Reserva sin fecha');
   }
 
+  // Una reserva sin hora es un día entero: una fecha, no un instante. Odoo
+  // guarda los eventos de todo el día quedándose con la parte de fecha del
+  // valor tal cual, sin pasarla por ninguna zona horaria, así que aquí hay que
+  // mandarla en crudo. Si se convirtiera a hora canaria, en verano (UTC+1) las
+  // 00:00 de aquí serían las 23:00 del día anterior en UTC y la visita
+  // aparecería en Odoo el día de antes. En invierno (UTC+0) coincidiría, que
+  // es justo lo que hace que este fallo pase desapercibido medio año.
   if (!reserva.hora) {
-    const start = crearTimestampLocal(fecha, '00:00:00');
-    const stop = crearTimestampLocal(fecha, '23:59:59');
     return {
       allday: true,
-      start: formatOdooDatetime(start),
-      stop: formatOdooDatetime(stop),
+      start: `${fecha} 00:00:00`,
+      stop: `${fecha} 23:59:59`,
     };
   }
 
