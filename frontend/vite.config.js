@@ -11,6 +11,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registro manual (ver src/main.jsx): comprueba actualizaciones
+      // periódicamente y recarga sola cuando hay una nueva versión, para
+      // que una pestaña/PWA abierta todo el día no se quede con JS viejo
+      // (p.ej. tipos de servicio o campos de un deploy anterior).
+      injectRegister: false,
       includeAssets: ['logo.svg'],
       manifest: {
         name: 'Fichajes Bodegas Álvaro',

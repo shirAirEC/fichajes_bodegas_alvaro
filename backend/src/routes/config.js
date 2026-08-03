@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../db/database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
+const { getCatalogoPlanificacion } = require('../sync/catalogo-planificacion');
 
 const router = express.Router();
 const CLAVES_PERMITIDAS = ['geo_activo','geo_lat','geo_lng','geo_radio_metros','empresa_nombre','empresa_direccion','ip_activo','ip_permitidas','gracia_minutos','descanso_activo','descanso_minutos','version_minima'];
@@ -59,6 +60,29 @@ router.put('/', authMiddleware, adminMiddleware, async (req, res) => {
     }
     const { rows } = await pool.query('SELECT clave, valor FROM configuracion');
     res.json(Object.fromEntries(rows.map(r => [r.clave, r.valor])));
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// GET /api/config/catalogo-planificacion — turoperadoras + tipos de servicio
+// facturables, leídos de Odoo (single source of truth) y cacheados en
+// memoria unos minutos. Usado por el desplegable de la planificación admin.
+router.get('/catalogo-planificacion', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const data = await getCatalogoPlanificacion();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// POST /api/config/catalogo-planificacion/refresh — fuerza refresco desde
+// Odoo (ej. tras dar de alta una turoperadora o tarifa nueva).
+router.post('/catalogo-planificacion/refresh', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const data = await getCatalogoPlanificacion({ forceRefresh: true });
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
   }

@@ -82,6 +82,10 @@ async function search(model, domain, options = {}) {
   return executeKw(model, 'search', [domain], { ...SYNC_CONTEXT, ...options });
 }
 
+async function searchRead(model, domain, fields = [], options = {}) {
+  return executeKw(model, 'search_read', [domain, fields], { ...SYNC_CONTEXT, ...options });
+}
+
 async function create(model, vals) {
   return executeKw(model, 'create', [vals], SYNC_CONTEXT);
 }
@@ -348,6 +352,7 @@ module.exports = {
   combineName,
   executeKw,
   search,
+  searchRead,
   create,
   write,
   unlink,
