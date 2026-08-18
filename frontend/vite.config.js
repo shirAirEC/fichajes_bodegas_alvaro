@@ -10,6 +10,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // En la APK el SW sirve index.html a /api (origin Capacitor) → Unexpected token '<'.
+      selfDestroying: isCapacitor,
       registerType: 'autoUpdate',
       // Registro manual (ver src/main.jsx): comprueba actualizaciones
       // periódicamente y recarga sola cuando hay una nueva versión, para

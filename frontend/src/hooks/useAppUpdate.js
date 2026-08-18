@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { getApiUrl } from '../lib/apiUrl';
-
-const API_URL = getApiUrl();
+import { apiUrl, parseJsonResponse } from '../lib/apiUrl';
 
 /**
  * Compara dos versiones semver simplificadas ("1.5" > "1.4" → true).
@@ -31,8 +29,8 @@ export function useAppUpdate() {
 
     const versionInstalada = import.meta.env.VITE_APP_VERSION || '1.0';
 
-    fetch(`${API_URL}/api/config/version`)
-      .then(r => r.json())
+    fetch(apiUrl('/api/config/version'))
+      .then(r => parseJsonResponse(r))
       .then(data => {
         const minima = data.version_minima || '1.0';
         setVersionMinima(minima);

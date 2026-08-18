@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { getApiUrl } from '../lib/apiUrl';
-
-const API_URL = getApiUrl();
+import { apiUrl } from '../lib/apiUrl';
 
 export default function SolicitarBajaPage() {
   const [form, setForm] = useState({ nombre: '', apellidos: '', motivo: '' });
@@ -11,7 +9,7 @@ export default function SolicitarBajaPage() {
     e.preventDefault();
     setEstado('enviando');
     try {
-      const res = await fetch(`${API_URL}/api/auth/solicitar-baja`, {
+      const res = await fetch(apiUrl('/api/auth/solicitar-baja'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),

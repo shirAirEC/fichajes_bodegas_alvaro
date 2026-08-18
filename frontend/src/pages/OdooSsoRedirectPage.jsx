@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getApiUrl } from '../lib/apiUrl';
+import { apiUrl, parseJsonResponse } from '../lib/apiUrl';
 
 export default function OdooSsoRedirectPage() {
   const [searchParams] = useSearchParams();
@@ -13,7 +13,6 @@ export default function OdooSsoRedirectPage() {
       return;
     }
 
-    const api = getApiUrl();
     let cancelled = false;
 
     (async () => {
@@ -21,10 +20,10 @@ export default function OdooSsoRedirectPage() {
         // Fetch JSON (no window.location a Railway): en la APK un 302 externo
         // abre Chrome en lugar de seguir dentro de Capacitor.
         const res = await fetch(
-          `${api}/api/auth/odoo-sso?token=${encodeURIComponent(token)}&format=json`,
+          apiUrl(`/api/auth/odoo-sso?token=${encodeURIComponent(token)}&format=json`),
           { headers: { Accept: 'application/json' } }
         );
-        const data = await res.json().catch(() => ({}));
+        const data = await parseJsonResponse(res);
         if (!res.ok || !data.token) {
           throw new Error(data.error || 'SSO invalido o expirado');
         }

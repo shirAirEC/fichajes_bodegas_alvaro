@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+
 // Registro manual del service worker (ver injectRegister:false en vite.config.js).
 //
 // Motivo: el registro automático por defecto de vite-plugin-pwa solo hace
@@ -12,11 +14,41 @@
 // Estrategia: comprobar actualizaciones cada 10 min y, en cuanto el nuevo
 // service worker toma el control (controllerchange), recargar la página
 // una sola vez automáticamente.
+//
+// En Capacitor NO se registra: el SW intercepta /api contra el origin local
+// (hostname Vercel) y sirve index.html → Unexpected token '<' en JSON.parse.
 const UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+
+function esNativo() {
+  if (import.meta.env.VITE_CAPACITOR === 'true') return true;
+  try {
+    return Capacitor.isNativePlatform() === true;
+  } catch {
+    return false;
+  }
+}
+
+export async function unregisterNativeServiceWorkers() {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map((r) => r.unregister()));
+    if (typeof caches !== 'undefined' && caches.keys) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch {
+    /* ignore */
+  }
+}
 
 export function registerAutoUpdatingServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   if (import.meta.env.DEV) return;
+  if (esNativo()) {
+    void unregisterNativeServiceWorkers();
+    return;
+  }
 
   import('virtual:pwa-register')
     .then(({ registerSW }) => {

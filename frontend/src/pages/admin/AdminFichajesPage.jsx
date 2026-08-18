@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './AdminFichajesPage.module.css';
-import { getApiUrl } from '../../lib/apiUrl';
-
-const API_URL = getApiUrl();
+import { apiUrl } from '../../lib/apiUrl';
 
 
 // ─── Generación de PDF del informe ───────────────────────────────────────────
@@ -627,7 +625,7 @@ export default function AdminFichajesPage() {
 
     if (vista === 'informe') {
       params.append('formato', 'csv');
-      fetch(`${API_URL}/api/horas/admin/informe?${params}`, { headers: { Authorization: `Bearer ${token}` } })
+      fetch(apiUrl(`/api/horas/admin/informe?${params}`), { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.blob())
         .then(blob => {
           const a = document.createElement('a');
@@ -636,7 +634,7 @@ export default function AdminFichajesPage() {
           a.click();
         });
     } else {
-      fetch(`${API_URL}/api/fichajes/admin/exportar?${params}`, { headers: { Authorization: `Bearer ${token}` } })
+      fetch(apiUrl(`/api/fichajes/admin/exportar?${params}`), { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.blob())
         .then(blob => {
           const a = document.createElement('a');

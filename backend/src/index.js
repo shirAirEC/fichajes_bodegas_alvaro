@@ -96,6 +96,17 @@ app.use('/api/sync', syncRoutes);
 
 app.use('/api/*', (req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
 
+// Express por defecto devuelve HTML ("Cannot GET /") → el cliente hace
+// JSON.parse y muestra Unexpected token '<'. Siempre JSON.
+app.use((req, res) => {
+  res.status(404).json({ error: 'Ruta no encontrada' });
+});
+app.use((err, req, res, next) => {
+  console.error(err);
+  if (res.headersSent) return next(err);
+  res.status(err.status || 500).json({ error: err.message || 'Error interno del servidor' });
+});
+
 async function start() {
   try {
     initFirebase();

@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import styles from './TVPage.module.css';
-import { getApiUrl } from '../lib/apiUrl';
-
-const API_URL = getApiUrl();
+import { apiUrl, parseJsonResponse } from '../lib/apiUrl';
 
 // Devuelve true si updated_at es de las últimas N horas
 function editadoReciente(updated_at, horas = 8) {
@@ -78,10 +76,10 @@ export default function TVPage() {
     if (!token) { setError('Falta el token de acceso en la URL.'); return; }
     try {
       const { desde, hasta } = getDesdeHasta();
-      const url = `${API_URL}/api/reservas/tv?token=${token}&desde=${desde}&hasta=${hasta}`;
+      const url = apiUrl(`/api/reservas/tv?token=${token}&desde=${desde}&hasta=${hasta}`);
       const res = await fetch(url);
       if (!res.ok) { setError('Token inválido o error de conexión.'); return; }
-      const data = await res.json();
+      const data = await parseJsonResponse(res);
 
       if (esPolling && Object.keys(lastSeenRef.current).length > 0) {
         const cambiadas = data.filter(r => {

@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback, createContext, useContext } from 'react';
-import { getApiUrl } from '../lib/apiUrl';
+import { apiUrl, ensureJsonResponse, parseJsonResponse } from '../lib/apiUrl';
 
 const AuthContext = createContext(null);
-
-const API_URL = getApiUrl();
 
 // App nativa Android (Capacitor)
 function esAppNativa() {
@@ -51,12 +49,12 @@ export function AuthProvider({ children }) {
     let cancelled = false;
     setLoading(true);
 
-    fetch(`${API_URL}/api/auth/me`, {
+    fetch(apiUrl('/api/auth/me'), {
       headers: { Authorization: `Bearer ${token}` }
     })
-      .then(res => {
+      .then(async res => {
         if (!res.ok) throw new Error('Token inválido');
-        return res.json();
+        return parseJsonResponse(res);
       })
       .then(data => {
         if (cancelled) return;
@@ -76,10 +74,10 @@ export function AuthProvider({ children }) {
 
   const cargarNotificaciones = useCallback(async (tok) => {
     try {
-      const res = await fetch(`${API_URL}/api/notificaciones`, {
+      const res = await fetch(apiUrl('/api/notificaciones'), {
         headers: { Authorization: `Bearer ${tok}` }
       });
-      if (res.ok) setNotificaciones(await res.json());
+      if (res.ok) setNotificaciones(await parseJsonResponse(res));
     } catch {}
   }, []);
 
@@ -87,14 +85,14 @@ export function AuthProvider({ children }) {
     localStorage.setItem('fichajes_token', newToken);
     setToken(newToken);
     setLoading(true);
-    const res = await fetch(`${API_URL}/api/auth/me`, {
+    const res = await fetch(apiUrl('/api/auth/me'), {
       headers: { Authorization: `Bearer ${newToken}` }
     });
     if (!res.ok) {
       logout();
       throw new Error('Token SSO inválido');
     }
-    const data = await res.json();
+    const data = await parseJsonResponse(res);
     verificarAccesoWeb(data.rol);
     setUser(data);
     setLoading(false);
@@ -105,16 +103,16 @@ export function AuthProvider({ children }) {
   const refrescarNotificaciones = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch(`${API_URL}/api/notificaciones`, {
+      const res = await fetch(apiUrl('/api/notificaciones'), {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) setNotificaciones(await res.json());
+      if (res.ok) setNotificaciones(await parseJsonResponse(res));
     } catch {}
   }, [token]);
 
   const marcarNotificacionesLeidas = useCallback(async () => {
     if (!token) return;
-    await fetch(`${API_URL}/api/notificaciones/marcar-leidas`, {
+    await fetch(apiUrl('/api/notificaciones/marcar-leidas'), {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -122,13 +120,13 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   const login = async (email, password) => {
-    const res = await fetch(`${API_URL}/api/auth/login`, {
+    const res = await fetch(apiUrl('/api/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
 
-    const data = await res.json();
+    const data = await parseJsonResponse(res);
     if (!res.ok) throw new Error(data.error || 'Error al iniciar sesión');
 
     verificarAccesoWeb(data.empleado.rol);
@@ -141,7 +139,7 @@ export function AuthProvider({ children }) {
   };
 
   const authFetch = useCallback(async (url, options = {}) => {
-    const res = await fetch(`${API_URL}${url}`, {
+    const res = await fetch(apiUrl(url), {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -156,7 +154,7 @@ export function AuthProvider({ children }) {
     }
     // 403 por restricción de red o permisos — NO desloguear, dejar que el componente lo gestione
 
-    return res;
+    return ensureJsonResponse(res);
   }, [token, logout]);
 
   return (
