@@ -31,12 +31,13 @@ const origenesPermitidos = [
   'http://localhost:5173',
   'http://localhost:4173',
   'http://localhost:3000',
-  // Capacitor Android WebView
+  // Capacitor Android WebView (scheme por defecto)
   'https://localhost',
   'capacitor://localhost',
   'http://localhost',
-  // Vercel producción
+  // Capacitor con server.hostname = dominio Vercel (APK empaquetada)
   'https://fichajes-bodegas-alvaro.vercel.app',
+  'capacitor://fichajes-bodegas-alvaro.vercel.app',
   // Vercel develop preview
   'https://fichajes-bodegas-alvaro-git-develop-shirairs-projects.vercel.app',
 ];

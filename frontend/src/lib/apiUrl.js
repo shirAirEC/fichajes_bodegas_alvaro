@@ -1,22 +1,47 @@
 /**
- * Devuelve la URL base del backend.
+ * URL base del backend.
  *
- * Web (Vercel / local):
- *   Siempre devuelve '' → las llamadas a /api/* son relativas al dominio actual.
- *   - En Vercel, el vercel.json proxy reenvía /api/* al Railway correcto
- *     según el hostname (production o develop preview).
- *   - En local, el proxy de Vite (vite.config.js) reenvía /api/* a localhost:3001.
+ * Web (Vercel / Vite):
+ *   '' → /api/* relativo al host actual.
+ *   Vercel (vercel.json) reescribe a Railway prod o develop según hostname.
+ *   Vite dev proxy reenvía a localhost:3001.
  *
- * Android nativo (APK):
- *   VITE_CAPACITOR=true en el .env de build → usa VITE_API_URL explícita.
+ * Android nativo (APK empaquetada, sin server.url):
+ *   El WebView sirve dist local con origin https://fichajes-bodegas-alvaro.vercel.app
+ *   (capacitor hostname). Un fetch relativo /api NO llega a Vercel: Capacitor lo
+ *   resuelve contra el servidor local → "Failed to fetch".
+ *   Hay que usar la API de Railway en absoluto.
+ *
+ * `npm run build:android` fija VITE_CAPACITOR y VITE_API_URL de producción
+ * (ganan a .env.local de Vercel CLI, que apunta al Railway de pruebas).
  */
+const PRODUCTION_API = 'https://fichajesbodegasalvaro-production.up.railway.app';
+
+function esHostLocal(url) {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+  } catch {
+    return true;
+  }
+}
+
+function esNativo() {
+  if (import.meta.env.VITE_CAPACITOR === 'true') return true;
+  return typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.() === true;
+}
+
 export function getApiUrl() {
-  if (import.meta.env.VITE_CAPACITOR === 'true') {
-    const url = import.meta.env.VITE_API_URL
-      || 'https://fichajesbodegasalvaro-production.up.railway.app';
-    return url.replace(/\/$/, '');
+  if (!esNativo()) return '';
+
+  const url = (import.meta.env.VITE_API_URL || PRODUCTION_API).replace(/\/$/, '');
+  if (!url || esHostLocal(url)) return PRODUCTION_API;
+
+  // Play / `vite build` (mode production): nunca el backend de pruebas.
+  // `build:android:dev` usa --mode dev y sí puede apuntar a -developed.
+  if (import.meta.env.MODE === 'production' && /developed/i.test(url)) {
+    return PRODUCTION_API;
   }
 
-  // Web: rutas relativas, el proxy (Vercel o Vite dev) se encarga
-  return '';
+  return url;
 }
