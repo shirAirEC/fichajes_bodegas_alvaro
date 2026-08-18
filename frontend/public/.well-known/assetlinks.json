@@ -5,8 +5,7 @@
       "namespace": "android_app",
       "package_name": "com.bodegasalvaro.fichajes",
       "sha256_cert_fingerprints": [
-        "REPLACE_ME_UPLOAD_KEY_SHA256_COLON_HEX",
-        "REPLACE_ME_PLAY_APP_SIGNING_SHA256_COLON_HEX"
+        "0B:63:DA:05:0B:9D:6E:0E:09:0B:B9:99:00:93:A0:FA:80:5C:12:9A:A7:0A:1E:83:92:59:4D:5D:D5:90:03:5D"
       ]
     }
   }

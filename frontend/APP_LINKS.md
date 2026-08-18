@@ -4,26 +4,37 @@ Sin SHA-256 reales + nueva build Play Store, Android 12+ abre Chrome.
 
 ## SHA-256 (`public/.well-known/assetlinks.json`)
 
-El keystore pide contraseña; extraer a mano:
+Upload key (release) rellenado desde `frontend/android/bodegas-alvaro.keystore` alias `bodegas-alvaro`:
+
+`0B:63:DA:05:0B:9D:6E:0E:09:0B:B9:99:00:93:A0:FA:80:5C:12:9A:A7:0A:1E:83:92:59:4D:5D:D5:90:03:5D`
+
+El JSON de producción **solo** incluye fingerprints reales (un placeholder rompe Digital Asset Links).
+
+`frontend/keystore/bodegas-alvaro.jks` (alias `fichajes` en `capacitor.config.json`) **no existe** en el repo. El signing real de Gradle es `android/app/build.gradle` → `../bodegas-alvaro.keystore`.
+
+### Play App Signing (pendiente, imprescindible si Play re-firma)
+
+No hay huella de **App signing key** documentada en el repo. Tras publicar, añade como segundo valor en `sha256_cert_fingerprints`:
+
+1. Play Console → App integrity → App signing
+2. Copia SHA-256 de **App signing key certificate** (formato `AA:BB:CC:...`)
+3. Añade esa huella junto a la del upload key y redespliega el frontend a Vercel
+
+Re-extraer upload key (pide contraseña del keystore; no la inventes):
 
 ```bash
-# Release real (android/app/build.gradle → storeFile ../bodegas-alvaro.keystore)
 cd frontend/android
 keytool -list -v -keystore bodegas-alvaro.keystore -alias bodegas-alvaro
 ```
-
-Copia «Huella de certificado SHA256» (`AA:BB:CC:...`) a `REPLACE_ME_UPLOAD_KEY_SHA256_COLON_HEX`.
-
-Play Console → App integrity → App signing → huella SHA-256 de **App signing key** → `REPLACE_ME_PLAY_APP_SIGNING_SHA256_COLON_HEX` (imprescindible si Play re-firma).
 
 Tras deploy Vercel, debe ser JSON (no el login HTML):
 https://fichajes-bodegas-alvaro.vercel.app/.well-known/assetlinks.json
 
 ## Nueva build Play Store
 
-1. Rellenar las SHA-256 y desplegar frontend a Vercel.
+1. Confirmar SHA-256 en Vercel (y añadir Play App Signing cuando exista).
 2. `cd frontend && npm run build:android`
 3. Subir `versionCode` en `android/app/build.gradle` y generar AAB firmado.
-4. Subir el AAB a Play Console.
+4. Subir el AAB a Play Console (paso humano; no hay upload automático).
 
 Probar con **release** (el debug usa `com.bodegasalvaro.fichajes.dev` y no verifica).
