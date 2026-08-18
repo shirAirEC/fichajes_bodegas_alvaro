@@ -25,6 +25,19 @@ function getLunesSemana(fechaStr) {
   return dateToStr(d);
 }
 
+/** Lunes de la semana ENTRANTE (la que materializa el cron del lunes 00:05). */
+function getLunesSemanaEntrante(date = new Date()) {
+  return addDaysStr(getLunesSemana(getFechaLocal(date)), 7);
+}
+
+function enVentanaCronLunes(date = new Date()) {
+  if (getDiaSemanaCanarias(date) !== 1) return false;
+  const ms = getMsDelDiaLocal(date);
+  const ventanaInicio = (0 * 60 + 5) * 60 * 1000;
+  const ventanaFin = ventanaInicio + 60 * 1000;
+  return ms >= ventanaInicio && ms < ventanaFin;
+}
+
 function getDiaSemanaCanarias(date = new Date()) {
   const fecha = getFechaLocal(date);
   const d = new Date(fecha + 'T12:00:00');
@@ -51,7 +64,7 @@ function asJsonb(val) {
 async function generarReservasDesdePlantillas({ fecha } = {}) {
   const lunes = fecha
     ? getLunesSemana(fecha)
-    : addDaysStr(getLunesSemana(getFechaLocal()), 7);
+    : getLunesSemanaEntrante();
 
   const { rows: plantillas } = await pool.query(
     `SELECT * FROM reserva_plantillas WHERE activa = 1 ORDER BY dia_semana, hora NULLS LAST`
@@ -119,32 +132,71 @@ async function generarReservasDesdePlantillas({ fecha } = {}) {
 }
 
 let lastRunKey = null;
+let generando = false;
+
+async function contarPlantillasSinInstancia(lunesEntrante) {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*)::int AS n
+       FROM reserva_plantillas p
+      WHERE p.activa = 1
+        AND NOT EXISTS (
+          SELECT 1 FROM reservas r
+           WHERE r.plantilla_id = p.id
+             AND r.fecha = ($1::date + (p.dia_semana - 1))
+        )`,
+    [lunesEntrante]
+  );
+  return rows[0]?.n || 0;
+}
+
+async function ejecutarGeneracionSemanaEntrante(motivo) {
+  console.log(`[plantillas] Generando reservas de la semana entrante (${motivo})…`);
+  const resultado = await generarReservasDesdePlantillas();
+  console.log(
+    `[plantillas] Semana ${resultado.semana_desde}: ${resultado.creadas.length} creadas, ${resultado.omitidas.length} ya existían`
+  );
+  return resultado;
+}
+
+/**
+ * Catch-up: cualquier día lun–dom, si faltan instancias de la semana ENTRANTE
+ * (la que el cron del lunes debería haber creado), materializarlas.
+ * Idempotente (ON CONFLICT). No toca la semana actual.
+ */
+async function catchupSemanaEntrante(motivo) {
+  const lunesEntrante = getLunesSemanaEntrante();
+  const faltan = await contarPlantillasSinInstancia(lunesEntrante);
+  if (faltan === 0) return null;
+  return ejecutarGeneracionSemanaEntrante(motivo);
+}
+
+async function tickCronPlantillas({ arranque = false } = {}) {
+  if (generando) return;
+  generando = true;
+  try {
+    const now = new Date();
+    if (enVentanaCronLunes(now)) {
+      const runKey = getFechaLocal(now);
+      if (lastRunKey === runKey) return;
+      await ejecutarGeneracionSemanaEntrante(arranque ? 'arranque' : 'cron');
+      lastRunKey = runKey;
+      return;
+    }
+    await catchupSemanaEntrante(arranque ? 'arranque' : 'catch-up');
+  } catch (err) {
+    console.error('[plantillas] Error en cron:', err.message);
+  } finally {
+    generando = false;
+  }
+}
 
 function iniciarCronGenerarReservasPlantillas() {
   console.log(`[plantillas] Cron semanal activo (${TZ}, lunes 00:05 → semana entrante)`);
 
-  setInterval(async () => {
-    try {
-      const now = new Date();
-      if (getDiaSemanaCanarias(now) !== 1) return;
+  tickCronPlantillas({ arranque: true });
 
-      const ms = getMsDelDiaLocal(now);
-      const ventanaInicio = (0 * 60 + 5) * 60 * 1000;
-      const ventanaFin = ventanaInicio + 60 * 1000;
-      if (ms < ventanaInicio || ms >= ventanaFin) return;
-
-      const runKey = getFechaLocal(now);
-      if (lastRunKey === runKey) return;
-      lastRunKey = runKey;
-
-      console.log('[plantillas] Generando reservas de la semana entrante…');
-      const resultado = await generarReservasDesdePlantillas();
-      console.log(
-        `[plantillas] Semana ${resultado.semana_desde}: ${resultado.creadas.length} creadas, ${resultado.omitidas.length} ya existían`
-      );
-    } catch (err) {
-      console.error('[plantillas] Error en cron:', err.message);
-    }
+  setInterval(() => {
+    tickCronPlantillas();
   }, 30_000);
 }
 

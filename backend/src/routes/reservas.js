@@ -212,6 +212,31 @@ router.put('/:id/confirmar', authMiddleware, adminMiddleware, async (req, res) =
   }
 });
 
+function fechaYmd(val) {
+  if (val == null) return '';
+  return String(val).slice(0, 10);
+}
+
+async function saltarReservaDePlantilla(antes, req) {
+  const { rows } = await pool.query(
+    `UPDATE reservas SET estado = 'cancelado', updated_at = NOW()
+     WHERE id = $1 RETURNING *`,
+    [antes.id]
+  );
+  const reserva = rows[0];
+  const vaciados = camposVaciados(antes, reserva);
+  const fechaStr = new Date(reserva.fecha + 'T00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  notificarCambioPlanificacion(
+    req.user.id,
+    'Planificacion actualizada',
+    `Reserva saltada: ${reserva.nombre} el ${fechaStr}`
+  );
+  if (!isOdooSyncRequest(req)) {
+    triggerReservaSync(reserva.id, false, vaciados);
+  }
+  return reserva;
+}
+
 // PUT /api/reservas/:id/saltar-semana — cancelar instancia de plantilla sin tocar la plantilla
 router.put('/:id/saltar-semana', authMiddleware, adminMiddleware, async (req, res) => {
   try {
@@ -222,22 +247,7 @@ router.put('/:id/saltar-semana', authMiddleware, adminMiddleware, async (req, re
       return res.status(400).json({ error: 'Esta reserva no proviene de una plantilla' });
     }
 
-    const { rows } = await pool.query(
-      `UPDATE reservas SET estado = 'cancelado', updated_at = NOW()
-       WHERE id = $1 RETURNING *`,
-      [req.params.id]
-    );
-    const reserva = rows[0];
-    const vaciados = camposVaciados(antes, reserva);
-    const fechaStr = new Date(reserva.fecha + 'T00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-    notificarCambioPlanificacion(
-      req.user.id,
-      'Planificacion actualizada',
-      `Reserva saltada: ${reserva.nombre} el ${fechaStr}`
-    );
-    if (!isOdooSyncRequest(req)) {
-      triggerReservaSync(reserva.id, false, vaciados);
-    }
+    const reserva = await saltarReservaDePlantilla(antes, req);
     res.json(reserva);
   } catch (err) {
     console.error(err);
@@ -260,6 +270,12 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
     const { rows: previas } = await pool.query('SELECT * FROM reservas WHERE id = $1', [req.params.id]);
     const antes = previas[0];
     if (!antes) return res.status(404).json({ error: 'Reserva no encontrada' });
+
+    if (antes.plantilla_id && fecha && fechaYmd(fecha) !== fechaYmd(antes.fecha)) {
+      return res.status(400).json({
+        error: 'No se puede cambiar la fecha de una reserva generada desde plantilla',
+      });
+    }
 
     // Los datos de facturación solo se tocan si vienen en la petición: así una
     // actualización parcial (o una llamada de otro cliente) no los borra.
@@ -289,7 +305,7 @@ router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
            updated_at             = NOW()
        WHERE id = $24 RETURNING *`,
       [
-        fecha, hora || null, nombre, pax ? String(pax) : null,
+        antes.plantilla_id ? antes.fecha : fecha, hora || null, nombre, pax ? String(pax) : null,
         estado, tipo_servicio ?? '',
         notas ?? '', guia ?? '',
         menu !== undefined ? JSON.stringify(menu) : null,
@@ -414,19 +430,27 @@ router.get('/informe', authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 // DELETE /api/reservas/:id (solo admin)
+// Instancia de plantilla: no se borra la fila (el hueco regeneraría la semana saltada).
+// Mismo efecto que saltar-semana: estado cancelado, unique (plantilla_id, fecha) intacto.
 router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { rows: prev } = await pool.query('SELECT nombre, fecha FROM reservas WHERE id = $1', [req.params.id]);
+    const { rows: prev } = await pool.query('SELECT * FROM reservas WHERE id = $1', [req.params.id]);
+    const antes = prev[0];
+    if (!antes) return res.status(404).json({ error: 'Reserva no encontrada' });
+
+    if (antes.plantilla_id) {
+      const reserva = await saltarReservaDePlantilla(antes, req);
+      return res.json({ message: 'Reserva saltada', reserva });
+    }
+
     const { rowCount } = await pool.query('DELETE FROM reservas WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Reserva no encontrada' });
-    if (prev[0]) {
-      const fechaStr = new Date(prev[0].fecha + 'T00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-      notificarCambioPlanificacion(
-        req.user.id,
-        'Planificacion actualizada',
-        `Reserva cancelada: ${prev[0].nombre} el ${fechaStr}`
-      );
-    }
+    const fechaStr = new Date(antes.fecha + 'T00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    notificarCambioPlanificacion(
+      req.user.id,
+      'Planificacion actualizada',
+      `Reserva cancelada: ${antes.nombre} el ${fechaStr}`
+    );
     if (!isOdooSyncRequest(req)) {
       triggerReservaSync(parseInt(req.params.id, 10), true);
     }

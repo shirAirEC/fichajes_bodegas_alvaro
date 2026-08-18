@@ -1,6 +1,10 @@
 # App Links: Odoo móvil → APK
 
-Sin SHA-256 reales + nueva build Play Store, Android 12+ abre Chrome.
+La APK debe **consumir** el intent (`@capacitor/app` → `appUrlOpen` + `getLaunchUrl`) y navegar a `path+query` (p.ej. `/auth/odoo-sso?token=…`). Si no, Capacitor 6 carga `appUrl` (Vercel `/`) y se pierde el token HMAC (~60s).
+
+Código: `frontend/src/lib/appUrlOpen.js` (registro en `main.jsx` antes del primer render + `useAppUrlOpen` en `App.jsx`). En web/PWA el plugin no se llama (`Capacitor.isNativePlatform()`). `OdooSsoRedirectPage` sigue haciendo fetch JSON in-app; solo hay que **llegar** a esa ruta con el token.
+
+Residual: sin SHA-256 de **Play App Signing** + build en Play, Android 12+ puede abrir Chrome en lugar de la APK. El upload key ya está en `assetlinks.json`. **No** añadir un SHA de Play inventado.
 
 ## SHA-256 (`public/.well-known/assetlinks.json`)
 
@@ -29,6 +33,34 @@ keytool -list -v -keystore bodegas-alvaro.keystore -alias bodegas-alvaro
 
 Tras deploy Vercel, debe ser JSON (no el login HTML):
 https://fichajes-bodegas-alvaro.vercel.app/.well-known/assetlinks.json
+
+## Probar sideload (APK release, no Play)
+
+El debug usa `com.bodegasalvaro.fichajes.dev` y **no** verifica App Links. Sideload de **release** (mismo package que `assetlinks.json`). No hace falta token HMAC real para comprobar que la URL se consume: con `token=PRUEBA` debe abrirse `OdooSsoRedirectPage` (texto «Conectando con Odoo...» y luego error SSO), **no** el login (`/`).
+
+```bash
+cd frontend
+npm install
+npm run build:android
+cd android
+.\gradlew.bat assembleRelease
+adb install -r app\build\outputs\apk\release\app-release.apk
+```
+
+Cold start (`singleTask` + proceso muerto):
+
+```bash
+adb shell am force-stop com.bodegasalvaro.fichajes
+adb shell am start -W -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d "https://fichajes-bodegas-alvaro.vercel.app/auth/odoo-sso?token=PRUEBA" com.bodegasalvaro.fichajes
+```
+
+Warm start (app en segundo plano, `onNewIntent`):
+
+```bash
+adb shell am start -W -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d "https://fichajes-bodegas-alvaro.vercel.app/auth/odoo-sso?token=PRUEBA" com.bodegasalvaro.fichajes
+```
+
+`am start` con package explícito abre la APK aunque `autoVerify` aún falle (SHA de Play pendiente). PWA/Chrome: la misma URL en el navegador no debe romperse (el listener nativo no corre).
 
 ## Nueva build Play Store
 

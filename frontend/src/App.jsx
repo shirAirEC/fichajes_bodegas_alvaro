@@ -8,6 +8,7 @@ import LoadingScreen from './components/LoadingScreen';
 import SolicitarBajaPage from './pages/SolicitarBajaPage';
 import SsoCallbackPage from './pages/SsoCallbackPage';
 import OdooSsoRedirectPage from './pages/OdooSsoRedirectPage';
+import { useAppUrlOpen } from './hooks/useAppUrlOpen';
 import { useAppUpdate } from './hooks/useAppUpdate';
 
 function PantallaActualizacion({ versionMinima }) {
@@ -54,6 +55,7 @@ function AppRoutes() {
   const { user, loading } = useAuth();
   const location = useLocation();
   const { necesitaActualizar, versionMinima } = useAppUpdate();
+  useAppUrlOpen();
 
   if (necesitaActualizar) return <PantallaActualizacion versionMinima={versionMinima} />;
 

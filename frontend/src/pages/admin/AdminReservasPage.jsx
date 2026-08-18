@@ -114,6 +114,22 @@ function getLunesDeHoy() {
   return getLunesDe(dateToStr(new Date()));
 }
 
+function parseDeepLinkReservas(searchParams) {
+  const qs = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search)
+    : searchParams;
+  const fechaRaw = qs?.get('fecha');
+  const reservaRaw = qs?.get('reserva_id');
+  const fecha = fechaRaw && /^\d{4}-\d{2}-\d{2}$/.test(fechaRaw) ? fechaRaw : null;
+  const reservaId = reservaRaw && /^\d+$/.test(String(reservaRaw)) ? Number(reservaRaw) : null;
+  return {
+    fecha,
+    reservaId,
+    desde: fecha ? getLunesDe(fecha) : getLunesDeHoy(),
+    pendiente: Boolean(fecha || reservaId),
+  };
+}
+
 // ─── Generación de PDF del informe de reservas ──────────────────────────────
 async function generarInformeReservasPDF(data) {
   const { default: jsPDF } = await import('jspdf');
@@ -493,7 +509,11 @@ function PanelAvisos({ authFetch }) {
 export default function AdminReservasPage() {
   const { authFetch } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [desde, setDesde] = useState(getLunesDeHoy());
+  const deepLink = useRef(null);
+  if (deepLink.current === null) {
+    deepLink.current = parseDeepLinkReservas(searchParams);
+  }
+  const [desde, setDesde] = useState(deepLink.current.desde);
   const [reservas, setReservas] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [modal, setModal] = useState(null);
@@ -516,9 +536,9 @@ export default function AdminReservasPage() {
   const [generandoPlantillas, setGenerandoPlantillas] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
-  const [reservaDestacada, setReservaDestacada] = useState(null);
+  const [reservaDestacada, setReservaDestacada] = useState(deepLink.current.reservaId);
   const reservaRefs = useRef({});
-  const deepLinkProcesado = useRef(false);
+  const cargarGen = useRef(0);
 
   const hasta = addDays(desde, 6);
 
@@ -558,29 +578,41 @@ export default function AdminReservasPage() {
 
   useEffect(() => { cargarPlantillas(); }, [cargarPlantillas]);
 
-  useEffect(() => {
-    if (deepLinkProcesado.current) return;
-    const fecha = searchParams.get('fecha');
-    const reservaId = searchParams.get('reserva_id');
-    if (!fecha && !reservaId) return;
-    deepLinkProcesado.current = true;
-    if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) setDesde(getLunesDe(fecha));
-    if (reservaId) setReservaDestacada(Number(reservaId));
-    setSearchParams({}, { replace: true });
-  }, [searchParams, setSearchParams]);
-
-  const cargar = useCallback(async () => {
+  const cargar = useCallback(async (opts = {}) => {
+    const { signal } = opts;
+    const seq = ++cargarGen.current;
     setCargando(true);
     try {
-      const res = await authFetch(`/api/reservas?desde=${desde}&hasta=${hasta}`);
+      const res = await authFetch(
+        `/api/reservas?desde=${desde}&hasta=${hasta}`,
+        signal ? { signal } : undefined
+      );
       const data = await res.json();
+      if (signal?.aborted || seq !== cargarGen.current) return;
       setReservas(Array.isArray(data) ? data : []);
+      const dl = deepLink.current;
+      if (dl?.pendiente && !dl.limpiado) {
+        const semanaOk = !dl.fecha || getLunesDe(dl.fecha) === desde;
+        if (semanaOk) {
+          dl.limpiado = true;
+          setSearchParams({}, { replace: true });
+        }
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError' || signal?.aborted || seq !== cargarGen.current) return;
+      throw err;
     } finally {
-      setCargando(false);
+      if (!signal?.aborted && seq === cargarGen.current) setCargando(false);
     }
-  }, [authFetch, desde, hasta]);
+  }, [authFetch, desde, hasta, setSearchParams]);
 
-  useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => {
+    const ac = new AbortController();
+    cargar({ signal: ac.signal }).catch((err) => {
+      if (err?.name === 'AbortError') return;
+    });
+    return () => ac.abort();
+  }, [cargar]);
 
   useEffect(() => {
     if (!reservaDestacada || cargando) return;
@@ -613,6 +645,7 @@ export default function AdminReservasPage() {
       modo: 'editar',
       datos: {
         id: r.id,
+        plantilla_id: r.plantilla_id || null,
         fecha: r.fecha,
         hora: r.hora ? r.hora.slice(0, 5) : '',
         nombre: r.nombre,
@@ -853,10 +886,14 @@ export default function AdminReservasPage() {
     }
   };
 
-  const handleEliminar = async (id, e) => {
+  const handleEliminar = async (r, e) => {
+    if (r.plantilla_id) {
+      await handleSaltarSemana(r.id, e);
+      return;
+    }
     e.stopPropagation();
     if (!confirm('¿Eliminar esta reserva?')) return;
-    await authFetch(`/api/reservas/${id}`, { method: 'DELETE' });
+    await authFetch(`/api/reservas/${r.id}`, { method: 'DELETE' });
     await cargar();
   };
 
@@ -1151,7 +1188,11 @@ export default function AdminReservasPage() {
                         </div>
                       )}
 
-                      <button className={styles.btnEliminar} onClick={e => handleEliminar(r.id, e)} title="Eliminar">✕</button>
+                      <button
+                        className={styles.btnEliminar}
+                        onClick={e => handleEliminar(r, e)}
+                        title={esPlantilla ? 'Saltar esta semana' : 'Eliminar'}
+                      >✕</button>
                     </div>
                   );
                 })}
@@ -1187,7 +1228,17 @@ export default function AdminReservasPage() {
               <div className={styles.formGrid}>
                 <div className={styles.field}>
                   <label>Fecha *</label>
-                  <input type="date" value={modal.datos.fecha} onChange={e => handleChange('fecha', e.target.value)} />
+                  <input
+                    type="date"
+                    value={modal.datos.fecha}
+                    disabled={Boolean(modal.datos.plantilla_id)}
+                    onChange={e => handleChange('fecha', e.target.value)}
+                  />
+                  {modal.datos.plantilla_id && (
+                    <span className={styles.fieldHint}>
+                      La fecha de una reserva de plantilla no se puede cambiar. Use «Saltar esta semana» para cancelarla.
+                    </span>
+                  )}
                 </div>
                 <div className={styles.field}>
                   <label>Hora</label>
