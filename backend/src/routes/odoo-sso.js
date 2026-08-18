@@ -131,8 +131,14 @@ router.get('/odoo-sso', async (req, res) => {
       ]
     );
 
-    // Query (no hash): sobrevive mejor a proxies; el front borra el token de la URL al entrar.
+    // Redirect final siempre a Vercel (/admin/...) — nunca quedarse en Railway.
+    // JSON si el front (web o APK) pide application/json: evita que Capacitor
+    // abra Chrome al navegar a Railway.
     const redirect = `${frontendUrl()}/admin/sso-callback?token=${encodeURIComponent(fichajesJwt)}`;
+    const accept = String(req.headers.accept || '');
+    if (accept.includes('application/json') || String(req.query.format || '') === 'json') {
+      return res.json({ token: fichajesJwt, redirect });
+    }
     return res.redirect(302, redirect);
   } catch (err) {
     console.error('[odoo-sso]', err.message);

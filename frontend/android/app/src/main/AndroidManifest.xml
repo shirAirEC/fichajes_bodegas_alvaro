@@ -22,6 +22,25 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- App Links: abrir URLs Vercel en la APK (Odoo SSO, portal). Requiere nueva build + assetlinks.json. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="fichajes-bodegas-alvaro.vercel.app"
+                    android:path="/" />
+                <data
+                    android:scheme="https"
+                    android:host="fichajes-bodegas-alvaro.vercel.app"
+                    android:pathPrefix="/auth" />
+                <data
+                    android:scheme="https"
+                    android:host="fichajes-bodegas-alvaro.vercel.app"
+                    android:pathPrefix="/admin" />
+            </intent-filter>
+
         </activity>
 
         <provider

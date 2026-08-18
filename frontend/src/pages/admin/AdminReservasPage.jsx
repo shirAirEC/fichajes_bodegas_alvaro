@@ -1,6 +1,24 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './AdminReservasPage.module.css';
+
+const DIAS_SEMANA = [
+  { value: 1, label: 'Lunes' },
+  { value: 2, label: 'Martes' },
+  { value: 3, label: 'Miércoles' },
+  { value: 4, label: 'Jueves' },
+  { value: 5, label: 'Viernes' },
+  { value: 6, label: 'Sábado' },
+  { value: 7, label: 'Domingo' },
+];
+
+const PLANTILLA_VACIA = {
+  dia_semana: 1, hora: '', nombre: '', pax: '',
+  tipo_servicio: '', guia: '',
+  turoperador_odoo_id: '', bus_ref: '',
+  menu: [], necesidades_especiales: [],
+};
 
 const ESTADOS = [
   { value: 'sin_confirmar', label: 'Sin confirmar' },
@@ -83,12 +101,17 @@ function addDays(dateStr, days) {
   return dateToStr(date);
 }
 
-function getLunesDeHoy() {
-  const hoy = new Date();
-  const dia = hoy.getDay();
+function getLunesDe(fechaStr) {
+  const [y, m, d] = fechaStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const dia = date.getDay();
   const diff = dia === 0 ? -6 : 1 - dia;
-  hoy.setDate(hoy.getDate() + diff);
-  return dateToStr(hoy);
+  date.setDate(date.getDate() + diff);
+  return dateToStr(date);
+}
+
+function getLunesDeHoy() {
+  return getLunesDe(dateToStr(new Date()));
 }
 
 // ─── Generación de PDF del informe de reservas ──────────────────────────────
@@ -469,6 +492,7 @@ function PanelAvisos({ authFetch }) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function AdminReservasPage() {
   const { authFetch } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [desde, setDesde] = useState(getLunesDeHoy());
   const [reservas, setReservas] = useState([]);
   const [cargando, setCargando] = useState(false);
@@ -484,6 +508,17 @@ export default function AdminReservasPage() {
   const [generandoPDF, setGenerandoPDF] = useState(false);
   const [generandoCSV, setGenerandoCSV] = useState(false);
   const [catalogo, setCatalogo] = useState({ turoperadoras: [], tiposServicio: [], tarifasNinos: [], stale: false, error: null });
+  const [plantillas, setPlantillas] = useState([]);
+  const [plantillasAbiertas, setPlantillasAbiertas] = useState(false);
+  const [modalPlantilla, setModalPlantilla] = useState(null);
+  const [errorPlantilla, setErrorPlantilla] = useState('');
+  const [guardandoPlantilla, setGuardandoPlantilla] = useState(false);
+  const [generandoPlantillas, setGenerandoPlantillas] = useState(false);
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const [reservaDestacada, setReservaDestacada] = useState(null);
+  const reservaRefs = useRef({});
+  const deepLinkProcesado = useRef(false);
 
   const hasta = addDays(desde, 6);
 
@@ -511,6 +546,29 @@ export default function AdminReservasPage() {
 
   useEffect(() => { cargarCatalogo(); }, [cargarCatalogo]);
 
+  const cargarPlantillas = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/reserva-plantillas');
+      const data = await res.json();
+      setPlantillas(Array.isArray(data) ? data : []);
+    } catch {
+      setPlantillas([]);
+    }
+  }, [authFetch]);
+
+  useEffect(() => { cargarPlantillas(); }, [cargarPlantillas]);
+
+  useEffect(() => {
+    if (deepLinkProcesado.current) return;
+    const fecha = searchParams.get('fecha');
+    const reservaId = searchParams.get('reserva_id');
+    if (!fecha && !reservaId) return;
+    deepLinkProcesado.current = true;
+    if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) setDesde(getLunesDe(fecha));
+    if (reservaId) setReservaDestacada(Number(reservaId));
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
@@ -523,6 +581,16 @@ export default function AdminReservasPage() {
   }, [authFetch, desde, hasta]);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  useEffect(() => {
+    if (!reservaDestacada || cargando) return;
+    const el = reservaRefs.current[reservaDestacada];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const timer = setTimeout(() => setReservaDestacada(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [reservaDestacada, cargando, reservas]);
 
   useEffect(() => {
     authFetch('/api/config').then(r => r.json()).then(data => {
@@ -635,6 +703,156 @@ export default function AdminReservasPage() {
     }
   };
 
+  const abrirConfirmarPlantilla = (r, e) => {
+    e.stopPropagation();
+    setConfirmModal({ id: r.id, nombre: r.nombre, pax: '' });
+  };
+
+  const handleConfirmarPlantilla = async () => {
+    const pax = Number(confirmModal.pax);
+    if (!pax || pax <= 0) {
+      alert('Indique un número de pax válido.');
+      return;
+    }
+    setConfirmando(true);
+    try {
+      const res = await authFetch(`/api/reservas/${confirmModal.id}/confirmar`, {
+        method: 'PUT',
+        body: JSON.stringify({ pax_confirmado: pax }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || 'Error al confirmar');
+      }
+      setConfirmModal(null);
+      await cargar();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setConfirmando(false);
+    }
+  };
+
+  const handleSaltarSemana = async (id, e) => {
+    e.stopPropagation();
+    if (!window.confirm('¿Saltar esta semana? La reserva quedará cancelada (la plantilla no se modifica).')) return;
+    try {
+      const res = await authFetch(`/api/reservas/${id}/saltar-semana`, { method: 'PUT' });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Error al saltar la semana');
+      }
+      await cargar();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const abrirNuevaPlantilla = () => {
+    setErrorPlantilla('');
+    setModalPlantilla({ modo: 'nuevo', datos: { ...PLANTILLA_VACIA } });
+  };
+
+  const abrirEditarPlantilla = (p) => {
+    setErrorPlantilla('');
+    setModalPlantilla({
+      modo: 'editar',
+      datos: {
+        id: p.id,
+        dia_semana: p.dia_semana,
+        hora: p.hora ? p.hora.slice(0, 5) : '',
+        nombre: p.nombre,
+        pax: p.pax ?? '',
+        tipo_servicio: p.tipo_servicio || '',
+        guia: p.guia || '',
+        turoperador_odoo_id: p.turoperador_odoo_id != null ? String(p.turoperador_odoo_id) : SIN_TUROPERADORA,
+        bus_ref: p.bus_ref || '',
+        menu: Array.isArray(p.menu) ? p.menu : [],
+        necesidades_especiales: Array.isArray(p.necesidades_especiales) ? p.necesidades_especiales : [],
+      },
+    });
+  };
+
+  const handleChangePlantilla = (campo, valor) =>
+    setModalPlantilla(m => ({ ...m, datos: { ...m.datos, [campo]: valor } }));
+
+  const handleGuardarPlantilla = async () => {
+    const { datos, modo } = modalPlantilla;
+    if (!datos.nombre?.trim()) {
+      setErrorPlantilla('El nombre es obligatorio.');
+      return;
+    }
+    setGuardandoPlantilla(true);
+    setErrorPlantilla('');
+    try {
+      const turoSeleccionado = catalogo.turoperadoras.find(
+        t => String(t.id) === String(datos.turoperador_odoo_id)
+      );
+      const menuLimpio = datos.menu
+        .filter(c => c.categoria.trim() || c.platos.some(p => p.trim()))
+        .map(c => ({
+          categoria: c.categoria.trim() || 'Sin nombre',
+          platos: c.platos.filter(p => p.trim()).map(p => p.trim()),
+        }));
+      const necesidadesLimpias = datos.necesidades_especiales
+        .filter(n => n.tipo.trim())
+        .map(n => ({ tipo: n.tipo.trim(), cantidad: Number(n.cantidad) || 1 }));
+
+      const body = {
+        dia_semana: Number(datos.dia_semana),
+        hora: datos.hora || null,
+        nombre: datos.nombre.trim(),
+        pax: datos.pax !== '' ? datos.pax.trim() : null,
+        tipo_servicio: datos.tipo_servicio,
+        guia: datos.guia || '',
+        turoperador_odoo_id: turoSeleccionado ? turoSeleccionado.id : null,
+        turoperador_nombre: turoSeleccionado ? turoSeleccionado.nombre : null,
+        bus_ref: datos.bus_ref ? datos.bus_ref.trim() : null,
+        menu: menuLimpio,
+        necesidades_especiales: necesidadesLimpias,
+      };
+
+      const res = await authFetch(
+        modo === 'editar' ? `/api/reserva-plantillas/${datos.id}` : '/api/reserva-plantillas',
+        { method: modo === 'editar' ? 'PUT' : 'POST', body: JSON.stringify(body) }
+      );
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || 'Error al guardar plantilla');
+      }
+      await cargarPlantillas();
+      setModalPlantilla(null);
+    } catch (err) {
+      setErrorPlantilla(err.message);
+    } finally {
+      setGuardandoPlantilla(false);
+    }
+  };
+
+  const handleDesactivarPlantilla = async (id) => {
+    if (!window.confirm('¿Desactivar esta plantilla? Dejará de generar reservas semanales.')) return;
+    await authFetch(`/api/reserva-plantillas/${id}`, { method: 'DELETE' });
+    await cargarPlantillas();
+  };
+
+  const handleGenerarPlantillas = async () => {
+    setGenerandoPlantillas(true);
+    try {
+      const res = await authFetch('/api/reserva-plantillas/generar', {
+        method: 'POST',
+        body: JSON.stringify({ fecha: desde }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al generar');
+      await cargar();
+      alert(`Semana ${data.semana_desde} — ${data.semana_hasta}: ${data.creadas.length} reserva(s) creada(s), ${data.omitidas.length} ya existían.`);
+    } catch (err) {
+      alert(err.message || 'Error al generar reservas');
+    } finally {
+      setGenerandoPlantillas(false);
+    }
+  };
+
   const handleEliminar = async (id, e) => {
     e.stopPropagation();
     if (!confirm('¿Eliminar esta reserva?')) return;
@@ -692,6 +910,10 @@ export default function AdminReservasPage() {
   const hayNinos = numNinos > 0;
   const ninosSinTotal = hayNinos && numTotal <= 0;
   const adultosCalculados = Math.max(numTotal - numNinos, 0);
+  const servicioPlantilla = modalPlantilla?.datos?.tipo_servicio || '';
+  const servicioPlantillaFueraDeCatalogo = Boolean(
+    servicioPlantilla && !catalogo.tiposServicio.some(t => t.nombre === servicioPlantilla)
+  );
 
   return (
     <div className={styles.page}>
@@ -739,6 +961,71 @@ export default function AdminReservasPage() {
         </button>
       </div>
 
+      <div className={styles.plantillasSection}>
+        <div className={styles.plantillasHeader}>
+          <button
+            type="button"
+            className={styles.btnPlantillasToggle}
+            onClick={() => setPlantillasAbiertas(v => !v)}
+          >
+            📅 Plantillas semanales
+            {plantillas.length > 0 && (
+              <span className={styles.plantillasCount}>{plantillas.length}</span>
+            )}
+            <span className={styles.chevron}>{plantillasAbiertas ? '▲' : '▼'}</span>
+          </button>
+          <div className={styles.plantillasActions}>
+            <button
+              type="button"
+              className={styles.btnGenerarPlantillas}
+              onClick={handleGenerarPlantillas}
+              disabled={generandoPlantillas}
+              title="Generar reservas de la semana visible (lun–dom) desde plantillas activas"
+            >
+              {generandoPlantillas ? 'Generando…' : 'Generar semana'}
+            </button>
+            <button type="button" className={styles.btnNuevaPlantilla} onClick={abrirNuevaPlantilla}>
+              + Nueva plantilla
+            </button>
+          </div>
+        </div>
+
+        {plantillasAbiertas && (
+          <div className={styles.plantillasPanel}>
+            {plantillas.length === 0 && (
+              <p className={styles.plantillasVacio}>
+                No hay plantillas activas. Crea una para generar reservas recurrentes.
+                Cada lunes a las 00:05 se materializa la semana siguiente (lun–dom).
+              </p>
+            )}
+            {plantillas.map(p => (
+              <div key={p.id} className={styles.plantillaItem}>
+                <div className={styles.plantillaInfo}>
+                  <span className={styles.plantillaDia}>
+                    {DIAS_SEMANA.find(d => d.value === p.dia_semana)?.label}
+                    {p.hora ? ` · ${formatHora(p.hora)}` : ''}
+                  </span>
+                  <strong>{p.nombre}</strong>
+                  <span className={styles.plantillaMeta}>
+                    {p.pax && `${p.pax} pax`}
+                    {p.tipo_servicio && ` · ${p.tipo_servicio}`}
+                    {p.guia && ` · ${p.guia}`}
+                  </span>
+                </div>
+                <div className={styles.plantillaBtns}>
+                  <button type="button" className={styles.btnEditarPlantilla} onClick={() => abrirEditarPlantilla(p)}>
+                    Editar
+                  </button>
+                  <button type="button" className={styles.btnDesactivarPlantilla} onClick={() => handleDesactivarPlantilla(p.id)}>
+                    Desactivar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className={styles.semanaNav}>
         <button className={styles.btnNav} onClick={semanaAnterior}>← Semana anterior</button>
         <div className={styles.semanaInfo}>
@@ -773,14 +1060,26 @@ export default function AdminReservasPage() {
                   const tieneMenu = Array.isArray(r.menu) && r.menu.length > 0;
                   const necesidades = Array.isArray(r.necesidades_especiales) ? r.necesidades_especiales : [];
                   const isOpen = expandida === r.id;
+                  const esPlantilla = Boolean(r.plantilla_id);
+                  const mostrarAccionesPlantilla = esPlantilla && r.estado === 'sin_confirmar';
+                  const destacada = reservaDestacada === r.id;
                   return (
-                    <div key={r.id} className={`${styles.tarjeta} ${styles['e_' + r.estado]}`}>
+                    <div
+                      key={r.id}
+                      ref={el => { if (el) reservaRefs.current[r.id] = el; }}
+                      className={`${styles.tarjeta} ${styles['e_' + r.estado]} ${destacada ? styles.tarjetaDestacada : ''}`}
+                    >
                       <div className={styles.tarjetaClick} onClick={() => abrirEditar(r)}>
                         <div className={styles.tarjetaTop}>
                           <span className={styles.tarjetaHora}>{formatHora(r.hora) || '—'}</span>
-                          <span className={`${styles.badge} ${styles['b_' + r.estado]}`}>
-                            {ESTADOS.find(e => e.value === r.estado)?.label}
-                          </span>
+                          <div className={styles.tarjetaBadges}>
+                            {esPlantilla && (
+                              <span className={styles.badgePlantilla}>plantilla</span>
+                            )}
+                            <span className={`${styles.badge} ${styles['b_' + r.estado]}`}>
+                              {ESTADOS.find(e => e.value === r.estado)?.label}
+                            </span>
+                          </div>
                         </div>
                         <div className={styles.tarjetaNombre}>
                           {r.nombre}
@@ -831,6 +1130,25 @@ export default function AdminReservasPage() {
                             </div>
                           )}
                         </>
+                      )}
+
+                      {mostrarAccionesPlantilla && (
+                        <div className={styles.accionesPlantilla}>
+                          <button
+                            type="button"
+                            className={styles.btnConfirmarPlantilla}
+                            onClick={e => abrirConfirmarPlantilla(r, e)}
+                          >
+                            Confirmar
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.btnSaltarPlantilla}
+                            onClick={e => handleSaltarSemana(r.id, e)}
+                          >
+                            Saltar esta semana
+                          </button>
+                        </div>
                       )}
 
                       <button className={styles.btnEliminar} onClick={e => handleEliminar(r.id, e)} title="Eliminar">✕</button>
@@ -1063,6 +1381,173 @@ export default function AdminReservasPage() {
               <button className={styles.btnCancelar} onClick={cerrarModal} disabled={guardando}>Cancelar</button>
               <button className={styles.btnGuardar} onClick={handleGuardar} disabled={guardando}>
                 {guardando ? 'Guardando...' : modal.modo === 'nuevo' ? 'Crear reserva' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmModal && (
+        <div className={styles.overlay} onClick={() => setConfirmModal(null)}>
+          <div className={`${styles.modal} ${styles.modalCorto}`} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h2>Confirmar reserva</h2>
+              <button className={styles.btnCerrarModal} onClick={() => setConfirmModal(null)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              <p className={styles.confirmTexto}>{confirmModal.nombre}</p>
+              <div className={styles.field}>
+                <label>Pax confirmado *</label>
+                <input
+                  type="number"
+                  min="1"
+                  autoFocus
+                  placeholder="Número exacto de personas"
+                  value={confirmModal.pax}
+                  onChange={e => setConfirmModal(m => ({ ...m, pax: e.target.value }))}
+                  onKeyDown={e => { if (e.key === 'Enter') handleConfirmarPlantilla(); }}
+                />
+              </div>
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={styles.btnCancelar} onClick={() => setConfirmModal(null)} disabled={confirmando}>
+                Cancelar
+              </button>
+              <button className={styles.btnGuardar} onClick={handleConfirmarPlantilla} disabled={confirmando}>
+                {confirmando ? 'Confirmando…' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalPlantilla && (
+        <div className={styles.overlay} onClick={() => setModalPlantilla(null)}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h2>{modalPlantilla.modo === 'nuevo' ? 'Nueva plantilla semanal' : 'Editar plantilla'}</h2>
+              <button className={styles.btnCerrarModal} onClick={() => setModalPlantilla(null)}>✕</button>
+            </div>
+
+            {errorPlantilla && <div className={styles.errorBox}>{errorPlantilla}</div>}
+
+            <div className={styles.modalBody}>
+              <div className={styles.formGrid}>
+                <div className={styles.field}>
+                  <label>Día de la semana *</label>
+                  <select
+                    value={modalPlantilla.datos.dia_semana}
+                    onChange={e => handleChangePlantilla('dia_semana', e.target.value)}
+                  >
+                    {DIAS_SEMANA.map(d => (
+                      <option key={d.value} value={d.value}>{d.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className={styles.field}>
+                  <label>Hora</label>
+                  <input
+                    type="time"
+                    value={modalPlantilla.datos.hora}
+                    onChange={e => handleChangePlantilla('hora', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className={styles.formGrid}>
+                <div className={styles.field}>
+                  <label>Nombre / Grupo *</label>
+                  <input
+                    type="text"
+                    value={modalPlantilla.datos.nombre}
+                    onChange={e => handleChangePlantilla('nombre', e.target.value)}
+                  />
+                </div>
+                <div className={styles.field}>
+                  <label>Guía</label>
+                  <input
+                    type="text"
+                    value={modalPlantilla.datos.guia}
+                    onChange={e => handleChangePlantilla('guia', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className={styles.formGrid}>
+                <div className={styles.field}>
+                  <label>Pax estimado</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: 22  ó  10-15"
+                    value={modalPlantilla.datos.pax}
+                    onChange={e => handleChangePlantilla('pax', e.target.value)}
+                  />
+                </div>
+                <div className={styles.field}>
+                  <label>Tipo de servicio</label>
+                  <select
+                    value={modalPlantilla.datos.tipo_servicio}
+                    onChange={e => handleChangePlantilla('tipo_servicio', e.target.value)}
+                  >
+                    <option value="">Sin especificar</option>
+                    {servicioPlantillaFueraDeCatalogo && (
+                      <option value={modalPlantilla.datos.tipo_servicio}>
+                        {modalPlantilla.datos.tipo_servicio} (no está en el catálogo)
+                      </option>
+                    )}
+                    {catalogo.tiposServicio.map(t => (
+                      <option key={t.id} value={t.nombre}>{t.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className={styles.formGrid}>
+                <div className={styles.field}>
+                  <label>Turoperadora</label>
+                  <select
+                    value={modalPlantilla.datos.turoperador_odoo_id}
+                    onChange={e => handleChangePlantilla('turoperador_odoo_id', e.target.value)}
+                  >
+                    <option value={SIN_TUROPERADORA}>Particular / Sin turoperadora</option>
+                    {catalogo.turoperadoras.map(t => (
+                      <option key={t.id} value={t.id}>{t.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className={styles.field}>
+                  <label>Ref. bus/guagua</label>
+                  <input
+                    type="text"
+                    value={modalPlantilla.datos.bus_ref}
+                    onChange={e => handleChangePlantilla('bus_ref', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className={styles.field}>
+                <label>Necesidades alimenticias</label>
+                <NecesidadesEditor
+                  necesidades={modalPlantilla.datos.necesidades_especiales}
+                  onChange={val => handleChangePlantilla('necesidades_especiales', val)}
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label>Menú habitual</label>
+                <MenuEditor
+                  menu={modalPlantilla.datos.menu}
+                  onChange={val => handleChangePlantilla('menu', val)}
+                />
+              </div>
+            </div>
+
+            <div className={styles.modalFooter}>
+              <button className={styles.btnCancelar} onClick={() => setModalPlantilla(null)} disabled={guardandoPlantilla}>
+                Cancelar
+              </button>
+              <button className={styles.btnGuardar} onClick={handleGuardarPlantilla} disabled={guardandoPlantilla}>
+                {guardandoPlantilla ? 'Guardando…' : modalPlantilla.modo === 'nuevo' ? 'Crear plantilla' : 'Guardar plantilla'}
               </button>
             </div>
           </div>

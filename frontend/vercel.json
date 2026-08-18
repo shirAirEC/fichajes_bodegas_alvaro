@@ -10,11 +10,17 @@
       "destination": "https://fichajesbodegasalvaro-production.up.railway.app/api/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!\\.well-known/).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
+    {
+      "source": "/.well-known/assetlinks.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" }
+      ]
+    },
     {
       "source": "/assets/(.*)",
       "headers": [

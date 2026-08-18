@@ -3,7 +3,8 @@
   "appName": "Fichajes Bodegas Álvaro",
   "webDir": "dist",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "hostname": "fichajes-bodegas-alvaro.vercel.app"
   },
   "plugins": {
     "Geolocation": {

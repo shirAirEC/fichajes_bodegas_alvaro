@@ -18,6 +18,8 @@ const solicitudesRoutes = require('./routes/solicitudes');
 const notificacionesRoutes = require('./routes/notificaciones');
 const horariosRoutes = require('./routes/horarios');
 const reservasRoutes = require('./routes/reservas');
+const reservaPlantillasRoutes = require('./routes/reserva-plantillas');
+const { iniciarCronGenerarReservasPlantillas } = require('./jobs/generar-reservas-plantillas');
 const vacacionesRoutes = require('./routes/vacaciones');
 const avisosRoutes = require('./routes/avisos');
 const syncRoutes = require('./routes/sync');
@@ -86,6 +88,7 @@ app.use('/api/solicitudes', solicitudesRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/horarios', horariosRoutes);
 app.use('/api/reservas', reservasRoutes);
+app.use('/api/reserva-plantillas', reservaPlantillasRoutes);
 app.use('/api/vacaciones', vacacionesRoutes);
 app.use('/api/avisos', avisosRoutes);
 app.use('/api/sync', syncRoutes);
@@ -98,6 +101,8 @@ async function start() {
     console.log('Conectando a PostgreSQL...');
     await initializeDatabase();
     console.log('Base de datos lista.');
+
+    iniciarCronGenerarReservasPlantillas();
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Fichajes Bodegas Alvaro - API en http://0.0.0.0:${PORT}`);

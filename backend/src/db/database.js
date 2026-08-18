@@ -220,6 +220,37 @@ async function initializeDatabase() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_reservas_fecha ON reservas(fecha);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_reservas_turoperador ON reservas(turoperador_odoo_id);`);
 
+  // Plantillas semanales de reservas (generan filas en reservas cada lunes)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS reserva_plantillas (
+      id SERIAL PRIMARY KEY,
+      dia_semana INTEGER NOT NULL CHECK(dia_semana >= 1 AND dia_semana <= 7),
+      hora TIME DEFAULT NULL,
+      nombre TEXT NOT NULL,
+      pax TEXT DEFAULT NULL,
+      tipo_servicio TEXT DEFAULT '',
+      guia TEXT DEFAULT '',
+      menu JSONB DEFAULT '[]'::jsonb,
+      necesidades_especiales JSONB DEFAULT '[]'::jsonb,
+      turoperador_odoo_id INTEGER DEFAULT NULL,
+      turoperador_nombre TEXT DEFAULT NULL,
+      bus_ref TEXT DEFAULT NULL,
+      activa INTEGER NOT NULL DEFAULT 1,
+      admin_id INTEGER REFERENCES empleados(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_reserva_plantillas_activa ON reserva_plantillas(activa);`);
+
+  // Reservas generadas desde plantilla (evita duplicados por semana)
+  await pool.query(`ALTER TABLE reservas ADD COLUMN IF NOT EXISTS plantilla_id INTEGER REFERENCES reserva_plantillas(id) ON DELETE SET NULL`);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_reservas_plantilla_fecha
+      ON reservas(plantilla_id, fecha)
+      WHERE plantilla_id IS NOT NULL
+  `);
+
   // Tabla de períodos de ausencia (vacaciones, permiso especial, baja médica)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS vacaciones (

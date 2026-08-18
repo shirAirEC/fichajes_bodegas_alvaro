@@ -173,6 +173,78 @@ router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
   }
 });
 
+// PUT /api/reservas/:id/confirmar — confirmar reserva de plantilla (pax numérico)
+router.put('/:id/confirmar', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const pax = parseInt(req.body.pax_confirmado, 10);
+    if (!pax || pax <= 0) {
+      return res.status(400).json({ error: 'pax_confirmado debe ser un número positivo' });
+    }
+
+    const { rows: previas } = await pool.query('SELECT * FROM reservas WHERE id = $1', [req.params.id]);
+    const antes = previas[0];
+    if (!antes) return res.status(404).json({ error: 'Reserva no encontrada' });
+    if (!['sin_confirmar', 'pendiente'].includes(antes.estado)) {
+      return res.status(400).json({ error: 'Solo se pueden confirmar reservas sin confirmar o pendientes' });
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE reservas
+       SET estado = 'confirmado', pax_confirmado = $1, updated_at = NOW()
+       WHERE id = $2 RETURNING *`,
+      [pax, req.params.id]
+    );
+    const reserva = rows[0];
+    const vaciados = camposVaciados(antes, reserva);
+    const fechaStr = new Date(reserva.fecha + 'T00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    notificarCambioPlanificacion(
+      req.user.id,
+      'Planificacion actualizada',
+      `Reserva confirmada: ${reserva.nombre} el ${fechaStr}${reserva.hora ? ' a las ' + reserva.hora.slice(0,5) : ''} (${pax} pax)`
+    );
+    if (!isOdooSyncRequest(req)) {
+      triggerReservaSync(reserva.id, false, vaciados);
+    }
+    res.json(reserva);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// PUT /api/reservas/:id/saltar-semana — cancelar instancia de plantilla sin tocar la plantilla
+router.put('/:id/saltar-semana', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { rows: previas } = await pool.query('SELECT * FROM reservas WHERE id = $1', [req.params.id]);
+    const antes = previas[0];
+    if (!antes) return res.status(404).json({ error: 'Reserva no encontrada' });
+    if (!antes.plantilla_id) {
+      return res.status(400).json({ error: 'Esta reserva no proviene de una plantilla' });
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE reservas SET estado = 'cancelado', updated_at = NOW()
+       WHERE id = $1 RETURNING *`,
+      [req.params.id]
+    );
+    const reserva = rows[0];
+    const vaciados = camposVaciados(antes, reserva);
+    const fechaStr = new Date(reserva.fecha + 'T00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    notificarCambioPlanificacion(
+      req.user.id,
+      'Planificacion actualizada',
+      `Reserva saltada: ${reserva.nombre} el ${fechaStr}`
+    );
+    if (!isOdooSyncRequest(req)) {
+      triggerReservaSync(reserva.id, false, vaciados);
+    }
+    res.json(reserva);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // PUT /api/reservas/:id — actualizar (solo admin)
 router.put('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {

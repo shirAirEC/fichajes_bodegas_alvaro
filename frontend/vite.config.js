@@ -30,6 +30,7 @@ export default defineConfig({
         ]
       },
       workbox: {
+        navigateFallbackDenylist: [/^\/api\//, /^\/\.well-known\//],
         // Solo cachear assets estáticos, no las llamadas a la API
         runtimeCaching: [
           {
