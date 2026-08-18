@@ -1,6 +1,8 @@
-# App Links: Odoo móvil → APK
+# App Links + scheme nativo: Odoo móvil → APK
 
 La APK debe **consumir** el intent (`@capacitor/app` → `appUrlOpen` + `getLaunchUrl`) y navegar a `path+query` (p.ej. `/auth/odoo-sso?token=…`). Si no, Capacitor 6 carga `appUrl` (Vercel `/`) y se pierde el token HMAC (~60s).
+
+**Scheme `fichajes://` (preferido hoy):** no espera Digital Asset Links. Odoo móvil abre `fichajes://auth/odoo-sso?token=…` y Android lanza `com.bodegasalvaro.fichajes`. Si la APK no está instalada, Odoo muestra el portal **dentro de su WebView** (iframe); nunca como único resultado Chrome. Requiere AAB **versionCode 18+**.
 
 Código: `frontend/src/lib/appUrlOpen.js` (registro en `main.jsx` antes del primer render + `useAppUrlOpen` en `App.jsx`). En web/PWA el plugin no se llama (`Capacitor.isNativePlatform()`). `OdooSsoRedirectPage` sigue haciendo fetch JSON in-app; solo hay que **llegar** a esa ruta con el token.
 
@@ -61,6 +63,12 @@ adb shell am start -W -a android.intent.action.VIEW -c android.intent.category.B
 ```
 
 `am start` con package explícito abre la APK aunque `autoVerify` aún falle (SHA de Play pendiente). PWA/Chrome: la misma URL en el navegador no debe romperse (el listener nativo no corre).
+
+Scheme nativo (no depende de Play SHA):
+
+```bash
+adb shell am start -W -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d "fichajes://auth/odoo-sso?token=PRUEBA" com.bodegasalvaro.fichajes
+```
 
 ## Nueva build Play Store
 

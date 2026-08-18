@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiUrl, parseJsonResponse } from '../lib/apiUrl';
+import { safeInternalPath } from '../lib/safeInternalPath';
 
 export default function OdooSsoRedirectPage() {
   const [searchParams] = useSearchParams();
@@ -8,6 +9,7 @@ export default function OdooSsoRedirectPage() {
 
   useEffect(() => {
     const token = searchParams.get('token');
+    const next = safeInternalPath(searchParams.get('next'));
     if (!token) {
       setError('Token SSO no recibido.');
       return;
@@ -28,8 +30,9 @@ export default function OdooSsoRedirectPage() {
           throw new Error(data.error || 'SSO invalido o expirado');
         }
         if (cancelled) return;
+        const nextQ = next ? `&next=${encodeURIComponent(next)}` : '';
         window.location.replace(
-          `/admin/sso-callback?token=${encodeURIComponent(data.token)}`
+          `/admin/sso-callback?token=${encodeURIComponent(data.token)}${nextQ}`
         );
       } catch (err) {
         if (!cancelled) {

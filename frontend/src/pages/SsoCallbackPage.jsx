@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { safeInternalPath } from '../lib/safeInternalPath';
 
 function readSsoToken() {
   const fromQuery = new URLSearchParams(window.location.search).get('token');
@@ -26,9 +27,11 @@ export default function SsoCallbackPage() {
         }
         await loginWithToken(token);
         if (cancelled) return;
-        // Quitar token de la URL y entrar al panel admin.
-        window.history.replaceState(null, '', '/admin');
-        navigate('/admin', { replace: true });
+        const next = safeInternalPath(
+          new URLSearchParams(window.location.search).get('next')
+        ) || '/admin';
+        window.history.replaceState(null, '', next);
+        navigate(next, { replace: true });
       } catch {
         if (!cancelled) setError('No se pudo completar el inicio de sesion SSO.');
       }

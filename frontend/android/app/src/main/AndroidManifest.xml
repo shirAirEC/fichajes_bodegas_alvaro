@@ -22,6 +22,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Scheme nativo: Odoo móvil abre la APK sin App Links / SHA de Play. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="fichajes" />
+            </intent-filter>
+
             <!-- App Links: abrir URLs Vercel en la APK (Odoo SSO, portal). Requiere nueva build + assetlinks.json. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />

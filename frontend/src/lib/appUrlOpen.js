@@ -3,26 +3,45 @@ import { Capacitor } from '@capacitor/core';
 
 /** Host de App Links (mismo hostname que Capacitor `server.hostname`). */
 const APP_LINK_HOST = 'fichajes-bodegas-alvaro.vercel.app';
+/** Scheme nativo: no depende de Digital Asset Links / SHA de Play. */
+const CUSTOM_SCHEME = 'fichajes';
 
 let started = false;
 let lastDest = '';
 const subscribers = new Set();
 
+function destFromHttps(parsed) {
+  const dest = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  if ((!parsed.pathname || parsed.pathname === '/') && !parsed.search && !parsed.hash) {
+    return null;
+  }
+  return dest;
+}
+
 /**
- * Convierte un App Link https://fichajes-bodegas-alvaro.vercel.app/... en
- * path+query+hash interno. Ignora otros hosts (no abrir URLs arbitrarias).
+ * Convierte un App Link https://… o `fichajes://auth/odoo-sso?token=…`
+ * en path+query+hash interno. Ignora otros hosts/schemes.
  */
 export function pathFromAppUrl(rawUrl) {
   if (!rawUrl || typeof rawUrl !== 'string') return null;
   try {
     const parsed = new URL(rawUrl);
+    const proto = (parsed.protocol || '').replace(/:$/, '').toLowerCase();
+    if (proto === CUSTOM_SCHEME) {
+      // fichajes://auth/odoo-sso?token= → host=auth, path=/odoo-sso
+      // fichajes:///auth/odoo-sso?token= → host='', path=/auth/odoo-sso
+      let path = parsed.pathname || '';
+      if (parsed.hostname) {
+        path = `/${parsed.hostname}${path === '/' ? '' : path}`;
+      }
+      if (!path.startsWith('/')) path = `/${path}`;
+      const dest = `${path}${parsed.search}${parsed.hash}`;
+      if (!dest || dest === '/') return null;
+      return dest;
+    }
     if (parsed.protocol !== 'https:') return null;
     if (parsed.hostname.toLowerCase() !== APP_LINK_HOST) return null;
-    const dest = `${parsed.pathname}${parsed.search}${parsed.hash}`;
-    if ((!parsed.pathname || parsed.pathname === '/') && !parsed.search && !parsed.hash) {
-      return null;
-    }
-    return dest;
+    return destFromHttps(parsed);
   } catch {
     return null;
   }
