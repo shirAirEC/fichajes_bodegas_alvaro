@@ -17,23 +17,10 @@ function formatHora(hora) {
 
 function formatFechaHeader(fechaStr) {
   const [y, m, d] = fechaStr.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('es-ES', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  });
-}
-
-function dateToStr(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function addDays(dateStr, days) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  date.setDate(date.getDate() + days);
-  return dateToStr(date);
+  const opciones = { weekday: 'long', day: 'numeric', month: 'long' };
+  // Sin límite de días puede haber reservas del año siguiente: mostrar el año en ese caso
+  if (y !== new Date().getFullYear()) opciones.year = 'numeric';
+  return new Date(y, m - 1, d).toLocaleDateString('es-ES', opciones);
 }
 
 function agruparPorFecha(reservas) {
@@ -70,12 +57,12 @@ export default function PlanPage() {
   const ahora = new Date();
   const pad = n => String(n).padStart(2, '0');
   const hoy = `${ahora.getFullYear()}-${pad(ahora.getMonth() + 1)}-${pad(ahora.getDate())}`;
-  const hasta = addDays(hoy, 6);
 
   const cargar = useCallback(async (esPolling = false) => {
     try {
       if (!esPolling) setCargando(true);
-      const res = await authFetch(`/api/reservas?desde=${hoy}&hasta=${hasta}`);
+      // Toda la programación desde hoy, sin fecha final
+      const res = await authFetch(`/api/reservas?desde=${hoy}`);
       const data = await res.json();
       const lista = Array.isArray(data) ? data : [];
 
@@ -97,7 +84,7 @@ export default function PlanPage() {
     } finally {
       setCargando(false);
     }
-  }, [authFetch, hoy, hasta]);
+  }, [authFetch, hoy]);
 
   const cargarAvisos = useCallback(async () => {
     try {
@@ -150,9 +137,7 @@ export default function PlanPage() {
         <div className={styles.headerLeft}>
           <h1 className={styles.titulo}>Planificación</h1>
           <span className={styles.rango}>
-            {new Date(hoy + 'T00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
-            {' — '}
-            {new Date(hasta + 'T00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+            Desde hoy, {new Date(hoy + 'T00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
           </span>
         </div>
         <div className={styles.reloj}>
@@ -185,7 +170,7 @@ export default function PlanPage() {
       {cargando && <div className={styles.cargando}>Cargando...</div>}
 
       {!cargando && grupos.length === 0 && (
-        <div className={styles.vacio}>No hay reservas programadas para los próximos días.</div>
+        <div className={styles.vacio}>No hay reservas programadas.</div>
       )}
 
       {/* Grupos por día */}
